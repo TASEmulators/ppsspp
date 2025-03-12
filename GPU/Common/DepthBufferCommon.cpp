@@ -115,10 +115,11 @@ void main() {
 )";
 
 static bool SupportsDepthTexturing() {
-	if (gl_extensions.IsGLES) {
-		return gl_extensions.OES_packed_depth_stencil && (gl_extensions.OES_depth_texture || gl_extensions.GLES3);
-	}
-	return gl_extensions.ARB_texture_float;
+	// if (gl_extensions.IsGLES) {
+	// 	return gl_extensions.OES_packed_depth_stencil && (gl_extensions.OES_depth_texture || gl_extensions.GLES3);
+	// }
+	// return gl_extensions.ARB_texture_float;
+	return false;
 }
 
 Draw::Pipeline *CreateReadbackPipeline(Draw::DrawContext *draw, const char *tag, const UniformBufferDesc *ubDesc, const char *fs, const char *fsTag, const char *vs, const char *vsTag) {
@@ -169,9 +170,9 @@ bool FramebufferManagerCommon::ReadbackDepthbuffer(Draw::Framebuffer *fbo, int x
 		return false;
 	}
 	// Old desktop GL can download depth, but not upload.
-	if (gl_extensions.IsGLES && !SupportsDepthTexturing()) {
-		return false;
-	}
+	// if (gl_extensions.IsGLES && !SupportsDepthTexturing()) {
+	// 	return false;
+	// }
 
 	// Pixel size always 4 here because we always request float or RGBA.
 	const u32 bufSize = destW * destH * 4;
@@ -184,7 +185,8 @@ bool FramebufferManagerCommon::ReadbackDepthbuffer(Draw::Framebuffer *fbo, int x
 	float scaleX = (float)destW / w;
 	float scaleY = (float)destH / h;
 
-	bool useColorPath = gl_extensions.IsGLES || scaleX != 1.0f || scaleY != 1.0f;
+	// bool useColorPath = gl_extensions.IsGLES || scaleX != 1.0f || scaleY != 1.0f;
+	bool useColorPath = scaleX != 1.0f || scaleY != 1.0f;
 	bool format16Bit = false;
 
 	if (useColorPath) {

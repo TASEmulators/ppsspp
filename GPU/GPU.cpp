@@ -74,44 +74,45 @@ bool GPU_Init(GraphicsContext *ctx, Draw::DrawContext *draw) {
 	}
 	return true;
 #else
-	switch (gpuCore) {
-	case GPUCORE_GLES:
-		// Disable GLES on ARM Windows (but leave it enabled on other ARM platforms).
-#if PPSSPP_API(ANY_GL)
-		SetGPU(new GPU_GLES(ctx, draw));
-		break;
-#else
-		return false;
-#endif
-	case GPUCORE_SOFTWARE:
-		SetGPU(new SoftGPU(ctx, draw));
-		break;
-	case GPUCORE_DIRECTX9:
-#if PPSSPP_API(D3D9)
-		SetGPU(new GPU_DX9(ctx, draw));
-		break;
-#else
-		return false;
-#endif
-	case GPUCORE_DIRECTX11:
-#if PPSSPP_API(D3D11)
-		SetGPU(new GPU_D3D11(ctx, draw));
-		break;
-#else
-		return false;
-#endif
-#if !PPSSPP_PLATFORM(SWITCH)
-	case GPUCORE_VULKAN:
-		if (!ctx) {
-			ERROR_LOG(Log::G3D, "Unable to init Vulkan GPU backend, no context");
-			break;
-		}
-		SetGPU(new GPU_Vulkan(ctx, draw));
-		break;
-#endif
-	default:
-		break;
-	}
+SetGPU(new SoftGPU(ctx, draw));
+// 	switch (gpuCore) {
+// 	case GPUCORE_GLES:
+// 		// Disable GLES on ARM Windows (but leave it enabled on other ARM platforms).
+// #if PPSSPP_API(ANY_GL)
+// 		SetGPU(new GPU_GLES(ctx, draw));
+// 		break;
+// #else
+// 		return false;
+// #endif
+// 	case GPUCORE_SOFTWARE:
+// 		SetGPU(new SoftGPU(ctx, draw));
+// 		break;
+// 	case GPUCORE_DIRECTX9:
+// #if PPSSPP_API(D3D9)
+// 		SetGPU(new GPU_DX9(ctx, draw));
+// 		break;
+// #else
+// 		return false;
+// #endif
+// 	case GPUCORE_DIRECTX11:
+// #if PPSSPP_API(D3D11)
+// 		SetGPU(new GPU_D3D11(ctx, draw));
+// 		break;
+// #else
+// 		return false;
+// #endif
+// #if !PPSSPP_PLATFORM(SWITCH)
+// 	case GPUCORE_VULKAN:
+// 		if (!ctx) {
+// 			ERROR_LOG(Log::G3D, "Unable to init Vulkan GPU backend, no context");
+// 			break;
+// 		}
+// 		SetGPU(new GPU_Vulkan(ctx, draw));
+// 		break;
+// #endif
+// 	default:
+// 		break;
+// 	}
 
 	if (gpu && !gpu->IsStarted())
 		SetGPU<SoftGPU>(nullptr);

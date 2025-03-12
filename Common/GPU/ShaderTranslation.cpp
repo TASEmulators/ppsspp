@@ -343,10 +343,10 @@ bool TranslateShader(std::string *dest, ShaderLanguage destLang, const ShaderLan
 		// Set some options.
 		spirv_cross::CompilerGLSL::Options options;
 		options.es = desc.gles;
-		options.version = gl_extensions.GLSLVersion();
+		// options.version = gl_extensions.GLSLVersion();
 		// macOS OpenGL 4.1 implementation does not support GL_ARB_shading_language_420pack.
 		// Prevent explicit binding location emission enabled in SPIRV-Cross by default.
-		options.enable_420pack_extension = gl_extensions.ARB_shading_language_420pack;
+		// options.enable_420pack_extension = gl_extensions.ARB_shading_language_420pack;
 		glsl.set_common_options(options);
 		// Compile to GLSL, ready to give to GL driver.
 		*dest = glsl.compile();

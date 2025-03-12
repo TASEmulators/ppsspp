@@ -389,7 +389,8 @@ void SoftwareTransform::Transform(int prim, u32 vertType, const DecVtxFormat &de
 			result->safeHeight = scissorY2;
 		}
 	}
-	if (params_.allowClear && reallyAClear && gl_extensions.gpuVendor != GPU_VENDOR_IMGTEC) {
+	// if (params_.allowClear && reallyAClear && gl_extensions.gpuVendor != GPU_VENDOR_IMGTEC) {
+	if (params_.allowClear && reallyAClear) {
 		// If alpha is not allowed to be separate, it must match for both depth/stencil and color.  Vulkan requires this.
 		bool alphaMatchesColor = gstate.isClearModeColorMask() == gstate.isClearModeAlphaMask();
 		bool depthMatchesStencil = gstate.isClearModeAlphaMask() == gstate.isClearModeDepthMask();

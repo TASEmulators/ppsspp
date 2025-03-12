@@ -102,34 +102,34 @@ LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext() {
 		preferred = Libretro::backend;
 
 #ifndef USING_GLES2
-	if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_OPENGL_CORE) {
-		ctx = new LibretroGLCoreContext();
+	// if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_OPENGL_CORE) {
+	// 	ctx = new LibretroGLCoreContext();
 
-		if (ctx->Init()) {
-			return ctx;
-		}
-		delete ctx;
-	}
+	// 	if (ctx->Init()) {
+	// 		return ctx;
+	// 	}
+	// 	delete ctx;
+	// }
 #endif
 
-	if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_OPENGL || preferred == RETRO_HW_CONTEXT_OPENGLES3) {
-		ctx = new LibretroGLContext();
+	// if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_OPENGL || preferred == RETRO_HW_CONTEXT_OPENGLES3) {
+	// 	ctx = new LibretroGLContext();
 
-		if (ctx->Init()) {
-			return ctx;
-		}
-		delete ctx;
-	}
+	// 	if (ctx->Init()) {
+	// 		return ctx;
+	// 	}
+	// 	delete ctx;
+	// }
 
 #ifndef HAVE_LIBNX
-	if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_VULKAN) {
-		ctx = new LibretroVulkanContext();
+	// if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_VULKAN) {
+	// 	ctx = new LibretroVulkanContext();
 
-		if (ctx->Init()) {
-			return ctx;
-		}
-		delete ctx;
-	}
+	// 	if (ctx->Init()) {
+	// 		return ctx;
+	// 	}
+	// 	delete ctx;
+	// }
 #endif
 
 #ifdef _WIN32
