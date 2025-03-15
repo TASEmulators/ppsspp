@@ -25,19 +25,19 @@
 #include "GPU/GPU.h"
 #include "GPU/GPUCommon.h"
 
-#if PPSSPP_API(ANY_GL)
-#include "GPU/GLES/GPU_GLES.h"
-#endif
-#include "GPU/Vulkan/GPU_Vulkan.h"
+// #if PPSSPP_API(ANY_GL)
+// #include "GPU/GLES/GPU_GLES.h"
+// #endif
+// #include "GPU/Vulkan/GPU_Vulkan.h"
 #include "GPU/Software/SoftGpu.h"
 
-#if PPSSPP_API(D3D9)
-#include "GPU/Directx9/GPU_DX9.h"
-#endif
+// #if PPSSPP_API(D3D9)
+// #include "GPU/Directx9/GPU_DX9.h"
+// #endif
 
-#if PPSSPP_API(D3D11)
-#include "GPU/D3D11/GPU_D3D11.h"
-#endif
+// #if PPSSPP_API(D3D11)
+// #include "GPU/D3D11/GPU_D3D11.h"
+// #endif
 
 GPUStatistics gpuStats;
 GPUCommon *gpu;

@@ -1,8 +1,8 @@
 
 #include "libretro/LibretroGraphicsContext.h"
-#include "libretro/LibretroGLContext.h"
-#include "libretro/LibretroGLCoreContext.h"
-#include "libretro/LibretroVulkanContext.h"
+// #include "libretro/LibretroGLContext.h"
+// #include "libretro/LibretroGLCoreContext.h"
+// #include "libretro/LibretroVulkanContext.h"
 #ifdef _WIN32
 #include "libretro/LibretroD3D11Context.h"
 #endif
