@@ -31,6 +31,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <jaffarCommon/dethreader.hpp>
 
 #include "Common/Profiler/Profiler.h"
 #include "Common/Thread/ThreadUtil.h"
@@ -95,7 +96,7 @@ struct SasThreadParams {
 	int rightVol;
 };
 
-static std::thread *sasThread;
+static jaffarCommon::dethreader::threadId_t sasThread;
 static std::mutex sasWakeMutex;
 static std::mutex sasDoneMutex;
 static std::condition_variable sasWake;
@@ -107,9 +108,9 @@ static int sasMixEvent = -1;
 int __SasThread() {
 	SetCurrentThreadName("SAS");
 
-	std::unique_lock<std::mutex> guard(sasWakeMutex);
+	// std::unique_lock<std::mutex> guard(sasWakeMutex);
 	while (sasThreadState != SasThreadState::DISABLED) {
-		sasWake.wait(guard);
+		// sasWake.wait(guard);
 		if (sasThreadState == SasThreadState::QUEUED) {
 			sas->Mix(sasThreadParams.outAddr, sasThreadParams.inAddr, sasThreadParams.leftVol, sasThreadParams.rightVol);
 
@@ -117,14 +118,15 @@ int __SasThread() {
 			sasThreadState = SasThreadState::READY;
 			sasDone.notify_one();
 		}
+		jaffarCommon::dethreader::yield();
 	}
 	return 0;
 }
 
 static void __SasDrain() {
-	std::unique_lock<std::mutex> guard(sasDoneMutex);
-	while (sasThreadState == SasThreadState::QUEUED)
-		sasDone.wait(guard);
+	// std::unique_lock<std::mutex> guard(sasDoneMutex);
+	while (sasThreadState == SasThreadState::QUEUED) { jaffarCommon::dethreader::yield(); }
+		// sasDone.wait(guard);
 }
 
 static void __SasEnqueueMix(u32 outAddr, u32 inAddr = 0, int leftVol = 0, int rightVol = 0) {
@@ -159,9 +161,9 @@ static void __SasDisableThread() {
 		sasThreadState = SasThreadState::DISABLED;
 		sasWake.notify_one();
 		sasWakeMutex.unlock();
-		sasThread->join();
-		delete sasThread;
-		sasThread = nullptr;
+		jaffarCommon::dethreader::join(sasThread);
+		// delete sasThread;
+		// sasThread = nullptr;
 	}
 }
 
@@ -191,7 +193,8 @@ void __SasInit() {
 
 	if (g_Config.bSeparateSASThread) {
 		sasThreadState = SasThreadState::READY;
-		sasThread = new std::thread(__SasThread);
+		sasThread = jaffarCommon::dethreader::createThread([](){ __SasThread(); });
+		jaffarCommon::dethreader::yield();
 	} else {
 		sasThreadState = SasThreadState::DISABLED;
 	}
