@@ -20,8 +20,8 @@
 // * For some tasks, splitting the input values up linearly between the threads
 //   is not fair. However, we ignore that for now.
 
-const int MAX_CORES_TO_USE = 16;
-const int MIN_IO_BLOCKING_THREADS = 4;
+const int MAX_CORES_TO_USE = 1;
+const int MIN_IO_BLOCKING_THREADS = 1;
 static constexpr size_t TASK_PRIORITY_COUNT = (size_t)TaskPriority::COUNT;
 
 struct GlobalThreadContext {
