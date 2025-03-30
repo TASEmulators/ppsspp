@@ -16,6 +16,7 @@
 // https://github.com/hrydgard/ppsspp and http://www.ppsspp.org/.
 
 #include <thread>
+#include <jaffarCommon/dethreader.hpp>
 
 #include "Core/Core.h"
 #include "Common/Thread/ThreadUtil.h"
@@ -48,8 +49,6 @@
 #include "Core/System.h"
 #include "Core/PSPLoaders.h"
 #include "Core/HLE/sceKernelModule.h"
-
-static std::thread g_loadingThread;
 
 static void UseLargeMem(int memsize) {
 	if (memsize != 1) {
@@ -305,7 +304,7 @@ bool Load_PSP_ISO(FileLoader *fileLoader, std::string *error_string) {
 	// Note: this thread reads the game binary, loads caches, and links HLE while UI spins.
 	// To do something deterministically when the game starts, disabling this thread won't be enough.
 	// Instead: Use Core_ListenLifecycle() or watch coreState.
-	g_loadingThread = std::thread([bootpath] {
+	jaffarCommon::dethreader::createThread([bootpath] {
 		SetCurrentThreadName("ExecLoader");
 		PSP_LoadingLock guard;
 		if (coreState != CORE_POWERUP)
@@ -329,6 +328,7 @@ bool Load_PSP_ISO(FileLoader *fileLoader, std::string *error_string) {
 			PSP_CoreParameter().fileToStart.clear();
 		}
 	});
+	jaffarCommon::dethreader::yield();
 	return true;
 }
 
@@ -469,7 +469,7 @@ bool Load_PSP_ELF_PBP(FileLoader *fileLoader, std::string *error_string) {
 
 	PSPLoaders_Shutdown();
 	// Note: See Load_PSP_ISO for notes about this thread.
-	g_loadingThread = std::thread([finalName] {
+	jaffarCommon::dethreader::createThread([finalName] {
 		SetCurrentThreadName("ExecLoader");
 		PSP_LoadingLock guard;
 		if (coreState != CORE_POWERUP)
@@ -491,6 +491,7 @@ bool Load_PSP_ELF_PBP(FileLoader *fileLoader, std::string *error_string) {
 			PSP_CoreParameter().fileToStart.clear();
 		}
 	});
+	jaffarCommon::dethreader::yield();
 	return true;
 }
 
@@ -500,7 +501,7 @@ bool Load_PSP_GE_Dump(FileLoader *fileLoader, std::string *error_string) {
 
 	PSPLoaders_Shutdown();
 	// Note: See Load_PSP_ISO for notes about this thread.
-	g_loadingThread = std::thread([] {
+	jaffarCommon::dethreader::createThread([] {
 		SetCurrentThreadName("ExecLoader");
 		PSP_LoadingLock guard;
 		if (coreState != CORE_POWERUP)
@@ -522,10 +523,12 @@ bool Load_PSP_GE_Dump(FileLoader *fileLoader, std::string *error_string) {
 			PSP_CoreParameter().fileToStart.clear();
 		}
 	});
+
+	jaffarCommon::dethreader::yield();
 	return true;
 }
 
 void PSPLoaders_Shutdown() {
-	if (g_loadingThread.joinable())
-		g_loadingThread.join();
+	// if (g_loadingThread.joinable())
+	// 	g_loadingThread.join();
 }

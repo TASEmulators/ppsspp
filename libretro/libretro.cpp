@@ -1,4 +1,7 @@
 #include "ppsspp_config.h"
+
+#include <jaffarCommon/dethreader.hpp>
+
 #include <cstring>
 #include <cassert>
 #include <thread>
@@ -1630,7 +1633,9 @@ void retro_run(void)
    {
       std::string error_string;
       while (!PSP_InitUpdate(&error_string))
-         sleep_ms(4, "libretro-init-poll");
+         jaffarCommon::dethreader::sleep(4000);
+         // sleep_ms(4, "libretro-init-poll");
+         
 
       if (!PSP_IsInited())
       {
