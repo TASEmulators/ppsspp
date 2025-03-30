@@ -20,6 +20,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <deque>
+#include <jaffarCommon/dethreader.hpp>
 
 #include "Core/System.h"
 #include "Core/CoreTiming.h"
@@ -105,7 +106,8 @@ struct ThreadEventQueue : public B {
 		eventsHaveRun_ = true;
 		do {
 			while (events_.empty() && !ShouldExitEventLoop()) {
-				eventsWait_.wait(guard);
+				// eventsWait_.wait(guard);
+				jaffarCommon::dethreader::yield();
 			}
 			// Quit the loop if the queue is drained and coreState has tripped, or threading is disabled.
 			if (events_.empty()) {

@@ -17,7 +17,7 @@
 
 #include <condition_variable>
 #include <mutex>
-
+#include <jaffarCommon/dethreader.hpp>
 #include "Common/Serialize/Serializer.h"
 #include "Common/Serialize/SerializeFuncs.h"
 #include "Common/Serialize/SerializeMap.h"
@@ -93,7 +93,8 @@ bool AsyncIOManager::WaitResult(u32 handle, AsyncIOResult &result) {
 		if (PopResult(handle, result)) {
 			return true;
 		}
-		resultsWait_.wait_for(guard, std::chrono::milliseconds(16));
+		//resultsWait_.wait_for(guard, std::chrono::milliseconds(16));
+		jaffarCommon::dethreader::yield();
 	}
 	return PopResult(handle, result);
 }
@@ -144,7 +145,7 @@ void AsyncIOManager::Write(u32 handle, const u8 *buf, size_t bytes) {
 }
 
 void AsyncIOManager::EventResult(u32 handle, const AsyncIOResult &result) {
-	std::lock_guard<std::mutex> guard(resultsLock_);
+	// std::lock_guard<std::mutex> guard(resultsLock_);
 	if (results_.find(handle) != results_.end()) {
 		ERROR_LOG_REPORT(Log::sceIo, "Overwriting previous result for file action on handle %d", handle);
 	}

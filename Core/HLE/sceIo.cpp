@@ -21,6 +21,7 @@
 #include <thread>
 #include <memory>
 
+#include <jaffarCommon/dethreader.hpp>
 #include "Common/Thread/ThreadUtil.h"
 #include "Common/Profiler/Profiler.h"
 #include "Common/TimeUtil.h"
@@ -141,7 +142,7 @@ static MemStickFatState lastMemStickFatState;
 
 static AsyncIOManager ioManager;
 static bool ioManagerThreadEnabled = false;
-static std::thread *ioManagerThread;
+static jaffarCommon::dethreader::threadId_t ioManagerThread = 0;
 
 // TODO: Is it better to just put all on the thread?
 // Let's try. (was 256)
@@ -690,7 +691,10 @@ void __IoInit() {
 	ioManagerThreadEnabled = true;
 	ioManager.SetThreadEnabled(true);
 	Core_ListenLifecycle(&__IoWakeManager);
-	ioManagerThread = new std::thread(&__IoManagerThread);
+
+	ioManagerThread = jaffarCommon::dethreader::createThread([](){ __IoManagerThread(); });
+	// ioManagerThread = new std::thread(&__IoManagerThread);
+	jaffarCommon::dethreader::yield();
 
 	__KernelRegisterWaitTypeFuncs(WAITTYPE_ASYNCIO, __IoAsyncBeginCallback, __IoAsyncEndCallback);
 
@@ -772,10 +776,11 @@ void __IoShutdown() {
 	ioManagerThreadEnabled = false;
 	ioManager.SyncThread();
 	ioManager.FinishEventLoop();
-	if (ioManagerThread != nullptr) {
-		ioManagerThread->join();
-		delete ioManagerThread;
-		ioManagerThread = nullptr;
+	if (ioManagerThread != 0) {
+		jaffarCommon::dethreader::join(ioManagerThread);
+		// ioManagerThread->join();
+		// delete ioManagerThread;
+		ioManagerThread = 0;
 		ioManager.Shutdown();
 	}
 
