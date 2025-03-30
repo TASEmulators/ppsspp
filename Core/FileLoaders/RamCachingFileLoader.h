@@ -66,7 +66,7 @@ private:
 	std::mutex blocksMutex_;
 	u32 aheadRemaining_;
 	s64 aheadPos_;
-	std::thread aheadThread_;
+	// std::-thread aheadThread_;
 	bool aheadThreadRunning_ = false;
 	bool aheadCancel_ = false;
 };

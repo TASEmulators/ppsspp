@@ -77,6 +77,6 @@ private:
 	std::map<s64, BlockInfo> blocks_;
 	std::recursive_mutex blocksMutex_;
 	bool aheadThreadRunning_ = false;
-	std::thread aheadThread_;
+	// std::-thread aheadThread_;
 	std::once_flag preparedFlag_;
 };

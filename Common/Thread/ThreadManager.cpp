@@ -6,7 +6,7 @@
 #include <mutex>
 #include <vector>
 #include <atomic>
-
+#include <jaffarCommon/dethreader.hpp>
 #include "Common/Log.h"
 #include "Common/Thread/ThreadUtil.h"
 #include "Common/Thread/ThreadManager.h"
@@ -236,12 +236,15 @@ void ThreadManager::Init(int numRealCores, int numLogicalCoresPerCpu) {
 
 void ThreadManager::EnqueueTask(Task *task) {
 	if (task->Type() == TaskType::DEDICATED_THREAD) {
-		std::thread th([=](Task *task) {
-			SetCurrentThreadName("DedicatedThreadTask");
-			task->Run();
-			task->Release();
-		}, task);
-		th.detach();
+		
+		jaffarCommon::dethreader::createThread([=]() {
+			// SetCurrentThreadName("DedicatedThreadTask");
+            auto localTask = task;
+			localTask->Run();
+			localTask->Release();
+		});
+		jaffarCommon::dethreader::yield();
+		// th.detach();
 		return;
 	}
 

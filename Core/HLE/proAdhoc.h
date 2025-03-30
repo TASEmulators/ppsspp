@@ -492,13 +492,13 @@ typedef struct SceNetAdhocMatchingContext {
   int matching_thid;
 
   // Event Caller Thread
-  std::thread eventThread;
+//   std::-thread eventThread;
   //s32_le event_thid;
   bool eventRunning = false;
   bool IsMatchingInCB = false;
 
   // IO Handler Thread
-  std::thread inputThread;
+//   std::-thread inputThread;
   //s32_le input_thid;
   bool inputRunning = false;
 

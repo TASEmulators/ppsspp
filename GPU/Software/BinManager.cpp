@@ -18,7 +18,7 @@
 #include <atomic>
 #include <mutex>
 #include <condition_variable>
-
+#include <jaffarCommon/dethreader.hpp>
 #include "Common/Profiler/Profiler.h"
 #include "Common/Thread/ThreadManager.h"
 #include "Common/TimeUtil.h"
@@ -566,6 +566,7 @@ void BinManager::Flush(const char *reason) {
 		st = time_now_d();
 	Drain(true);
 	waitable_->Wait();
+	
 	taskRanges_.clear();
 	tasksSplit_ = false;
 

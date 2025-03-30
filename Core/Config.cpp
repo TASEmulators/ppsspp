@@ -24,7 +24,7 @@
 #include <thread>
 
 #include "ppsspp_config.h"
-
+#include <jaffarCommon/dethreader.hpp>
 #include "Common/GPU/OpenGL/GLFeatures.h"
 #include "Common/Net/HTTPClient.h"
 #include "Common/Net/URL.h"
@@ -71,7 +71,7 @@ static bool jitForcedOff;
 struct ConfigPrivate {
 	std::mutex recentIsosLock;
 	std::mutex recentIsosThreadLock;
-	std::thread recentIsosThread;
+	jaffarCommon::dethreader::threadId_t recentIsosThread;
 	bool recentIsosThreadPending = false;
 
 	void ResetRecentIsosThread();
@@ -1094,15 +1094,14 @@ static void IterateSettings(std::function<void(const ConfigSetting &setting)> fu
 
 void ConfigPrivate::ResetRecentIsosThread() {
 	std::lock_guard<std::mutex> guard(recentIsosThreadLock);
-	if (recentIsosThreadPending && recentIsosThread.joinable())
-		recentIsosThread.join();
+	if (recentIsosThreadPending)
+		jaffarCommon::dethreader::join(recentIsosThread);
 }
 
 void ConfigPrivate::SetRecentIsosThread(std::function<void()> f) {
 	std::lock_guard<std::mutex> guard(recentIsosThreadLock);
-	if (recentIsosThreadPending && recentIsosThread.joinable())
-		recentIsosThread.join();
-	recentIsosThread = std::thread(f);
+	if (recentIsosThreadPending) jaffarCommon::dethreader::join(recentIsosThread);
+	recentIsosThread = jaffarCommon::dethreader::createThread(f);
 	recentIsosThreadPending = true;
 }
 

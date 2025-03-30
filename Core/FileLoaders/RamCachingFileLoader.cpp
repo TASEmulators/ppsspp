@@ -105,8 +105,8 @@ void RamCachingFileLoader::ShutdownCache() {
 	while (aheadThreadRunning_) {
 		sleep_ms(1, "shutdown-ram-cache-poll");
 	}
-	if (aheadThread_.joinable())
-		aheadThread_.join();
+	// if (aheadThread_.joinable())
+	// 	aheadThread_.join();
 
 	std::lock_guard<std::mutex> guard(blocksMutex_);
 	blocks_.clear();
@@ -219,8 +219,8 @@ void RamCachingFileLoader::StartReadAhead(s64 pos) {
 
 	aheadThreadRunning_ = true;
 	aheadCancel_ = false;
-	if (aheadThread_.joinable())
-		aheadThread_.join();
+	// if (aheadThread_.joinable())
+	// 	aheadThread_.join();
 
 	fprintf(stderr, "Reached an unexpected thread create\n");
     std::abort();

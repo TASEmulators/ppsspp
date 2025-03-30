@@ -780,10 +780,10 @@ int PSPSaveDialog::Update(int animSpeed)
 			EndDraw();
 		break;
 		case DS_SAVE_DONE:
-			if (ioThread) {
-				JoinIOThread();
-				param.SetPspParam(param.GetPspParam());
-			}
+			// if (ioThread) {
+			// 	JoinIOThread();
+			// 	param.SetPspParam(param.GetPspParam());
+			// }
 			StartDraw();
 
 			DisplaySaveIcon(true);
@@ -1001,10 +1001,10 @@ int PSPSaveDialog::Update(int animSpeed)
 			EndDraw();
 		break;
 		case DS_DELETE_DONE:
-			if (ioThread) {
-				JoinIOThread();
-				param.SetPspParam(param.GetPspParam());
-			}
+			// if (ioThread) {
+			// 	JoinIOThread();
+			// 	param.SetPspParam(param.GetPspParam());
+			// }
 			StartDraw();
 			
 			DisplayMessage(di->T("Delete completed"));
@@ -1206,11 +1206,11 @@ void PSPSaveDialog::ExecuteNotVisibleIOAction() {
 }
 
 void PSPSaveDialog::JoinIOThread() {
-	if (ioThread) {
-		ioThread->join();
-		delete ioThread;
-		ioThread = 0;
-	}
+	// if (ioThread) {
+	// 	ioThread->join();
+	// 	delete ioThread;
+	// 	ioThread = 0;
+	// }
 }
 
 static void DoExecuteIOAction(PSPSaveDialog *dialog) {
@@ -1221,13 +1221,15 @@ static void DoExecuteIOAction(PSPSaveDialog *dialog) {
 }
 
 void PSPSaveDialog::StartIOThread() {
-	if (ioThread) {
-		WARN_LOG_REPORT(Log::sceUtility, "Starting a save io thread when one already pending, uh oh.");
-		JoinIOThread();
-	}
+	// if (ioThread) {
+	// 	WARN_LOG_REPORT(Log::sceUtility, "Starting a save io thread when one already pending, uh oh.");
+	// 	JoinIOThread();
+	// }
 
 	ioThreadStatus = SAVEIO_PENDING;
-	ioThread = new std::thread(&DoExecuteIOAction, this);
+	fprintf(stderr, "Reached an unexpected thread create\n");
+    std::abort();
+	// ioThread = new std::-thread(&DoExecuteIOAction, this);
 }
 
 int PSPSaveDialog::Shutdown(bool force) {

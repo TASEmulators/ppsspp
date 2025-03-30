@@ -102,7 +102,7 @@ private:
 		SAVEIO_DONE,
 	};
 
-	std::thread *ioThread = nullptr;
+	// std::-thread *ioThread = nullptr;
 	std::mutex paramLock;
 	volatile SaveIOStatus ioThreadStatus = SAVEIO_NONE;
 };

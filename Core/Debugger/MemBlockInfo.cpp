@@ -21,6 +21,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <thread>
+#include <jaffarCommon/dethreader.hpp>
 
 #include "Common/Log.h"
 #include "Common/Serialize/Serializer.h"
@@ -107,7 +108,7 @@ static std::mutex pendingWriteMutex;
 static std::mutex pendingReadMutex;
 static int detailedOverride;
 
-static std::thread flushThread;
+static jaffarCommon::dethreader::threadId_t flushThread;
 static std::atomic<bool> flushThreadRunning;
 static std::atomic<bool> flushThreadPending;
 static std::mutex flushLock;
@@ -400,10 +401,10 @@ size_t FormatMemWriteTagAtNoFlush(char *buf, size_t sz, const char *prefix, uint
 
 void FlushPendingMemInfo() {
 	// This lock prevents us from another thread reading while we're busy flushing.
-	std::lock_guard<std::mutex> guard(pendingReadMutex);
+	// std::lock_guard<std::mutex> guard(pendingReadMutex);
 	std::vector<PendingNotifyMem> thisBatch;
 	{
-		std::lock_guard<std::mutex> guard(pendingWriteMutex);
+		// std::lock_guard<std::mutex> guard(pendingWriteMutex);
 		thisBatch = std::move(pendingNotifies);
 		pendingNotifies.clear();
 		pendingNotifies.reserve(MAX_PENDING_NOTIFIES);
@@ -681,11 +682,11 @@ static void FlushMemInfoThread() {
 	while (flushThreadRunning.load()) {
 		flushThreadPending = false;
 		FlushPendingMemInfo();
-
-		std::unique_lock<std::mutex> guard(flushLock);
-		flushCond.wait(guard, [] {
-			return flushThreadPending.load();
-		});
+        jaffarCommon::dethreader::yield();
+		// std::unique_lock<std::mutex> guard(flushLock);
+		// flushCond.wait(guard, [] {
+			// return flushThreadPending.load();
+		// });
 	}
 }
 
@@ -700,7 +701,8 @@ void MemBlockInfoInit() {
 
 	flushThreadRunning = true;
 	flushThreadPending = false;
-	flushThread = std::thread(&FlushMemInfoThread);
+	flushThread = jaffarCommon::dethreader::createThread([](){ FlushMemInfoThread(); });
+	jaffarCommon::dethreader::yield();
 }
 
 void MemBlockInfoShutdown() {
@@ -720,7 +722,7 @@ void MemBlockInfoShutdown() {
 		flushThreadPending = true;
 	}
 	flushCond.notify_one();
-	flushThread.join();
+	jaffarCommon::dethreader::join(flushThread);
 }
 
 void MemBlockInfoDoState(PointerWrap &p) {

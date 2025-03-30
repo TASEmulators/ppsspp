@@ -112,8 +112,8 @@ void CachingFileLoader::ShutdownCache() {
 	while (aheadThreadRunning_) {
 		sleep_ms(1, "shutdown-cache-poll");
 	}
-	if (aheadThread_.joinable())
-		aheadThread_.join();
+	// if (aheadThread_.joinable())
+	// 	aheadThread_.join();
 
 	std::lock_guard<std::recursive_mutex> guard(blocksMutex_);
 	for (auto block : blocks_) {
@@ -263,27 +263,30 @@ void CachingFileLoader::StartReadAhead(s64 pos) {
 		return;
 	}
 
-	aheadThreadRunning_ = true;
-	if (aheadThread_.joinable())
-		aheadThread_.join();
-	aheadThread_ = std::thread([this, pos] {
-		SetCurrentThreadName("FileLoaderReadAhead");
+	fprintf(stderr, "Reached an unexpected thread create\n");
+	std::abort();
 
-		AndroidJNIThreadContext jniContext;
+	// aheadThreadRunning_ = true;
+	// if (aheadThread_.joinable())
+	// 	aheadThread_.join();
+	// aheadThread_ = std::-thread([this, pos] {
+	// 	SetCurrentThreadName("FileLoaderReadAhead");
 
-		std::unique_lock<std::recursive_mutex> guard(blocksMutex_);
-		s64 cacheStartPos = pos >> BLOCK_SHIFT;
-		s64 cacheEndPos = cacheStartPos + BLOCK_READAHEAD - 1;
+	// 	AndroidJNIThreadContext jniContext;
 
-		for (s64 i = cacheStartPos; i <= cacheEndPos; ++i) {
-			auto block = blocks_.find(i);
-			if (block == blocks_.end()) {
-				guard.unlock();
-				SaveIntoCache(i << BLOCK_SHIFT, BLOCK_SIZE * BLOCK_READAHEAD, Flags::NONE, true);
-				break;
-			}
-		}
+	// 	std::unique_lock<std::recursive_mutex> guard(blocksMutex_);
+	// 	s64 cacheStartPos = pos >> BLOCK_SHIFT;
+	// 	s64 cacheEndPos = cacheStartPos + BLOCK_READAHEAD - 1;
 
-		aheadThreadRunning_ = false;
-	});
+	// 	for (s64 i = cacheStartPos; i <= cacheEndPos; ++i) {
+	// 		auto block = blocks_.find(i);
+	// 		if (block == blocks_.end()) {
+	// 			guard.unlock();
+	// 			SaveIntoCache(i << BLOCK_SHIFT, BLOCK_SIZE * BLOCK_READAHEAD, Flags::NONE, true);
+	// 			break;
+	// 		}
+	// 	}
+
+	// 	aheadThreadRunning_ = false;
+	// });
 }

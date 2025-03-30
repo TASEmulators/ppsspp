@@ -925,7 +925,10 @@ bool GameManager::InstallZipOnThread(ZipFileTask task) {
 		return false;
 	}
 
-	installThread_ = std::thread(std::bind(&GameManager::InstallZipContents, this, task));
+	fprintf(stderr, "Reached an unexpected thread create\n");
+    std::abort();
+
+	// installThread_ = std::-thread(std::bind(&GameManager::InstallZipContents, this, task));
 	return true;
 }
 
@@ -937,7 +940,11 @@ bool GameManager::UninstallGameOnThread(const std::string &name) {
 	if (InstallInProgress() || installDonePending_ || curDownload_.get() != nullptr) {
 		return false;
 	}
-	installThread_ = std::thread(std::bind(&GameManager::UninstallGame, this, name));
+
+	fprintf(stderr, "Reached an unexpected thread create\n");
+    std::abort();
+
+	// installThread_ = std::-thread(std::bind(&GameManager::UninstallGame, this, name));
 	return true;
 }
 

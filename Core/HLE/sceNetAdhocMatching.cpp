@@ -1570,14 +1570,14 @@ int NetAdhocMatching_Stop(int matchingId) {
 	NetAdhoc_SetSocketAlert(item->socket, ADHOC_F_ALERTRECV);
 
 	item->inputRunning = false;
-	if (item->inputThread.joinable()) {
-		item->inputThread.join();
-	}
+	// if (item->inputThread.joinable()) {
+	// 	item->inputThread.join();
+	// }
 
 	item->eventRunning = false;
-	if (item->eventThread.joinable()) {
-		item->eventThread.join();
-	}
+	// if (item->eventThread.joinable()) {
+	// 	item->eventThread.join();
+	// }
 
 	// Stop fake PSP Thread.
 	// kernelObjects may already been cleared early during a Shutdown, thus trying to access it may generates Warning/Error in the log
