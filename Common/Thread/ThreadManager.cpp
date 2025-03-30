@@ -38,7 +38,7 @@ struct GlobalThreadContext {
 struct TaskThreadContext {
 	std::atomic<int> queue_size;
 	std::deque<Task *> private_queue[TASK_PRIORITY_COUNT];
-	std::thread thread; // the worker thread
+	jaffarCommon::dethreader::threadId_t thread; // the worker thread
 	std::condition_variable cond; // used to signal new work
 	std::mutex mutex; // protects the local queue.
 	int index;
@@ -87,7 +87,8 @@ void ThreadManager::Teardown() {
 	}
 
 	for (TaskThreadContext *&threadCtx : global_->threads_) {
-		threadCtx->thread.join();
+		// threadCtx->thread.join();
+		jaffarCommon::dethreader::join(threadCtx->thread);
 		// TODO: Is it better to just delete these?
 		for (size_t i = 0; i < TASK_PRIORITY_COUNT; ++i) {
 			for (Task *task : threadCtx->private_queue[i]) {
@@ -190,10 +191,12 @@ static void WorkerThreadFunc(GlobalThreadContext *global, TaskThreadContext *thr
 			}
 
 			// We must check both queue and single again, while locked.
-			bool wait = !thread->cancelled && !task && global_queue_size() == 0;
+			// bool wait = !thread->cancelled && !task && global_queue_size() == 0;
 
-			if (wait)
-				thread->cond.wait(lock);
+			// if (wait)
+			// 	thread->cond.wait(lock);
+
+			while(!thread->cancelled && !task && global_queue_size() == 0) jaffarCommon::dethreader::yield();
 		}
 		// The task itself takes care of notifying anyone waiting on it. Not the
 		// responsibility of the ThreadManager (although it could be!).
@@ -204,6 +207,8 @@ static void WorkerThreadFunc(GlobalThreadContext *global, TaskThreadContext *thr
 			thread->queue_size--;
 			// _dbg_assert_(thread->queue_size == thread->private_queue[0].size() + thread->private_queue[1].size() + thread->private_queue[2].size());
 		}
+
+		jaffarCommon::dethreader::yield();
 	}
 
 	// In case it got attached to JNI, detach it. Don't think this has any side effects if called redundantly.
@@ -229,7 +234,7 @@ void ThreadManager::Init(int numRealCores, int numLogicalCoresPerCpu) {
 		thread->cancelled.store(false);
 		thread->type = i < numComputeThreads_ ? TaskType::CPU_COMPUTE : TaskType::IO_BLOCKING;
 		thread->index = i;
-		thread->thread = std::thread(&WorkerThreadFunc, global_, thread);
+		thread->thread = jaffarCommon::dethreader::createThread([=]() { WorkerThreadFunc(global_, thread); });
 		global_->threads_.push_back(thread);
 	}
 }
