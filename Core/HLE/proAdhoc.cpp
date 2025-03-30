@@ -98,7 +98,7 @@ std::atomic<int> metasocket((int)INVALID_SOCKET);
 
 SceNetAdhocctlParameter parameter;
 SceNetAdhocctlAdhocId product_code;
-std::thread friendFinderThread;
+// std::-thread friendFinderThread;
 std::recursive_mutex peerlock;
 AdhocSocket* adhocSockets[MAX_SOCKET];
 bool isOriPort = false;

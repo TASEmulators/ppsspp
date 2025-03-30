@@ -52,7 +52,7 @@ SceNetAdhocctlGameNode * _db_game = NULL;
 
 // Server Status
 std::atomic<bool> adhocServerRunning(false);
-std::thread adhocServerThread;
+// std::-thread adhocServerThread;
 
 // Crosslink database for cross region Adhoc play
 std::vector<db_crosslink> crosslinks;

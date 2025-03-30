@@ -1892,11 +1892,13 @@ int NetAdhocMatching_Start(int matchingId, int evthPri, int evthPartitionId, int
 	//Create the threads
 	if (!item->eventRunning) {
 		item->eventRunning = true;
-		item->eventThread = std::thread(matchingEventThread, matchingId);
+		std::abort();
+		// item->eventThread = std::-thread(matchingEventThread, matchingId);
 	}
 	if (!item->inputRunning) {
 		item->inputRunning = true;
-		item->inputThread = std::thread(matchingInputThread, matchingId);
+		std::abort();
+		// item->inputThread = std::-thread(matchingInputThread, matchingId);
 	}
 
 	item->running = 1;

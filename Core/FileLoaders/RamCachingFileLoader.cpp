@@ -221,33 +221,36 @@ void RamCachingFileLoader::StartReadAhead(s64 pos) {
 	aheadCancel_ = false;
 	if (aheadThread_.joinable())
 		aheadThread_.join();
-	aheadThread_ = std::thread([this] {
-		SetCurrentThreadName("FileLoaderReadAhead");
 
-		AndroidJNIThreadContext jniContext;
+	fprintf(stderr, "Reached an unexpected thread create\n");
+    std::abort();
+	// aheadThread_ = std::-thread([this] {
+	// 	SetCurrentThreadName("FileLoaderReadAhead");
 
-		while (aheadRemaining_ != 0 && !aheadCancel_) {
-			// Where should we look?
-			const u32 cacheStartPos = NextAheadBlock();
-			if (cacheStartPos == 0xFFFFFFFF) {
-				// Must be full.
-				break;
-			}
-			u32 cacheEndPos = cacheStartPos + BLOCK_READAHEAD - 1;
-			if (cacheEndPos >= blocks_.size()) {
-				cacheEndPos = (u32)blocks_.size() - 1;
-			}
+	// 	AndroidJNIThreadContext jniContext;
 
-			for (u32 i = cacheStartPos; i <= cacheEndPos; ++i) {
-				if (blocks_[i] == 0) {
-					SaveIntoCache((u64)i << BLOCK_SHIFT, BLOCK_SIZE * BLOCK_READAHEAD, Flags::NONE);
-					break;
-				}
-			}
-		}
+	// 	while (aheadRemaining_ != 0 && !aheadCancel_) {
+	// 		// Where should we look?
+	// 		const u32 cacheStartPos = NextAheadBlock();
+	// 		if (cacheStartPos == 0xFFFFFFFF) {
+	// 			// Must be full.
+	// 			break;
+	// 		}
+	// 		u32 cacheEndPos = cacheStartPos + BLOCK_READAHEAD - 1;
+	// 		if (cacheEndPos >= blocks_.size()) {
+	// 			cacheEndPos = (u32)blocks_.size() - 1;
+	// 		}
 
-		aheadThreadRunning_ = false;
-	});
+	// 		for (u32 i = cacheStartPos; i <= cacheEndPos; ++i) {
+	// 			if (blocks_[i] == 0) {
+	// 				SaveIntoCache((u64)i << BLOCK_SHIFT, BLOCK_SIZE * BLOCK_READAHEAD, Flags::NONE);
+	// 				break;
+	// 			}
+	// 		}
+	// 	}
+
+	// 	aheadThreadRunning_ = false;
+	// });
 }
 
 u32 RamCachingFileLoader::NextAheadBlock() {

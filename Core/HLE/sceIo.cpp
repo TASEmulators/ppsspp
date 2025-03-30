@@ -693,7 +693,6 @@ void __IoInit() {
 	Core_ListenLifecycle(&__IoWakeManager);
 
 	ioManagerThread = jaffarCommon::dethreader::createThread([](){ __IoManagerThread(); });
-	// ioManagerThread = new std::thread(&__IoManagerThread);
 	jaffarCommon::dethreader::yield();
 
 	__KernelRegisterWaitTypeFuncs(WAITTYPE_ASYNCIO, __IoAsyncBeginCallback, __IoAsyncEndCallback);

@@ -43,7 +43,7 @@ static std::map<std::pair<uint32_t, IRProfilerStatus>, int> debugSeenPCUsage;
 static double lastDebugStatsLog = 0.0;
 static constexpr double debugStatsFrequency = 5.0;
 
-static std::thread debugProfilerThread;
+// static std::-thread debugProfilerThread;
 std::atomic<bool> debugProfilerThreadStatus = false;
 
 template <int N>
@@ -184,10 +184,10 @@ int IRNativeBackend::ReportBadAddress(uint32_t addr, uint32_t alignment, uint32_
 IRNativeBackend::IRNativeBackend(IRBlockCache &blocks) : blocks_(blocks) {}
 
 IRNativeBackend::~IRNativeBackend() {
-	if (debugProfilerThreadStatus) {
-		debugProfilerThreadStatus = false;
-		debugProfilerThread.join();
-	}
+	// if (debugProfilerThreadStatus) {
+	// 	debugProfilerThreadStatus = false;
+	// 	debugProfilerThread.join();
+	// }
 }
 
 void IRNativeBackend::CompileIRInst(IRInst inst) {
@@ -494,16 +494,19 @@ void IRNativeJit::Init(IRNativeBackend &backend) {
 
 	if (enableDebugProfiler && hooks_.profilerPC) {
 		debugProfilerThreadStatus = true;
-		debugProfilerThread = std::thread([&] {
-			// Spin, spin spin... maybe could at least hook into sleeps.
-			while (debugProfilerThreadStatus) {
-				IRProfilerStatus stat = *hooks_.profilerStatus;
-				uint32_t pc = *hooks_.profilerPC;
-				if (stat != IRProfilerStatus::NOT_RUNNING && stat != IRProfilerStatus::SYSCALL) {
-					debugSeenPCUsage[std::make_pair(pc, stat)]++;
-				}
-			}
-		});
+
+		fprintf(stderr, "Reached an unexpected thread create\n");
+		std::abort();
+		// debugProfilerThread = std::-thread([&] {
+		// 	// Spin, spin spin... maybe could at least hook into sleeps.
+		// 	while (debugProfilerThreadStatus) {
+		// 		IRProfilerStatus stat = *hooks_.profilerStatus;
+		// 		uint32_t pc = *hooks_.profilerPC;
+		// 		if (stat != IRProfilerStatus::NOT_RUNNING && stat != IRProfilerStatus::SYSCALL) {
+		// 			debugSeenPCUsage[std::make_pair(pc, stat)]++;
+		// 		}
+		// 	}
+		// });
 	}
 }
 

@@ -848,7 +848,7 @@ extern int actionAfterMatchingMipsCall;
 extern std::atomic<int> metasocket;
 extern SceNetAdhocctlParameter parameter;
 extern SceNetAdhocctlAdhocId product_code;
-extern std::thread friendFinderThread;
+// extern std::-thread friendFinderThread;
 extern std::recursive_mutex peerlock;
 extern AdhocSocket* adhocSockets[MAX_SOCKET];
 

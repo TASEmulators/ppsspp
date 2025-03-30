@@ -102,7 +102,7 @@ namespace Reporting
 	static std::map<Path, u32> crcResults;
 	static std::atomic<bool> crcPending{};
 	static std::atomic<bool> crcCancel{};
-	static std::thread crcThread;
+	// static std::-thread crcThread;
 
 	static u32 CalculateCRC(BlockDevice *blockDevice, std::atomic<bool> *cancel) {
 		auto ga = GetI18NCategory(I18NCat::GAME);
@@ -171,7 +171,10 @@ namespace Reporting
 		crcFilename = gamePath;
 		crcPending = true;
 		crcCancel = false;
-		crcThread = std::thread(CalculateCRCThread);
+
+		fprintf(stderr, "Reached an unexpected thread create\n");
+		std::abort();
+		// crcThread = std::-thread(CalculateCRCThread);
 	}
 
 	bool HasCRC(const Path &gamePath) {
@@ -189,10 +192,10 @@ namespace Reporting
 			it = crcResults.find(gamePath);
 		}
 
-		if (crcThread.joinable()) {
-			INFO_LOG(Log::System, "Finished CRC calculation");
-			crcThread.join();
-		}
+		// if (crcThread.joinable()) {
+		// 	INFO_LOG(Log::System, "Finished CRC calculation");
+		// 	crcThread.join();
+		// }
 		return it->second;
 	}
 
@@ -217,8 +220,8 @@ namespace Reporting
 			DEBUG_LOG(Log::System, "No CRC pending");
 		}
 
-		if (crcThread.joinable())
-			crcThread.join();
+		// if (crcThread.joinable())
+		// 	crcThread.join();
 	}
 
 	void CancelCRC() {

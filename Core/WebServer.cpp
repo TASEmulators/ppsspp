@@ -46,7 +46,7 @@ enum class ServerStatus {
 static const char *REPORT_HOSTNAME = "report.ppsspp.org";
 static const int REPORT_PORT = 80;
 
-static std::thread serverThread;
+// static std::-thread serverThread;
 static ServerStatus serverStatus;
 static std::mutex serverStatusLock;
 static int serverFlags;
@@ -452,14 +452,17 @@ bool StartWebServer(WebServerFlags flags) {
 		serverFlags |= (int)flags;
 		return true;
 
-	case ServerStatus::FINISHED:
-		serverThread.join();
-		[[fallthrough]]; // Intentional fallthrough.
+	// case ServerStatus::FINISHED:
+	// 	serverThread.join();
+	// 	[[fallthrough]]; // Intentional fallthrough.
 
 	case ServerStatus::STOPPED:
 		serverStatus = ServerStatus::STARTING;
 		serverFlags = (int)flags;
-		serverThread = std::thread(&ExecuteWebServer);
+
+		fprintf(stderr, "Reached an unexpected thread create\n");
+		std::abort();
+		// serverThread = std::-thread(&ExecuteWebServer);
 		return true;
 
 	default:

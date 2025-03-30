@@ -29,6 +29,7 @@
 #include <cstring>
 #include <string>
 #include <thread>
+#include <jaffarCommon/dethreader.hpp>
 
 #include "Common/TimeUtil.h"
 #include "Common/Data/Text/I18n.h"
@@ -43,7 +44,7 @@
 
 PortManager g_PortManager;
 bool upnpServiceRunning = false;
-std::thread upnpServiceThread;
+jaffarCommon::dethreader::threadId_t upnpServiceThread;
 std::recursive_mutex upnpLock;
 std::deque<UPnPArgs> upnpReqs;
 
@@ -477,7 +478,8 @@ int upnpService(const unsigned int timeout)
 	// Service Loop
 	while (upnpServiceRunning && coreState != CORE_POWERDOWN) {
 		// Sleep for 1ms for faster response if active, otherwise sleep longer (TODO: Improve on this).
-		sleep_ms(g_Config.bEnableUPnP ? 1 : 100, "upnp-poll");
+		//sleep_ms(g_Config.bEnableUPnP ? 1 : 100, "upnp-poll");
+		jaffarCommon::dethreader::sleep(1000);
 
 		// Attempts to reconnect if not connected yet or got disconnected
 		if (g_Config.bEnableUPnP && g_PortManager.GetInitState() == UPNP_INITSTATE_NONE) {
@@ -527,16 +529,18 @@ int upnpService(const unsigned int timeout)
 void __UPnPInit(const unsigned int timeout) {
 	if (!upnpServiceRunning) {
 		upnpServiceRunning = true;
-		upnpServiceThread = std::thread(upnpService, timeout);
+		upnpServiceThread = jaffarCommon::dethreader::createThread([timeout](){ upnpService(timeout); });
+		jaffarCommon::dethreader::yield();
 	}
 }
 
 void __UPnPShutdown() {
 	if (upnpServiceRunning) {
 		upnpServiceRunning = false;
-		if (upnpServiceThread.joinable()) {
-			upnpServiceThread.join();
-		}
+		// if (upnpServiceThread.joinable()) {
+			jaffarCommon::dethreader::join(upnpServiceThread);
+			// upnpServiceThread.join();
+		// }
 	}
 }
 

@@ -122,10 +122,10 @@ bool __NetAdhocConnected() {
 
 void __NetAdhocShutdown() {
 	// Kill AdhocServer Thread
-	adhocServerRunning = false;
-	if (adhocServerThread.joinable()) {
-		adhocServerThread.join();
-	}
+	// adhocServerRunning = false;
+	// if (adhocServerThread.joinable()) {
+	// 	adhocServerThread.join();
+	// }
 
 	NetAdhocctl_Term();
 
@@ -1238,7 +1238,9 @@ void __NetAdhocInit() {
 	// Create built-in AdhocServer Thread
 	adhocServerRunning = false;
 	if (g_Config.bEnableWlan && g_Config.bEnableAdhocServer) {
-		adhocServerThread = std::thread(proAdhocServerThread, SERVER_PORT);
+		fprintf(stderr, "Reached an unexpected thread create\n");
+		std::abort();
+		// adhocServerThread = std::-thread(proAdhocServerThread, SERVER_PORT);
 	}
 }
 
@@ -1290,7 +1292,9 @@ int sceNetAdhocctlInit(int stackSize, int prio, u32 productAddr) {
 
 	// TODO: Merging friendFinder (real) thread to AdhocThread (fake) thread on PSP side
 	if (!friendFinderRunning) {
-		friendFinderThread = std::thread(friendFinder);
+		fprintf(stderr, "Reached an unexpected thread create\n");
+		std::abort();
+		// friendFinderThread = std::-thread(friendFinder);
 	}
 
 	// Need to make sure to be connected to Adhoc Server (indicated by networkInited) before returning to prevent GTA VCS failed to create/join a group and unable to see any game room
@@ -2549,10 +2553,10 @@ int NetAdhocctl_Term() {
 		}
 
 		// Terminate Adhoc Threads
-		friendFinderRunning = false;
-		if (friendFinderThread.joinable()) {
-			friendFinderThread.join();
-		}
+		// friendFinderRunning = false;
+		// if (friendFinderThread.joinable()) {
+		// 	friendFinderThread.join();
+		// }
 
 		// TODO: May need to block current thread to make sure all Adhocctl callbacks have been fully executed before terminating Adhoc PSPThread (ie. threadAdhocID).
 
