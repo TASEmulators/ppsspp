@@ -62,6 +62,8 @@
 // TODO: Find a better place for this.
 http::RequestManager g_DownloadManager;
 
+const char* gitVersion = "v";
+
 Config g_Config;
 
 static bool jitForcedOff;

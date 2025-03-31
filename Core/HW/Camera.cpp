@@ -439,34 +439,34 @@ int __v4l_startCapture(int ideal_width, int ideal_height) {
 }
 
 int __v4l_stopCapture() {
-	enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+// 	enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
-	if (v4l_fd < 0) {
-		goto exit;
-	}
+// 	if (v4l_fd < 0) {
+// 		goto exit;
+// 	}
 
-	if (ioctl(v4l_fd, VIDIOC_STREAMOFF, &type) == -1) {
-		ERROR_LOG(Log::HLE, "VIDIOC_STREAMOFF");
-		goto exit;
-	}
+// 	if (ioctl(v4l_fd, VIDIOC_STREAMOFF, &type) == -1) {
+// 		ERROR_LOG(Log::HLE, "VIDIOC_STREAMOFF");
+// 		goto exit;
+// 	}
 
-	for (int buf_id = 0; buf_id < v4l_buffer_count; buf_id++) {
-		if (munmap(v4l_buffers[buf_id].start, v4l_buffers[buf_id].length) == -1) {
-			ERROR_LOG(Log::HLE, "munmap");
-			goto exit;
-		}
-	}
+// 	for (int buf_id = 0; buf_id < v4l_buffer_count; buf_id++) {
+// 		if (munmap(v4l_buffers[buf_id].start, v4l_buffers[buf_id].length) == -1) {
+// 			ERROR_LOG(Log::HLE, "munmap");
+// 			goto exit;
+// 		}
+// 	}
 
-	if (close(v4l_fd) == -1) {
-		ERROR_LOG(Log::HLE, "close");
-		goto exit;
-	}
+// 	if (close(v4l_fd) == -1) {
+// 		ERROR_LOG(Log::HLE, "close");
+// 		goto exit;
+// 	}
 
-	v4l_fd = -1;
-	//pthread_join(v4l_thread, NULL);
+// 	v4l_fd = -1;
+// 	//pthread_join(v4l_thread, NULL);
 
-exit:
-	v4l_fd = -1;
+// exit:
+// 	v4l_fd = -1;
 	return 0;
 }
 

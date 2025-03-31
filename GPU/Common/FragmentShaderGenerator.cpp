@@ -36,6 +36,8 @@
 
 #define WRITE(p, ...) p.F(__VA_ARGS__)
 
+GLExtensions gl_extensions;
+
 static const SamplerDef samplersMono[3] = {
 	{ 0, "tex" },
 	{ 1, "fbotex", SamplerFlags::ARRAY_ON_VULKAN },

@@ -14,7 +14,9 @@
 #if defined(__APPLE__)
 #include <OpenGL/gl.h>
 #else
+#ifndef GLEW_NO_GLU
 #include <GL/gl.h>
+#endif
 #endif
 #endif
 
