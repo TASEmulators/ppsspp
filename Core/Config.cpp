@@ -63,6 +63,7 @@
 http::RequestManager g_DownloadManager;
 
 const char* gitVersion = "0";
+
 Config g_Config;
 
 static bool jitForcedOff;

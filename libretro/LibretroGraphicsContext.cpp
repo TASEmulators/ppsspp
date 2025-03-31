@@ -94,12 +94,12 @@ void LibretroGraphicsContext::LostBackbuffer() { draw_->HandleEvent(Draw::Event:
 LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext() {
 	LibretroGraphicsContext *ctx;
 
-	retro_hw_context_type preferred;
-	if (!Libretro::environ_cb(RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER, &preferred))
-		preferred = RETRO_HW_CONTEXT_DUMMY;
+	// retro_hw_context_type preferred;
+	// if (!Libretro::environ_cb(RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER, &preferred))
+	// 	preferred = RETRO_HW_CONTEXT_DUMMY;
 
-	if (Libretro::backend != RETRO_HW_CONTEXT_DUMMY)
-		preferred = Libretro::backend;
+	// if (Libretro::backend != RETRO_HW_CONTEXT_DUMMY)
+	// 	preferred = Libretro::backend;
 
 #ifndef USING_GLES2
 	// if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_OPENGL_CORE) {
@@ -132,22 +132,22 @@ LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext() {
 	// }
 #endif
 
-#ifdef _WIN32
-	if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_DIRECT3D) {
-		ctx = new LibretroD3D11Context();
+// #ifdef _WIN32
+// 	if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_DIRECT3D) {
+// 		ctx = new LibretroD3D11Context();
 
-		if (ctx->Init()) {
-			return ctx;
-		}
-		delete ctx;
+// 		if (ctx->Init()) {
+// 			return ctx;
+// 		}
+// 		delete ctx;
 
-		ctx = new LibretroD3D9Context();
-		if (ctx->Init()) {
-			return ctx;
-		}
-		delete ctx;
-	}
-#endif
+// 		ctx = new LibretroD3D9Context();
+// 		if (ctx->Init()) {
+// 			return ctx;
+// 		}
+// 		delete ctx;
+// 	}
+// #endif
 
 	ctx = new LibretroSoftwareContext();
 	ctx->Init();

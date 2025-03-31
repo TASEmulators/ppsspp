@@ -66,15 +66,16 @@ bool GPU_IsStarted() {
 bool GPU_Init(GraphicsContext *ctx, Draw::DrawContext *draw) {
 	const auto &gpuCore = PSP_CoreParameter().gpuCore;
 	_assert_(draw || gpuCore == GPUCORE_SOFTWARE);
-#if PPSSPP_PLATFORM(UWP)
-	if (gpuCore == GPUCORE_SOFTWARE) {
-		SetGPU(new SoftGPU(ctx, draw));
-	} else {
-		SetGPU(new GPU_D3D11(ctx, draw));
-	}
-	return true;
-#else
-SetGPU(new SoftGPU(ctx, draw));
+
+	SetGPU(new SoftGPU(ctx, draw));
+// #if PPSSPP_PLATFORM(UWP)
+// 	if (gpuCore == GPUCORE_SOFTWARE) {
+// 		SetGPU(new SoftGPU(ctx, draw));
+// 	} else {
+// 		SetGPU(new GPU_D3D11(ctx, draw));
+// 	}
+// 	return true;
+// #else
 // 	switch (gpuCore) {
 // 	case GPUCORE_GLES:
 // 		// Disable GLES on ARM Windows (but leave it enabled on other ARM platforms).
@@ -114,11 +115,10 @@ SetGPU(new SoftGPU(ctx, draw));
 // 		break;
 // 	}
 
-	if (gpu && !gpu->IsStarted())
-		SetGPU<SoftGPU>(nullptr);
+	// if (gpu && !gpu->IsStarted())
+	// 	SetGPU<SoftGPU>(nullptr);
 
 	return gpu != nullptr;
-#endif
 }
 #ifdef USE_CRT_DBG
 #define new DBG_NEW
