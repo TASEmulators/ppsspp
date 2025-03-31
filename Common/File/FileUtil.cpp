@@ -554,6 +554,8 @@ bool Delete(const Path &filename) {
 
 // Returns true if successful, or path already exists.
 bool CreateDir(const Path &path) {
+    return false;
+
 	if (SIMULATE_SLOW_IO) {
 		sleep_ms(100, "slow-io-sim");
 		INFO_LOG(Log::System, "CreateDir %s", path.c_str());
