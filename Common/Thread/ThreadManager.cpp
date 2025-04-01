@@ -222,9 +222,9 @@ void ThreadManager::Init(int numRealCores, int numLogicalCoresPerCpu) {
 		Teardown();
 	}
 
-	numComputeThreads_ = std::min(numRealCores * numLogicalCoresPerCpu, MAX_CORES_TO_USE);
+	numComputeThreads_ = 1;
 	// Double it for the IO blocking threads.
-	int numThreads = numComputeThreads_ + std::max(MIN_IO_BLOCKING_THREADS, numComputeThreads_);
+	int numThreads = 2;
 	numThreads_ = numThreads;
 
 	INFO_LOG(Log::System, "ThreadManager::Init(compute threads: %d, all: %d)", numComputeThreads_, numThreads_);

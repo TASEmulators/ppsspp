@@ -1325,7 +1325,6 @@ namespace Libretro
    static std::thread emuThread;
    static void EmuFrame()
    {
-      printf("EmuFrame A\n");
       ctx->SetRenderTarget();
       if (ctx->GetDrawContext())
          ctx->GetDrawContext()->BeginFrame(Draw::DebugFlags::NONE);
@@ -1333,10 +1332,7 @@ namespace Libretro
       gpu->BeginHostFrame();
 
       coreState = CORE_RUNNING_CPU;
-      printf("EmuFrame B\n");
       PSP_RunLoopWhileState();
-
-      printf("EmuFrame C\n");
 
       gpu->EndHostFrame();
 
@@ -1344,7 +1340,6 @@ namespace Libretro
          ctx->GetDrawContext()->EndFrame();
          ctx->GetDrawContext()->Present(Draw::PresentMode::FIFO, 1);
       }
-      printf("EmuFrame D\n");
    }
 
    static void EmuThreadFunc()
@@ -1441,7 +1436,6 @@ static void retro_check_backend(void)
 
 bool retro_load_game(const struct retro_game_info *game)
 {
-   printf("Retro Load Game A\n");
    retro_pixel_format fmt = retro_pixel_format::RETRO_PIXEL_FORMAT_XRGB8888;
    if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
    {
@@ -1472,9 +1466,7 @@ bool retro_load_game(const struct retro_game_info *game)
    coreParam.graphicsContext = ctx;
    coreParam.gpuCore         = ctx->GetGPUCore();
 
-   printf("Retro Load Game B\n");
    check_variables(coreParam);
-   printf("Retro Load Game C\n");
 
    // TODO: OpenGL goes black when inited with software rendering,
    // therefore start without, set back after init, and reset.
@@ -1486,13 +1478,11 @@ bool retro_load_game(const struct retro_game_info *game)
    coreParam.cpuCore         =  (CPUCore)g_Config.iCpuCore;
 
    std::string error_string;
-   printf("Retro Load Game D\n");
    if (!PSP_InitStart(coreParam, &error_string))
    {
       fprintf(stderr, "%s\n", error_string.c_str());
       return false;
    }
-   printf("Retro Load Game E\n");
 
    struct retro_core_option_display option_display;
 
@@ -1640,15 +1630,12 @@ static void retro_input(void)
 
 void retro_run(void)
 {
-   printf("Retro Run A\n");
    if (PSP_IsIniting())
    {
-      printf("Retro Run A2\n");
       std::string error_string;
       while (!PSP_InitUpdate(&error_string))
          jaffarCommon::dethreader::sleep(4000);
          // sleep_ms(4, "libretro-init-poll");
-      printf("Retro Run A3\n");
 
       if (!PSP_IsInited())
       {
@@ -1656,8 +1643,6 @@ void retro_run(void)
          environ_cb(RETRO_ENVIRONMENT_SHUTDOWN, nullptr);
          return;
       }
-
-      printf("Retro Run A4\n");
 
       if (softwareRenderInitHack)
       {
@@ -1667,14 +1652,9 @@ void retro_run(void)
          retro_reset();
       }
 
-      printf("Retro Run A6\n");
    }
 
-   printf("Retro Run B\n");
-
    check_variables(PSP_CoreParameter());
-
-   printf("Retro Run C\n");
 
    retro_input();
 
@@ -1698,10 +1678,7 @@ void retro_run(void)
       }
    }
    else
-   {
-      printf("Retro Run D\n");
       EmuFrame();
-   }
       
    VsyncSwapIntervalDetect();
    ctx->SwapBuffers();

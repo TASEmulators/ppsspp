@@ -860,7 +860,7 @@ uint64_t GetFileSize(auto f) {
 #ifdef _WIN32
 	uint64_t pos = _ftelli64(f);
 #else
-	uint64_t pos = jaffarCommon::file::MemoryFile::ftello(f);
+	uint64_t pos = jaffarCommon::file::MemoryFile::ftell(f);
 #endif
 	if (jaffarCommon::file::MemoryFile::fseek(f, 0, SEEK_END) != 0) {
 		return 0;
@@ -870,9 +870,9 @@ uint64_t GetFileSize(auto f) {
 	// Reset the seek position to where it was when we started.
 	if (size != pos && _jaffarCommon::file::MemoryFile::fseeki64(f, pos, SEEK_SET) != 0) {
 #else
-	uint64_t size = jaffarCommon::file::MemoryFile::ftello(f);
+	uint64_t size = jaffarCommon::file::MemoryFile::ftell(f);
 	// Reset the seek position to where it was when we started.
-	if (size != pos && jaffarCommon::file::MemoryFile::fseeko(f, pos, SEEK_SET) != 0) {
+	if (size != pos && jaffarCommon::file::MemoryFile::fseek(f, pos, SEEK_SET) != 0) {
 #endif
 		// Should error here.
 		return 0;
@@ -1117,7 +1117,7 @@ uint64_t IOFile::GetSize()
 
 bool IOFile::Seek(int64_t off, int origin)
 {
-	if (!IsOpen() || 0 != jaffarCommon::file::MemoryFile::fseeko(m_file, off, origin))
+	if (!IsOpen() || 0 != jaffarCommon::file::MemoryFile::fseek(m_file, off, origin))
 		m_good = false;
 
 	return m_good;
@@ -1126,7 +1126,7 @@ bool IOFile::Seek(int64_t off, int origin)
 uint64_t IOFile::Tell()
 {
 	if (IsOpen())
-		return jaffarCommon::file::MemoryFile::ftello(m_file);
+		return jaffarCommon::file::MemoryFile::ftell(m_file);
 	else
 		return -1;
 }
