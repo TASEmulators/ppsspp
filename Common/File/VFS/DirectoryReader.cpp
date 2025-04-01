@@ -47,7 +47,7 @@ public:
 	~DirectoryReaderOpenFile() {
 		_dbg_assert_(file == nullptr);
 	}
-	FILE *file = nullptr;
+	jaffarCommon::file::MemoryFile *file = nullptr;
 };
 
 VFSFileReference *DirectoryReader::GetFile(const char *path) {
@@ -73,13 +73,13 @@ void DirectoryReader::ReleaseFile(VFSFileReference *vfsReference) {
 
 VFSOpenFile *DirectoryReader::OpenFileForRead(VFSFileReference *vfsReference, size_t *size) {
 	DirectoryReaderFileReference *reference = (DirectoryReaderFileReference *)vfsReference;
-	FILE *file = File::OpenCFile(reference->path, "rb");
+	auto file = File::OpenCFile(reference->path, "rb");
 	if (!file) {
 		return nullptr;
 	}
-	fseek(file, 0, SEEK_END);
-	*size = ftell(file);
-	fseek(file, 0, SEEK_SET);
+	jaffarCommon::file::MemoryFile::fseek(file, 0, SEEK_END);
+	*size = jaffarCommon::file::MemoryFile::ftell(file);
+	jaffarCommon::file::MemoryFile::fseek(file, 0, SEEK_SET);
 	DirectoryReaderOpenFile *openFile = new DirectoryReaderOpenFile();
 	openFile->file = file;
 	return openFile;
@@ -87,18 +87,18 @@ VFSOpenFile *DirectoryReader::OpenFileForRead(VFSFileReference *vfsReference, si
 
 void DirectoryReader::Rewind(VFSOpenFile *vfsOpenFile) {
 	DirectoryReaderOpenFile *openFile = (DirectoryReaderOpenFile *)vfsOpenFile;
-	fseek(openFile->file, 0, SEEK_SET);
+	jaffarCommon::file::MemoryFile::fseek(openFile->file, 0, SEEK_SET);
 }
 
 size_t DirectoryReader::Read(VFSOpenFile *vfsOpenFile, void *buffer, size_t length) {
 	DirectoryReaderOpenFile *openFile = (DirectoryReaderOpenFile *)vfsOpenFile;
-	return fread(buffer, 1, length, openFile->file);
+	return jaffarCommon::file::MemoryFile::fread(buffer, 1, length, openFile->file);
 }
 
 void DirectoryReader::CloseFile(VFSOpenFile *vfsOpenFile) {
 	DirectoryReaderOpenFile *openFile = (DirectoryReaderOpenFile *)vfsOpenFile;
 	_dbg_assert_(openFile->file != nullptr);
-	fclose(openFile->file);
+	_memFileDirectory.fclose(openFile->file);
 	openFile->file = nullptr;
 	delete openFile;
 }

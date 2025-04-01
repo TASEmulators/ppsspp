@@ -57,7 +57,7 @@ static inline std::string TrimString(const std::string &s) {
 class CheatFileParser {
 public:
 	CheatFileParser(const Path &filename, const std::string &gameID = "") {
-		fp_ = File::OpenCFile(filename, "rt");
+		// fp_ = File::OpenCFile(filename, "rt");
 		validGameID_ = ReplaceAll(gameID, "-", "");
 	}
 	~CheatFileParser() {
@@ -381,19 +381,19 @@ CWCheatEngine::CWCheatEngine(const std::string &gameID) : gameID_(gameID) {
 }
 
 void CWCheatEngine::CreateCheatFile() {
-	File::CreateFullPath(GetSysDirectory(DIRECTORY_CHEATS));
+	// File::CreateFullPath(GetSysDirectory(DIRECTORY_CHEATS));
 
-	if (!File::Exists(filename_)) {
-		FILE *f = File::OpenCFile(filename_, "wb");
-		if (f) {
-			fwrite("\xEF\xBB\xBF\n", 1, 4, f);
-			fclose(f);
-		}
-		if (!File::Exists(filename_)) {
-			auto err = GetI18NCategory(I18NCat::ERRORS);
-			g_OSD.Show(OSDType::MESSAGE_ERROR, err->T("Unable to create cheat file, disk may be full"));
-		}
-	}
+	// if (!File::Exists(filename_)) {
+	// 	FILE *f = File::OpenCFile(filename_, "wb");
+	// 	if (f) {
+	// 		fwrite("\xEF\xBB\xBF\n", 1, 4, f);
+	// 		fclose(f);
+	// 	}
+	// 	if (!File::Exists(filename_)) {
+	// 		auto err = GetI18NCategory(I18NCat::ERRORS);
+	// 		g_OSD.Show(OSDType::MESSAGE_ERROR, err->T("Unable to create cheat file, disk may be full"));
+	// 	}
+	// }
 }
 
 Path CWCheatEngine::CheatFilename() {

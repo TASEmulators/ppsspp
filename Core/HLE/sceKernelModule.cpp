@@ -892,78 +892,78 @@ void PSPModule::Cleanup() {
 }
 
 static void SaveDecryptedEbootToStorageMedia(const u8 *decryptedEbootDataPtr, const u32 length, const char *name) {
-	if (!decryptedEbootDataPtr) {
-		ERROR_LOG(Log::sceModule, "Error saving decrypted EBOOT.BIN: invalid pointer");
-		return;
-	}
+	// if (!decryptedEbootDataPtr) {
+	// 	ERROR_LOG(Log::sceModule, "Error saving decrypted EBOOT.BIN: invalid pointer");
+	// 	return;
+	// }
 
-	if (length == 0) {
-		ERROR_LOG(Log::sceModule, "Error saving decrypted EBOOT.BIN: invalid length");
-		return;
-	}
+	// if (length == 0) {
+	// 	ERROR_LOG(Log::sceModule, "Error saving decrypted EBOOT.BIN: invalid length");
+	// 	return;
+	// }
 
-	const std::string filenameToDumpTo = StringFromFormat("%s_%s.BIN", g_paramSFO.GetDiscID().c_str(), name);
-	const Path dumpDirectory = GetSysDirectory(DIRECTORY_DUMP);
-	const Path fullPath = dumpDirectory / filenameToDumpTo;
+	// const std::string filenameToDumpTo = StringFromFormat("%s_%s.BIN", g_paramSFO.GetDiscID().c_str(), name);
+	// const Path dumpDirectory = GetSysDirectory(DIRECTORY_DUMP);
+	// const Path fullPath = dumpDirectory / filenameToDumpTo;
 
-	auto s = GetI18NCategory(I18NCat::SYSTEM);
+	// auto s = GetI18NCategory(I18NCat::SYSTEM);
 
-	// If the file already exists, don't dump it again.
-	if (File::Exists(fullPath)) {
-		INFO_LOG(Log::sceModule, "Decrypted EBOOT.BIN already exists for this game, skipping dump.");
+	// // If the file already exists, don't dump it again.
+	// if (File::Exists(fullPath)) {
+	// 	INFO_LOG(Log::sceModule, "Decrypted EBOOT.BIN already exists for this game, skipping dump.");
 
-		char *path = new char[strlen(fullPath.c_str()) + 1];
-		strcpy(path, fullPath.c_str());
+	// 	char *path = new char[strlen(fullPath.c_str()) + 1];
+	// 	strcpy(path, fullPath.c_str());
 
-		g_OSD.Show(OSDType::MESSAGE_INFO, s->T("Dump Decrypted Eboot"), fullPath.ToVisualString(), 5.0f, "decr");
-		if (System_GetPropertyBool(SYSPROP_CAN_SHOW_FILE)) {
-			g_OSD.SetClickCallback("decr", [](bool clicked, void *userdata) {
-				char *path = (char *)userdata;
-				if (clicked) {
-					System_ShowFileInFolder(Path(path));
-				} else {
-					delete[] path;
-				}
-			}, path);
-		}
-		return;
-	}
+	// 	g_OSD.Show(OSDType::MESSAGE_INFO, s->T("Dump Decrypted Eboot"), fullPath.ToVisualString(), 5.0f, "decr");
+	// 	if (System_GetPropertyBool(SYSPROP_CAN_SHOW_FILE)) {
+	// 		g_OSD.SetClickCallback("decr", [](bool clicked, void *userdata) {
+	// 			char *path = (char *)userdata;
+	// 			if (clicked) {
+	// 				System_ShowFileInFolder(Path(path));
+	// 			} else {
+	// 				delete[] path;
+	// 			}
+	// 		}, path);
+	// 	}
+	// 	return;
+	// }
 
-	// Make sure the dump directory exists before continuing.
-	if (!File::Exists(dumpDirectory)) {
-		if (!File::CreateDir(dumpDirectory)) {
-			ERROR_LOG(Log::sceModule, "Unable to create directory for EBOOT dumping, aborting.");
-			return;
-		}
-	}
+	// // Make sure the dump directory exists before continuing.
+	// if (!File::Exists(dumpDirectory)) {
+	// 	if (!File::CreateDir(dumpDirectory)) {
+	// 		ERROR_LOG(Log::sceModule, "Unable to create directory for EBOOT dumping, aborting.");
+	// 		return;
+	// 	}
+	// }
 
-	FILE *decryptedEbootFile = File::OpenCFile(fullPath, "wb");
-	if (!decryptedEbootFile) {
-		ERROR_LOG(Log::sceModule, "Unable to write decrypted EBOOT.");
-		return;
-	}
+	// FILE *decryptedEbootFile = File::OpenCFile(fullPath, "wb");
+	// if (!decryptedEbootFile) {
+	// 	ERROR_LOG(Log::sceModule, "Unable to write decrypted EBOOT.");
+	// 	return;
+	// }
 
-	const size_t lengthToWrite = length;
+	// const size_t lengthToWrite = length;
 
-	fwrite(decryptedEbootDataPtr, sizeof(u8), lengthToWrite, decryptedEbootFile);
-	fclose(decryptedEbootFile);
-	INFO_LOG(Log::sceModule, "Successfully wrote decrypted EBOOT to %s", fullPath.c_str());
+	// fwrite(decryptedEbootDataPtr, sizeof(u8), lengthToWrite, decryptedEbootFile);
+	// fclose(decryptedEbootFile);
+	// INFO_LOG(Log::sceModule, "Successfully wrote decrypted EBOOT to %s", fullPath.c_str());
 
-	char *path = new char[strlen(fullPath.c_str()) + 1];
-	strcpy(path, fullPath.c_str());
+	// char *path = new char[strlen(fullPath.c_str()) + 1];
+	// strcpy(path, fullPath.c_str());
 
-	// Re-suing the translation string here.
-	g_OSD.Show(OSDType::MESSAGE_SUCCESS, s->T("Dump Decrypted Eboot"), fullPath.ToVisualString(), 5.0f, "decr");
-	if (System_GetPropertyBool(SYSPROP_CAN_SHOW_FILE)) {
-		g_OSD.SetClickCallback("decr", [](bool clicked, void *userdata) {
-			char *path = (char *)userdata;
-			if (clicked) {
-				System_ShowFileInFolder(Path(path));
-			} else {
-				delete[] path;
-			}
-		}, path);
-	}
+	// // Re-suing the translation string here.
+	// g_OSD.Show(OSDType::MESSAGE_SUCCESS, s->T("Dump Decrypted Eboot"), fullPath.ToVisualString(), 5.0f, "decr");
+	// if (System_GetPropertyBool(SYSPROP_CAN_SHOW_FILE)) {
+	// 	g_OSD.SetClickCallback("decr", [](bool clicked, void *userdata) {
+	// 		char *path = (char *)userdata;
+	// 		if (clicked) {
+	// 			System_ShowFileInFolder(Path(path));
+	// 		} else {
+	// 			delete[] path;
+	// 		}
+	// 	}, path);
+	// }
 }
 
 static bool IsHLEVersionedModule(const char *name) {

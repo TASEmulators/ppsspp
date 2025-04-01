@@ -39,7 +39,7 @@ class JPEGFileStream : public jpge::output_stream
 {
 public:
 	JPEGFileStream(const Path &filename) {
-		fp_ = File::OpenCFile(filename, "wb");
+		// fp_ = File::OpenCFile(filename, "wb");
 	}
 	~JPEGFileStream() {
 		if (fp_ ) {
@@ -99,22 +99,22 @@ static bool WriteScreenshotToJPEG(const Path &filename, int width, int height, i
 }
 
 static bool WriteScreenshotToPNG(png_imagep image, const Path &filename, int convert_to_8bit, const void *buffer, png_int_32 row_stride, const void *colormap) {
-	FILE *fp = File::OpenCFile(filename, "wb");
-	if (!fp) {
-		ERROR_LOG(Log::IO, "Unable to open screenshot file for writing.");
-		return false;
-	}
+	// FILE *fp = File::OpenCFile(filename, "wb");
+	// if (!fp) {
+	// 	ERROR_LOG(Log::IO, "Unable to open screenshot file for writing.");
+	// 	return false;
+	// }
 
-	if (png_image_write_to_stdio(image, fp, convert_to_8bit, buffer, row_stride, colormap)) {
-		fclose(fp);
-		return true;
-	} else {
-		ERROR_LOG(Log::IO, "Screenshot PNG encode failed.");
-		fclose(fp);
-		// Should we even do this?
-		File::Delete(filename);
-		return false;
-	}
+	// if (png_image_write_to_stdio(image, fp, convert_to_8bit, buffer, row_stride, colormap)) {
+	// 	fclose(fp);
+	// 	return true;
+	// } else {
+	// 	ERROR_LOG(Log::IO, "Screenshot PNG encode failed.");
+	// 	fclose(fp);
+	// 	// Should we even do this?
+	// 	File::Delete(filename);
+	// 	return false;
+	// }
 }
 
 static bool ConvertPixelTo8888RGBA(GPUDebugBufferFormat fmt, u8 &r, u8 &g, u8 &b, u8 &a, const void *buffer, int offset, bool rev) {

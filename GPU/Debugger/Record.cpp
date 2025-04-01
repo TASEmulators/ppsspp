@@ -173,28 +173,28 @@ static void WriteCompressed(FILE *fp, const void *p, size_t sz) {
 }
 
 Path Recorder::WriteRecording() {
-	FlushRegisters();
+	// FlushRegisters();
 
 	const Path filename = GenRecordingFilename();
 
-	NOTICE_LOG(Log::G3D, "Recording filename: %s", filename.c_str());
+	// NOTICE_LOG(Log::G3D, "Recording filename: %s", filename.c_str());
 
-	FILE *fp = File::OpenCFile(filename, "wb");
-	Header header{};
-	memcpy(header.magic, HEADER_MAGIC, sizeof(header.magic));
-	header.version = VERSION;
-	strncpy(header.gameID, g_paramSFO.GetDiscID().c_str(), sizeof(header.gameID));
-	fwrite(&header, sizeof(header), 1, fp);
+	// FILE *fp = File::OpenCFile(filename, "wb");
+	// Header header{};
+	// memcpy(header.magic, HEADER_MAGIC, sizeof(header.magic));
+	// header.version = VERSION;
+	// strncpy(header.gameID, g_paramSFO.GetDiscID().c_str(), sizeof(header.gameID));
+	// fwrite(&header, sizeof(header), 1, fp);
 
-	u32 sz = (u32)commands.size();
-	fwrite(&sz, sizeof(sz), 1, fp);
-	u32 bufsz = (u32)pushbuf.size();
-	fwrite(&bufsz, sizeof(bufsz), 1, fp);
+	// u32 sz = (u32)commands.size();
+	// fwrite(&sz, sizeof(sz), 1, fp);
+	// u32 bufsz = (u32)pushbuf.size();
+	// fwrite(&bufsz, sizeof(bufsz), 1, fp);
 
-	WriteCompressed(fp, commands.data(), commands.size() * sizeof(Command));
-	WriteCompressed(fp, pushbuf.data(), bufsz);
+	// WriteCompressed(fp, commands.data(), commands.size() * sizeof(Command));
+	// WriteCompressed(fp, pushbuf.data(), bufsz);
 
-	fclose(fp);
+	// fclose(fp);
 
 	return filename;
 }

@@ -100,28 +100,28 @@ void MIPSTracer::prepare_block(const MIPSComp::IRBlock* block, MIPSComp::IRBlock
 }
 
 bool MIPSTracer::flush_to_file() {
-	if (logging_path.empty()) {
-		WARN_LOG(Log::JIT, "The path is empty, cannot flush the trace!");
-		return false;
-	}
+	// if (logging_path.empty()) {
+	// 	WARN_LOG(Log::JIT, "The path is empty, cannot flush the trace!");
+	// 	return false;
+	// }
 
-	INFO_LOG(Log::JIT, "Flushing the trace to a file...");
-	output = File::OpenCFile(logging_path, "w");
+	// INFO_LOG(Log::JIT, "Flushing the trace to a file...");
+	// output = File::OpenCFile(logging_path, "w");
 	
-	if (!output) {
-		WARN_LOG(Log::JIT, "MIPSTracer failed to open the file '%s'", logging_path.c_str());
-		return false;
-	}
-	auto trace = executed_blocks.get_content();
-	for (auto index : trace) {
-		auto& block_info = trace_info[index];
-		flush_block_to_file(block_info);
-	}
+	// if (!output) {
+	// 	WARN_LOG(Log::JIT, "MIPSTracer failed to open the file '%s'", logging_path.c_str());
+	// 	return false;
+	// }
+	// auto trace = executed_blocks.get_content();
+	// for (auto index : trace) {
+	// 	auto& block_info = trace_info[index];
+	// 	flush_block_to_file(block_info);
+	// }
 
-	INFO_LOG(Log::JIT, "Trace flushed, closing the file...");
-	std::fclose(output);
+	// INFO_LOG(Log::JIT, "Trace flushed, closing the file...");
+	// std::fclose(output);
 
-	clear();
+	// clear();
 	return true;
 }
 

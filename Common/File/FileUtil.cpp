@@ -79,8 +79,8 @@
 #endif  // __APPLE__
 
 #include "Common/Data/Encoding/Utf8.h"
-
 #include <sys/stat.h>
+
 
 // NOTE: There's another one in DirListing.cpp.
 #ifdef _WIN32
@@ -111,90 +111,8 @@ constexpr bool LOG_IO = false;
 // REMEMBER: strdup considered harmful!
 namespace File {
 
-FILE *OpenCFile(const Path &path, const char *mode) {
-	if (LOG_IO) {
-		INFO_LOG(Log::System, "OpenCFile %s, %s", path.c_str(), mode);
-	}
-	if (SIMULATE_SLOW_IO) {
-		sleep_ms(300, "slow-io-sim");
-	}
-	switch (path.Type()) {
-	case PathType::NATIVE:
-		break;
-	case PathType::CONTENT_URI:
-		// We're gonna need some error codes..
-		if (!strcmp(mode, "r") || !strcmp(mode, "rb") || !strcmp(mode, "rt")) {
-			INFO_LOG(Log::Common, "Opening content file for read: '%s'", path.c_str());
-			// Read, let's support this - easy one.
-			int descriptor = Android_OpenContentUriFd(path.ToString(), Android_OpenContentUriMode::READ);
-			if (descriptor < 0) {
-				return nullptr;
-			}
-			return fdopen(descriptor, "rb");
-		} else if (!strcmp(mode, "w") || !strcmp(mode, "wb") || !strcmp(mode, "wt") || !strcmp(mode, "at") || !strcmp(mode, "a")) {
-			// Need to be able to create the file here if it doesn't exist.
-			// Not exactly sure which abstractions are best, let's start simple.
-			if (!File::Exists(path)) {
-				INFO_LOG(Log::Common, "OpenCFile(%s): Opening content file for write. Doesn't exist, creating empty and reopening.", path.c_str());
-				std::string name = path.GetFilename();
-				if (path.CanNavigateUp()) {
-					Path parent = path.NavigateUp();
-					if (Android_CreateFile(parent.ToString(), name) != StorageError::SUCCESS) {
-						WARN_LOG(Log::Common, "Failed to create file '%s' in '%s'", name.c_str(), parent.c_str());
-						return nullptr;
-					}
-				} else {
-					INFO_LOG_REPORT_ONCE(openCFileFailedNavigateUp, Log::Common, "Failed to navigate up to create file: %s", path.c_str());
-					return nullptr;
-				}
-			} else {
-				INFO_LOG(Log::Common, "OpenCFile(%s): Opening existing content file for write (truncating). Requested mode: '%s'", path.c_str(), mode);
-			}
-
-			// TODO: Support append modes and stuff... For now let's go with the most common one.
-			Android_OpenContentUriMode openMode = Android_OpenContentUriMode::READ_WRITE_TRUNCATE;
-			const char *fmode = "wb";
-			if (!strcmp(mode, "at") || !strcmp(mode, "a")) {
-				openMode = Android_OpenContentUriMode::READ_WRITE;
-				fmode = "ab";
-			}
-			int descriptor = Android_OpenContentUriFd(path.ToString(), openMode);
-			if (descriptor < 0) {
-				INFO_LOG(Log::Common, "Opening '%s' for write failed", path.ToString().c_str());
-				return nullptr;
-			}
-			FILE *f = fdopen(descriptor, fmode);
-			if (f && (!strcmp(mode, "at") || !strcmp(mode, "a"))) {
-				// Append mode - not sure we got a "true" append mode, so seek to the end.
-				fseek(f, 0, SEEK_END);
-			}
-			return f;
-		} else {
-			ERROR_LOG(Log::Common, "OpenCFile(%s): Mode not yet supported: %s", path.c_str(), mode);
-			return nullptr;
-		}
-		break;
-	default:
-		ERROR_LOG(Log::Common, "OpenCFile(%s): PathType not yet supported", path.c_str());
-		return nullptr;
-	}
-
-#if defined(_WIN32) && defined(UNICODE)
-#if PPSSPP_PLATFORM(UWP) && !defined(__LIBRETRO__)
-	// We shouldn't use _wfopen here,
-	// this function is not allowed to read outside Local and Installation folders
-	// FileSystem (broadFileSystemAccess) doesn't apply on _wfopen
-	// if we have custom memory stick location _wfopen will return null
-	// 'GetFileStreamFromApp' will convert 'mode' to [access, share, creationDisposition]
-	// then it will call 'CreateFile2FromAppW' -> convert HANDLE to FILE*
-	FILE* file = GetFileStreamFromApp(path.ToString(), mode);
-	return file;
-#else
-	return _wfopen(path.ToWString().c_str(), ConvertUTF8ToWString(mode).c_str());
-#endif
-#else
-	return fopen(path.c_str(), mode);
-#endif
+jaffarCommon::file::MemoryFile* OpenCFile(const Path &path, const char *mode) {
+	return _memFileDirectory.fopen(path.c_str(), mode);
 }
 
 static std::string OpenFlagToString(OpenFlag flags) {
@@ -766,7 +684,7 @@ bool Copy(const Path &srcFilename, const Path &destFilename) {
 	char buffer[BSIZE];
 
 	// Open input file
-	FILE *input = OpenCFile(srcFilename, "rb");
+	auto input = OpenCFile(srcFilename, "rb");
 	if (!input) {
 		ERROR_LOG(Log::Common, "Copy: input failed %s --> %s: %s",
 				srcFilename.c_str(), destFilename.c_str(), GetLastErrorMsg().c_str());
@@ -774,9 +692,9 @@ bool Copy(const Path &srcFilename, const Path &destFilename) {
 	}
 
 	// open output file
-	FILE *output = OpenCFile(destFilename, "wb");
+	auto output = OpenCFile(destFilename, "wb");
 	if (!output) {
-		fclose(input);
+		_memFileDirectory.fclose(input);
 		ERROR_LOG(Log::Common, "Copy: output failed %s --> %s: %s",
 				srcFilename.c_str(), destFilename.c_str(), GetLastErrorMsg().c_str());
 		return false;
@@ -785,28 +703,28 @@ bool Copy(const Path &srcFilename, const Path &destFilename) {
 	int bytesWritten = 0;
 
 	// copy loop
-	while (!feof(input)) {
+	while (!jaffarCommon::file::MemoryFile::feof(input)) {
 		// read input
-		int rnum = fread(buffer, sizeof(char), BSIZE, input);
-		if (rnum != BSIZE) {
-			if (ferror(input) != 0) {
-				ERROR_LOG(Log::Common,
-						"Copy: failed reading from source, %s --> %s: %s",
-						srcFilename.c_str(), destFilename.c_str(), GetLastErrorMsg().c_str());
-				fclose(input);
-				fclose(output);
-				return false;
-			}
-		}
+		int rnum = jaffarCommon::file::MemoryFile::fread(buffer, sizeof(char), BSIZE, input);
+		// if (rnum != BSIZE) {
+		// 	if (jaffarCommon::file::MemoryFile:::ferror(input) != 0) {
+		// 		ERROR_LOG(Log::Common,
+		// 				"Copy: failed reading from source, %s --> %s: %s",
+		// 				srcFilename.c_str(), destFilename.c_str(), GetLastErrorMsg().c_str());
+		// 		_memFileDirectory.fclose(input);
+		// 		_memFileDirectory.fclose(output);
+		// 		return false;
+		// 	}
+		// }
 
 		// write output
-		int wnum = fwrite(buffer, sizeof(char), rnum, output);
+		int wnum = jaffarCommon::file::MemoryFile::fwrite(buffer, sizeof(char), rnum, output);
 		if (wnum != rnum) {
 			ERROR_LOG(Log::Common,
 					"Copy: failed writing to output, %s --> %s: %s",
 					srcFilename.c_str(), destFilename.c_str(), GetLastErrorMsg().c_str());
-			fclose(input);
-			fclose(output);
+			_memFileDirectory.fclose(input);
+			_memFileDirectory.fclose(output);
 			return false;
 		}
 
@@ -818,8 +736,8 @@ bool Copy(const Path &srcFilename, const Path &destFilename) {
 	}
 
 	// close flushes
-	fclose(input);
-	fclose(output);
+	_memFileDirectory.fclose(input);
+	_memFileDirectory.fclose(output);
 	return true;
 #endif
 }
@@ -923,7 +841,7 @@ uint64_t GetFileSize(const Path &filename) {
 #endif
 }
 
-uint64_t GetFileSize(FILE *f) {
+uint64_t GetFileSize(auto f) {
 	// This will only support 64-bit when large file support is available.
 	// That won't be the case on some versions of Android, at least.
 #if defined(__ANDROID__) || (defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS < 64)
@@ -942,19 +860,19 @@ uint64_t GetFileSize(FILE *f) {
 #ifdef _WIN32
 	uint64_t pos = _ftelli64(f);
 #else
-	uint64_t pos = ftello(f);
+	uint64_t pos = jaffarCommon::file::MemoryFile::ftello(f);
 #endif
-	if (fseek(f, 0, SEEK_END) != 0) {
+	if (jaffarCommon::file::MemoryFile::fseek(f, 0, SEEK_END) != 0) {
 		return 0;
 	}
 #ifdef _WIN32
 	uint64_t size = _ftelli64(f);
 	// Reset the seek position to where it was when we started.
-	if (size != pos && _fseeki64(f, pos, SEEK_SET) != 0) {
+	if (size != pos && _jaffarCommon::file::MemoryFile::fseeki64(f, pos, SEEK_SET) != 0) {
 #else
-	uint64_t size = ftello(f);
+	uint64_t size = jaffarCommon::file::MemoryFile::ftello(f);
 	// Reset the seek position to where it was when we started.
-	if (size != pos && fseeko(f, pos, SEEK_SET) != 0) {
+	if (size != pos && jaffarCommon::file::MemoryFile::fseeko(f, pos, SEEK_SET) != 0) {
 #endif
 		// Should error here.
 		return 0;
@@ -968,12 +886,12 @@ uint64_t GetFileSize(FILE *f) {
 // creates an empty file filename, returns true on success
 bool CreateEmptyFile(const Path &filename) {
 	INFO_LOG(Log::Common, "CreateEmptyFile: %s", filename.c_str());
-	FILE *pFile = OpenCFile(filename, "wb");
+	auto pFile = OpenCFile(filename, "wb");
 	if (!pFile) {
 		ERROR_LOG(Log::Common, "CreateEmptyFile: failed to create '%s': %s", filename.c_str(), GetLastErrorMsg().c_str());
 		return false;
 	}
-	fclose(pFile);
+	_memFileDirectory.fclose(pFile);
 	return true;
 }
 
@@ -1168,21 +1086,21 @@ bool IOFile::Open(const Path& filename, const char openmode[])
 
 bool IOFile::Close()
 {
-	if (!IsOpen() || 0 != std::fclose(m_file))
+	if (!IsOpen() || 0 != _memFileDirectory.fclose(m_file))
 		m_good = false;
 
 	m_file = NULL;
 	return m_good;
 }
 
-std::FILE* IOFile::ReleaseHandle()
+jaffarCommon::file::MemoryFile* IOFile::ReleaseHandle()
 {
-	std::FILE* const ret = m_file;
+	jaffarCommon::file::MemoryFile* const ret = m_file;
 	m_file = NULL;
 	return ret;
 }
 
-void IOFile::SetHandle(std::FILE* file)
+void IOFile::SetHandle(jaffarCommon::file::MemoryFile* file)
 {
 	Close();
 	Clear();
@@ -1199,7 +1117,7 @@ uint64_t IOFile::GetSize()
 
 bool IOFile::Seek(int64_t off, int origin)
 {
-	if (!IsOpen() || 0 != fseeko(m_file, off, origin))
+	if (!IsOpen() || 0 != jaffarCommon::file::MemoryFile::fseeko(m_file, off, origin))
 		m_good = false;
 
 	return m_good;
@@ -1208,14 +1126,14 @@ bool IOFile::Seek(int64_t off, int origin)
 uint64_t IOFile::Tell()
 {
 	if (IsOpen())
-		return ftello(m_file);
+		return jaffarCommon::file::MemoryFile::ftello(m_file);
 	else
 		return -1;
 }
 
 bool IOFile::Flush()
 {
-	if (!IsOpen() || 0 != std::fflush(m_file))
+	if (!IsOpen() || 0 != jaffarCommon::file::MemoryFile::fflush(m_file))
 		m_good = false;
 
 	return m_good;
@@ -1223,23 +1141,23 @@ bool IOFile::Flush()
 
 bool IOFile::Resize(uint64_t size)
 {
-	if (!IsOpen() || 0 !=
-#ifdef _WIN32
-		// ector: _chsize sucks, not 64-bit safe
-		// F|RES: changed to _chsize_s. i think it is 64-bit safe
-		_chsize_s(_fileno(m_file), size)
-#else
-		// TODO: handle 64bit and growing
-		ftruncate(fileno(m_file), size)
-#endif
-	)
+// 	if (!IsOpen() || 0 !=
+// #ifdef _WIN32
+// 		// ector: _chsize sucks, not 64-bit safe
+// 		// F|RES: changed to _chsize_s. i think it is 64-bit safe
+// 		_chsize_s(_fileno(m_file), size)
+// #else
+// 		// TODO: handle 64bit and growing
+// 		jaffarCommon::file::MemoryFile::ftruncate(m_file, size)
+// #endif
+// 	)
 		m_good = false;
 
 	return m_good;
 }
 
 bool ReadFileToStringOptions(bool textFile, bool allowShort, const Path &filename, std::string *str) {
-	FILE *f = File::OpenCFile(filename, textFile ? "r" : "rb");
+	auto f = File::OpenCFile(filename, textFile ? "r" : "rb");
 	if (!f)
 		return false;
 	// Warning: some files, like in /sys/, may return a fixed size like 4096.
@@ -1252,44 +1170,45 @@ bool ReadFileToStringOptions(bool textFile, bool allowShort, const Path &filenam
 		do {
 			totalSize *= 2;
 			str->resize(totalSize);
-			totalRead += fread(&(*str)[totalRead], 1, totalSize - totalRead, f);
+			totalRead += jaffarCommon::file::MemoryFile::fread(&(*str)[totalRead], 1, totalSize - totalRead, f);
 		} while (totalRead == totalSize);
 		str->resize(totalRead);
 		success = true;
 	} else {
 		str->resize(len);
-		size_t totalRead = fread(&(*str)[0], 1, len, f);
+		size_t totalRead = jaffarCommon::file::MemoryFile::fread(&(*str)[0], 1, len, f);
 		str->resize(totalRead);
 		// Allow less, because some system files will report incorrect lengths.
 		// Also, when reading text with CRLF, the read length may be shorter.
 		if (textFile) {
 			// totalRead doesn't take \r into account since they might be skipped in this mode.
 			// So let's just ask how far the cursor got.
-			totalRead = ftell(f);
+			totalRead = jaffarCommon::file::MemoryFile::ftell(f);
 		}
 		success = allowShort ? (totalRead <= len) : (totalRead == len);
 	}
-	fclose(f);
+	_memFileDirectory.fclose(f);
 	return success;
 }
 
 uint8_t *ReadLocalFile(const Path &filename, size_t *size) {
-	FILE *file = File::OpenCFile(filename, "rb");
+	printf("READ LOCAL FILE\n");
+	auto file = File::OpenCFile(filename, "rb");
 	if (!file) {
 		*size = 0;
 		return nullptr;
 	}
-	fseek(file, 0, SEEK_END);
-	size_t f_size = ftell(file);
+	jaffarCommon::file::MemoryFile::fseek(file, 0, SEEK_END);
+	size_t f_size = jaffarCommon::file::MemoryFile::ftell(file);
 	if ((long)f_size < 0) {
 		*size = 0;
-		fclose(file);
+		_memFileDirectory.fclose(file);
 		return nullptr;
 	}
-	fseek(file, 0, SEEK_SET);
+	jaffarCommon::file::MemoryFile::fseek(file, 0, SEEK_SET);
 	// NOTE: If you find ~10 memory leaks from here, with very varying sizes, it might be the VFPU LUTs.
 	uint8_t *contents = new uint8_t[f_size + 1];
-	if (fread(contents, 1, f_size, file) != f_size) {
+	if (jaffarCommon::file::MemoryFile::fread(contents, 1, f_size, file) != f_size) {
 		delete[] contents;
 		contents = nullptr;
 		*size = 0;
@@ -1297,34 +1216,34 @@ uint8_t *ReadLocalFile(const Path &filename, size_t *size) {
 		contents[f_size] = 0;
 		*size = f_size;
 	}
-	fclose(file);
+	_memFileDirectory.fclose(file);
 	return contents;
 }
 
 bool WriteStringToFile(bool text_file, const std::string &str, const Path &filename) {
-	FILE *f = File::OpenCFile(filename, text_file ? "w" : "wb");
+	auto f = File::OpenCFile(filename, text_file ? "w" : "wb");
 	if (!f)
 		return false;
 	size_t len = str.size();
-	if (len != fwrite(str.data(), 1, str.size(), f))
+	if (len != jaffarCommon::file::MemoryFile::fwrite(str.data(), 1, str.size(), f))
 	{
-		fclose(f);
+		_memFileDirectory.fclose(f);
 		return false;
 	}
-	fclose(f);
+	_memFileDirectory.fclose(f);
 	return true;
 }
 
 bool WriteDataToFile(bool text_file, const void* data, size_t size, const Path &filename) {
-	FILE *f = File::OpenCFile(filename, text_file ? "w" : "wb");
+	auto f = File::OpenCFile(filename, text_file ? "w" : "wb");
 	if (!f)
 		return false;
-	if (size != fwrite(data, 1, size, f))
+	if (size != jaffarCommon::file::MemoryFile::fwrite(data, 1, size, f))
 	{
-		fclose(f);
+		_memFileDirectory.fclose(f);
 		return false;
 	}
-	fclose(f);
+	_memFileDirectory.fclose(f);
 	return true;
 }
 

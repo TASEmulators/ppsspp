@@ -252,82 +252,82 @@ bool SymbolMap::SaveSymbolMap(const Path &filename) const {
 }
 
 bool SymbolMap::LoadNocashSym(const Path &filename) {
-	std::lock_guard<std::recursive_mutex> guard(lock_);
-	FILE *f = File::OpenCFile(filename, "r");
-	if (!f)
-		return false;
+	// std::lock_guard<std::recursive_mutex> guard(lock_);
+	// FILE *f = File::OpenCFile(filename, "r");
+	// if (!f)
+	// 	return false;
 
-	while (!feof(f)) {
-		char line[256], value[256] = {0};
-		char *p = fgets(line, 256, f);
-		if (p == NULL)
-			break;
+	// while (!feof(f)) {
+	// 	char line[256], value[256] = {0};
+	// 	char *p = fgets(line, 256, f);
+	// 	if (p == NULL)
+	// 		break;
 
-		u32 address;
-		if (sscanf(line, "%08X %255s", &address, value) != 2)
-			continue;
-		if (address == 0 && strcmp(value, "0") == 0)
-			continue;
+	// 	u32 address;
+	// 	if (sscanf(line, "%08X %255s", &address, value) != 2)
+	// 		continue;
+	// 	if (address == 0 && strcmp(value, "0") == 0)
+	// 		continue;
 
-		if (value[0] == '.') {
-			// data directives
-			char* s = strchr(value, ':');
-			if (s != NULL) {
-				*s = 0;
+	// 	if (value[0] == '.') {
+	// 		// data directives
+	// 		char* s = strchr(value, ':');
+	// 		if (s != NULL) {
+	// 			*s = 0;
 
-				u32 size = 0;
-				if (sscanf(s + 1, "%04X", &size) != 1)
-					continue;
+	// 			u32 size = 0;
+	// 			if (sscanf(s + 1, "%04X", &size) != 1)
+	// 				continue;
 
-				if (strcasecmp(value, ".byt") == 0) {
-					AddData(address, size, DATATYPE_BYTE, 0);
-				} else if (strcasecmp(value, ".wrd") == 0) {
-					AddData(address, size, DATATYPE_HALFWORD, 0);
-				} else if (strcasecmp(value, ".dbl") == 0) {
-					AddData(address, size, DATATYPE_WORD, 0);
-				} else if (strcasecmp(value, ".asc") == 0) {
-					AddData(address, size, DATATYPE_ASCII, 0);
-				}
-			}
-		} else {				// labels
-			unsigned int size = 1;
-			char* seperator = strchr(value, ',');
-			if (seperator != NULL) {
-				*seperator = 0;
-				sscanf(seperator+1,"%08X",&size);
-			}
+	// 			if (strcasecmp(value, ".byt") == 0) {
+	// 				AddData(address, size, DATATYPE_BYTE, 0);
+	// 			} else if (strcasecmp(value, ".wrd") == 0) {
+	// 				AddData(address, size, DATATYPE_HALFWORD, 0);
+	// 			} else if (strcasecmp(value, ".dbl") == 0) {
+	// 				AddData(address, size, DATATYPE_WORD, 0);
+	// 			} else if (strcasecmp(value, ".asc") == 0) {
+	// 				AddData(address, size, DATATYPE_ASCII, 0);
+	// 			}
+	// 		}
+	// 	} else {				// labels
+	// 		unsigned int size = 1;
+	// 		char* seperator = strchr(value, ',');
+	// 		if (seperator != NULL) {
+	// 			*seperator = 0;
+	// 			sscanf(seperator+1,"%08X",&size);
+	// 		}
 
-			if (size != 1) {
-				AddFunction(value, address,size, 0);
-			} else {
-				AddLabel(value, address, 0);
-			}
-		}
-	}
+	// 		if (size != 1) {
+	// 			AddFunction(value, address,size, 0);
+	// 		} else {
+	// 			AddLabel(value, address, 0);
+	// 		}
+	// 	}
+	// }
 
-	fclose(f);
+	// fclose(f);
 	return true;
 }
 
 void SymbolMap::SaveNocashSym(const Path &filename) const {
-	std::lock_guard<std::recursive_mutex> guard(lock_);
+	// std::lock_guard<std::recursive_mutex> guard(lock_);
 
-	// Don't bother writing a blank file.
-	if (!File::Exists(filename) && functions.empty() && data.empty()) {
-		return;
-	}
+	// // Don't bother writing a blank file.
+	// if (!File::Exists(filename) && functions.empty() && data.empty()) {
+	// 	return;
+	// }
 
-	FILE* f = File::OpenCFile(filename, "w");
-	if (f == NULL)
-		return;
+	// FILE* f = File::OpenCFile(filename, "w");
+	// if (f == NULL)
+	// 	return;
 
-	// only write functions, the rest isn't really interesting
-	for (auto it = functions.begin(), end = functions.end(); it != end; ++it) {
-		const FunctionEntry& e = it->second;
-		fprintf(f, "%08X %s,%04X\n", GetModuleAbsoluteAddr(e.start,e.module),GetLabelNameRel(e.start, e.module), e.size);
-	}
+	// // only write functions, the rest isn't really interesting
+	// for (auto it = functions.begin(), end = functions.end(); it != end; ++it) {
+	// 	const FunctionEntry& e = it->second;
+	// 	fprintf(f, "%08X %s,%04X\n", GetModuleAbsoluteAddr(e.start,e.module),GetLabelNameRel(e.start, e.module), e.size);
+	// }
 	
-	fclose(f);
+	// fclose(f);
 }
 
 SymbolType SymbolMap::GetSymbolType(u32 address) {

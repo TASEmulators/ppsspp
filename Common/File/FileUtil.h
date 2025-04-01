@@ -25,6 +25,9 @@
 
 #include "Common/File/Path.h"
 
+#include <jaffarCommon/file.hpp>
+extern jaffarCommon::file::MemoryFileDirectory _memFileDirectory;
+
 // Some functions here support Android content URIs. These are marked as such.
 
 #ifdef _WIN32
@@ -38,7 +41,7 @@ inline struct tm* localtime_r(const time_t *clock, struct tm *result) {
 namespace File {
 
 // Mostly to handle UTF-8 filenames better on Windows.
-FILE *OpenCFile(const Path &filename, const char *mode);
+jaffarCommon::file::MemoryFile *OpenCFile(const Path &filename, const char *mode);
 
 // Reminiscent of PSP's FileAccess enum, due to its use in emulating it.
 enum OpenFlag {
@@ -152,7 +155,7 @@ public:
 	template <typename T>
 	bool ReadArray(T* data, size_t length)
 	{
-		if (!IsOpen() || length != std::fread(data, sizeof(T), length, m_file))
+		if (!IsOpen() || length != jaffarCommon::file::MemoryFile::fread(data, sizeof(T), length, m_file))
 			m_good = false;
 
 		return m_good;
@@ -161,7 +164,7 @@ public:
 	template <typename T>
 	bool WriteArray(const T* data, size_t length)
 	{
-		if (!IsOpen() || length != std::fwrite(data, sizeof(T), length, m_file))
+		if (!IsOpen() || length != jaffarCommon::file::MemoryFile::fwrite(data, sizeof(T), length, m_file))
 			m_good = false;
 
 		return m_good;
@@ -183,11 +186,11 @@ public:
 	bool IsGood() const { return m_good; }
 	operator bool() const { return IsGood() && IsOpen(); }
 
-	std::FILE* ReleaseHandle();
+	jaffarCommon::file::MemoryFile* ReleaseHandle();
 
-	std::FILE* GetHandle() { return m_file; }
+	jaffarCommon::file::MemoryFile* GetHandle() { return m_file; }
 
-	void SetHandle(std::FILE* file);
+	void SetHandle(jaffarCommon::file::MemoryFile* file);
 
 	bool Seek(int64_t off, int origin);
 	uint64_t Tell();
@@ -199,11 +202,11 @@ public:
 	void Clear() {
 		m_good = true;
 #undef clearerr
-		std::clearerr(m_file);
+		jaffarCommon::file::MemoryFile::clearerr(m_file);
 	}
 
 private:
-	std::FILE *m_file = nullptr;
+	jaffarCommon::file::MemoryFile* m_file = nullptr;
 	bool m_good = true;
 };
 

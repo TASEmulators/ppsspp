@@ -34,14 +34,15 @@
 #include "Core/ELF/ParamSFO.h"
 
 FileLoader *ConstructFileLoader(const Path &filename) {
-	if (filename.Type() == PathType::HTTP) {
-		FileLoader *baseLoader = new RetryingFileLoader(new HTTPFileLoader(filename));
-		// For headless, avoid disk caching since it's usually used for tests that might mutate.
-		if (!PSP_CoreParameter().headLess) {
-			baseLoader = new DiskCachingFileLoader(baseLoader);
-		}
-		return new CachingFileLoader(baseLoader);
-	}
+
+	// if (filename.Type() == PathType::HTTP) {
+	// 	FileLoader *baseLoader = new RetryingFileLoader(new HTTPFileLoader(filename));
+	// 	// For headless, avoid disk caching since it's usually used for tests that might mutate.
+	// 	if (!PSP_CoreParameter().headLess) {
+	// 		baseLoader = new DiskCachingFileLoader(baseLoader);
+	// 	}
+	// 	return new CachingFileLoader(baseLoader);
+	// }
 	return new LocalFileLoader(filename);
 }
 
@@ -57,10 +58,10 @@ IdentifiedFileType Identify_File(FileLoader *fileLoader, std::string *errorStrin
 		return IdentifiedFileType::ERROR_IDENTIFYING;
 	}
 
-	if (!fileLoader->Exists()) {
-		*errorString = "IdentifyFile: File doesn't exist: " + fileLoader->GetPath().ToString();
-		return IdentifiedFileType::ERROR_IDENTIFYING;
-	}
+	// if (!fileLoader->Exists()) {
+	// 	*errorString = "IdentifyFile: File doesn't exist: " + fileLoader->GetPath().ToString();
+	// 	return IdentifiedFileType::ERROR_IDENTIFYING;
+	// }
 
 	std::string extension = fileLoader->GetPath().GetFileExtension();
 	if (extension == ".iso") {

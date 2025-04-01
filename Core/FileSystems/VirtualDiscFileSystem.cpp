@@ -65,92 +65,92 @@ VirtualDiscFileSystem::~VirtualDiscFileSystem() {
 }
 
 void VirtualDiscFileSystem::LoadFileListIndex() {
-	const Path filename = basePath / INDEX_FILENAME;
-	if (!File::Exists(filename)) {
-		return;
-	}
+	// const Path filename = basePath / INDEX_FILENAME;
+	// if (!File::Exists(filename)) {
+	// 	return;
+	// }
 
-	FILE *f = File::OpenCFile(filename, "r");
-	if (!f) {
-		return;
-	}
+	// auto *f = File::OpenCFile(filename, "r");
+	// if (!f) {
+	// 	return;
+	// }
 
-	static const int MAX_LINE_SIZE = 2048;
-	char linebuf[MAX_LINE_SIZE]{};
-	while (fgets(linebuf, MAX_LINE_SIZE, f)) {
-		std::string line = linebuf;
-		// Strip newline from fgets.
-		if (!line.empty() && line.back() == '\n')
-			line.resize(line.size() - 1);
+	// static const int MAX_LINE_SIZE = 2048;
+	// char linebuf[MAX_LINE_SIZE]{};
+	// while (fgets(linebuf, MAX_LINE_SIZE, f)) {
+	// 	std::string line = linebuf;
+	// 	// Strip newline from fgets.
+	// 	if (!line.empty() && line.back() == '\n')
+	// 		line.resize(line.size() - 1);
 
-		// Ignore any UTF-8 BOM.
-		if (line.substr(0, 3) == "\xEF\xBB\xBF") {
-			line = line.substr(3);
-		}
+	// 	// Ignore any UTF-8 BOM.
+	// 	if (line.substr(0, 3) == "\xEF\xBB\xBF") {
+	// 		line = line.substr(3);
+	// 	}
 
-		if (line.empty() || line[0] == ';') {
-			continue;
-		}
+	// 	if (line.empty() || line[0] == ';') {
+	// 		continue;
+	// 	}
 
-		FileListEntry entry = {""};
+	// 	FileListEntry entry = {""};
 
-		// Syntax: HEXPOS filename or HEXPOS filename:handler
-		size_t filename_pos = line.find(' ');
-		if (filename_pos == line.npos) {
-			ERROR_LOG(Log::FileSystem, "Unexpected line in %s: %s", INDEX_FILENAME.c_str(), line.c_str());
-			continue;
-		}
+	// 	// Syntax: HEXPOS filename or HEXPOS filename:handler
+	// 	size_t filename_pos = line.find(' ');
+	// 	if (filename_pos == line.npos) {
+	// 		ERROR_LOG(Log::FileSystem, "Unexpected line in %s: %s", INDEX_FILENAME.c_str(), line.c_str());
+	// 		continue;
+	// 	}
 
-		filename_pos++;
-		// Strip any slash prefix.
-		while (filename_pos < line.length() && line[filename_pos] == '/') {
-			filename_pos++;
-		}
+	// 	filename_pos++;
+	// 	// Strip any slash prefix.
+	// 	while (filename_pos < line.length() && line[filename_pos] == '/') {
+	// 		filename_pos++;
+	// 	}
 
-		// Check if there's a handler specified.
-		size_t handler_pos = line.find(':', filename_pos);
-		if (handler_pos != line.npos) {
-			entry.fileName = line.substr(filename_pos, handler_pos - filename_pos);
+	// 	// Check if there's a handler specified.
+	// 	size_t handler_pos = line.find(':', filename_pos);
+	// 	if (handler_pos != line.npos) {
+	// 		entry.fileName = line.substr(filename_pos, handler_pos - filename_pos);
 
-			std::string handler = line.substr(handler_pos + 1);
-			size_t trunc = handler.find_last_not_of("\r\n");
-			if (trunc != handler.npos && trunc != handler.size())
-				handler.resize(trunc + 1);
+	// 		std::string handler = line.substr(handler_pos + 1);
+	// 		size_t trunc = handler.find_last_not_of("\r\n");
+	// 		if (trunc != handler.npos && trunc != handler.size())
+	// 			handler.resize(trunc + 1);
 
-			if (handlers.find(handler) == handlers.end())
-				handlers[handler] = new Handler(handler.c_str(), this);
-			if (handlers[handler]->IsValid())
-				entry.handler = handlers[handler];
-		} else {
-			entry.fileName = line.substr(filename_pos);
-		}
-		size_t trunc = entry.fileName.find_last_not_of("\r\n");
-		if (trunc != entry.fileName.npos && trunc != entry.fileName.size())
-			entry.fileName.resize(trunc + 1);
+	// 		if (handlers.find(handler) == handlers.end())
+	// 			handlers[handler] = new Handler(handler.c_str(), this);
+	// 		if (handlers[handler]->IsValid())
+	// 			entry.handler = handlers[handler];
+	// 	} else {
+	// 		entry.fileName = line.substr(filename_pos);
+	// 	}
+	// 	size_t trunc = entry.fileName.find_last_not_of("\r\n");
+	// 	if (trunc != entry.fileName.npos && trunc != entry.fileName.size())
+	// 		entry.fileName.resize(trunc + 1);
 
-		entry.firstBlock = (u32)strtol(line.c_str(), NULL, 16);
-		if (entry.handler != NULL && entry.handler->IsValid()) {
-			HandlerFileHandle temp = entry.handler;
-			if (temp.Open(basePath.ToString(), entry.fileName, FILEACCESS_READ)) {
-				entry.totalSize = (u32)temp.Seek(0, FILEMOVE_END);
-				temp.Close();
-			} else {
-				ERROR_LOG(Log::FileSystem, "Unable to open virtual file: %s", entry.fileName.c_str());
-			}
-		} else {
-			entry.totalSize = File::GetFileSize(GetLocalPath(entry.fileName));
-		}
+	// 	entry.firstBlock = (u32)strtol(line.c_str(), NULL, 16);
+	// 	if (entry.handler != NULL && entry.handler->IsValid()) {
+	// 		HandlerFileHandle temp = entry.handler;
+	// 		if (temp.Open(basePath.ToString(), entry.fileName, FILEACCESS_READ)) {
+	// 			entry.totalSize = (u32)temp.Seek(0, FILEMOVE_END);
+	// 			temp.Close();
+	// 		} else {
+	// 			ERROR_LOG(Log::FileSystem, "Unable to open virtual file: %s", entry.fileName.c_str());
+	// 		}
+	// 	} else {
+	// 		entry.totalSize = File::GetFileSize(GetLocalPath(entry.fileName));
+	// 	}
 
-		// Try to keep currentBlockIndex sane, in case there are other files.
-		u32 nextBlock = entry.firstBlock + (entry.totalSize + 2047) / 2048;
-		if (nextBlock > currentBlockIndex) {
-			currentBlockIndex = nextBlock;
-		}
+	// 	// Try to keep currentBlockIndex sane, in case there are other files.
+	// 	u32 nextBlock = entry.firstBlock + (entry.totalSize + 2047) / 2048;
+	// 	if (nextBlock > currentBlockIndex) {
+	// 		currentBlockIndex = nextBlock;
+	// 	}
 
-		fileList.push_back(entry);
-	}
+	// 	fileList.push_back(entry);
+	// }
 
-	fclose(f);
+	// _memFileDirectory.fclose(f);
 }
 
 void VirtualDiscFileSystem::DoState(PointerWrap &p)

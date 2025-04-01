@@ -32,6 +32,11 @@ typedef void *HANDLE;
 typedef RFILE* HANDLE;
 #endif
 
+#include <jaffarCommon/file.hpp>
+
+// Memory file directory
+extern jaffarCommon::file::MemoryFileDirectory _memFileDirectory;
+
 class LocalFileLoader : public FileLoader {
 public:
 	LocalFileLoader(const Path &filename);
@@ -46,12 +51,7 @@ public:
 	size_t ReadAt(s64 absolutePos, size_t bytes, size_t count, void *data, Flags flags = Flags::NONE) override;
 
 private:
-#if !defined(_WIN32) && !defined(HAVE_LIBRETRO_VFS)
-	void DetectSizeFd();
-	int fd_ = -1;
-#else
-	HANDLE handle_ = 0;
-#endif
+	jaffarCommon::file::MemoryFile* handle_ = 0;
 	u64 filesize_ = 0;
 	Path filename_;
 	std::mutex readLock_;

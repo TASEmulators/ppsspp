@@ -277,64 +277,64 @@ static void sigsegv_handler(int sig, siginfo_t* info, void* raw_context) {
 }
 
 void InstallExceptionHandler(BadAccessHandler badAccessHandler) {
-	if (!badAccessHandler) {
-		return;
-	}
-	if (g_badAccessHandler) {
-		g_badAccessHandler = badAccessHandler;
-		return;
-	}
+// 	if (!badAccessHandler) {
+// 		return;
+// 	}
+// 	if (g_badAccessHandler) {
+// 		g_badAccessHandler = badAccessHandler;
+// 		return;
+// 	}
 	
-	size_t altStackSize = SIGSTKSZ;
+// 	size_t altStackSize = SIGSTKSZ;
 
-	// Add some extra room.
-	altStackSize += 65536;
+// 	// Add some extra room.
+// 	altStackSize += 65536;
 
-	INFO_LOG(Log::System, "Installed exception handler. stack size: %d", (int)altStackSize);
-	g_badAccessHandler = badAccessHandler;
+// 	INFO_LOG(Log::System, "Installed exception handler. stack size: %d", (int)altStackSize);
+// 	g_badAccessHandler = badAccessHandler;
 
-	stack_t signal_stack{};
-	altStack = malloc(altStackSize);
-#ifdef __FreeBSD__
-	signal_stack.ss_sp = (char*)altStack;
-#else
-	signal_stack.ss_sp = altStack;
-#endif
-	signal_stack.ss_size = altStackSize;
-	signal_stack.ss_flags = 0;
-	if (sigaltstack(&signal_stack, nullptr)) {
-		_assert_msg_(false, "sigaltstack failed");
-	}
-	struct sigaction sa{};
-	sa.sa_handler = nullptr;
-	sa.sa_sigaction = &sigsegv_handler;
-	sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
-	sigemptyset(&sa.sa_mask);
-	sigaction(SIGSEGV, &sa, &old_sa_segv);
-#ifdef __APPLE__
-	sigaction(SIGBUS, &sa, &old_sa_bus);
-#endif
+// 	stack_t signal_stack{};
+// 	altStack = malloc(altStackSize);
+// #ifdef __FreeBSD__
+// 	signal_stack.ss_sp = (char*)altStack;
+// #else
+// 	signal_stack.ss_sp = altStack;
+// #endif
+// 	signal_stack.ss_size = altStackSize;
+// 	signal_stack.ss_flags = 0;
+// 	if (sigaltstack(&signal_stack, nullptr)) {
+// 		_assert_msg_(false, "sigaltstack failed");
+// 	}
+// 	struct sigaction sa{};
+// 	sa.sa_handler = nullptr;
+// 	sa.sa_sigaction = &sigsegv_handler;
+// 	sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+// 	sigemptyset(&sa.sa_mask);
+// 	sigaction(SIGSEGV, &sa, &old_sa_segv);
+// #ifdef __APPLE__
+// 	sigaction(SIGBUS, &sa, &old_sa_bus);
+// #endif
 }
 
 void UninstallExceptionHandler() {
-	if (!g_badAccessHandler) {
-		return;
-	}
-	stack_t signal_stack{};
-	signal_stack.ss_flags = SS_DISABLE;
-	if (0 != sigaltstack(&signal_stack, nullptr)) {
-		ERROR_LOG(Log::System, "Could not remove signal altstack");
-	}
-	if (altStack) {
-		free(altStack);
-		altStack = nullptr;
-	}
-	sigaction(SIGSEGV, &old_sa_segv, nullptr);
-#ifdef __APPLE__
-	sigaction(SIGBUS, &old_sa_bus, nullptr);
-#endif
-	INFO_LOG(Log::System, "Uninstalled exception handler");
-	g_badAccessHandler = nullptr;
+// 	if (!g_badAccessHandler) {
+// 		return;
+// 	}
+// 	stack_t signal_stack{};
+// 	signal_stack.ss_flags = SS_DISABLE;
+// 	if (0 != sigaltstack(&signal_stack, nullptr)) {
+// 		ERROR_LOG(Log::System, "Could not remove signal altstack");
+// 	}
+// 	if (altStack) {
+// 		free(altStack);
+// 		altStack = nullptr;
+// 	}
+// 	sigaction(SIGSEGV, &old_sa_segv, nullptr);
+// #ifdef __APPLE__
+// 	sigaction(SIGBUS, &old_sa_bus, nullptr);
+// #endif
+// 	INFO_LOG(Log::System, "Uninstalled exception handler");
+// 	g_badAccessHandler = nullptr;
 }
 
 #endif

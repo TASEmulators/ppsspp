@@ -42,8 +42,9 @@
 #elif PPSSPP_ARCH(RISCV64)
 #define Crash() {asm ("ebreak");}
 #else
-#include <signal.h>
-#define Crash() {kill(getpid(), SIGINT);}
+// #include <signal.h>
+// #define Crash() { kill(getpid(), SIGINT); }
+#define Crash() { fprintf("Crash(): Error detected\n"); exit(1); }
 #endif
 
 inline u32 __rotl(u32 x, int shift) {

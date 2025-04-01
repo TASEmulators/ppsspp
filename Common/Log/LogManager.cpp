@@ -142,7 +142,7 @@ void LogManager::Shutdown() {
 	}
 
 	if (fp_) {
-		fclose(fp_);
+		_memFileDirectory.fclose(fp_);
 		fp_ = nullptr;
 	}
 
@@ -202,7 +202,7 @@ void LogManager::ChangeFileLog(const Path &filename) {
 	}
 
 	if (fp_) {
-		fclose(fp_);
+		_memFileDirectory.fclose(fp_);
 	}
 
 	if (!filename.empty()) {
@@ -306,20 +306,22 @@ void LogManager::LogLine(LogLevel level, Log type, const char *file, int line, c
 	message.msg[neededBytes] = '\n';
 	va_end(args_copy);
 
+    fprintf(stderr, "%s", message.msg.c_str());
+
 	if (outputs_ & LogOutput::Stdio) {
 		// This has its own mutex.
 		StdioLog(message);
 	}
 
-	// OK, now go through the possible listeners in order.
-	if (outputs_ & LogOutput::File) {
-		if (fp_) {
-			std::lock_guard<std::mutex> lk(logFileLock_);
-			fprintf(fp_, "%s %s %s", message.timestamp, message.header, message.msg.c_str());
-			// Is this really necessary to do every time? I guess to catch the last message before a crash..
-			fflush(fp_);
-		}
-	}
+	// // OK, now go through the possible listeners in order.
+	// if (outputs_ & LogOutput::File) {
+	// 	if (fp_) {
+	// 		std::lock_guard<std::mutex> lk(logFileLock_);
+	// 		fprintf(fp_, "%s %s %s", message.timestamp, message.header, message.msg.c_str());
+	// 		// Is this really necessary to do every time? I guess to catch the last message before a crash..
+	// 		fflush(fp_);
+	// 	}
+	// }
 
 #if PPSSPP_PLATFORM(WINDOWS)
 	if (outputs_ & LogOutput::DebugString) {

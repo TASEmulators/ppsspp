@@ -577,27 +577,27 @@ bool IniFile::Load(std::istream &in) {
 
 bool IniFile::Save(const Path &filename)
 {
-	FILE *file = File::OpenCFile(filename, "w");
-	if (!file) {
-		return false;
-	}
+	// FILE *file = File::OpenCFile(filename, "w");
+	// if (!file) {
+	// 	return false;
+	// }
 
-	// UTF-8 byte order mark. To make sure notepad doesn't go nuts.
-	// TODO: Do we still need this? It's annoying.
-	fprintf(file, "\xEF\xBB\xBF");
+	// // UTF-8 byte order mark. To make sure notepad doesn't go nuts.
+	// // TODO: Do we still need this? It's annoying.
+	// fprintf(file, "\xEF\xBB\xBF");
 
-	for (const auto &section : sections) {
-		if (!section->name().empty() && (!section->lines_.empty() || !section->comment.empty())) {
-			fprintf(file, "[%s]%s\n", section->name().c_str(), section->comment.c_str());
-		}
-		for (const auto &line : section->lines_) {
-			std::string buffer;
-			line.Reconstruct(&buffer);
-			fprintf(file, "%s\n", buffer.c_str());
-		}
-	}
+	// for (const auto &section : sections) {
+	// 	if (!section->name().empty() && (!section->lines_.empty() || !section->comment.empty())) {
+	// 		fprintf(file, "[%s]%s\n", section->name().c_str(), section->comment.c_str());
+	// 	}
+	// 	for (const auto &line : section->lines_) {
+	// 		std::string buffer;
+	// 		line.Reconstruct(&buffer);
+	// 		fprintf(file, "%s\n", buffer.c_str());
+	// 	}
+	// }
 
-	fclose(file);
+	// fclose(file);
 	return true;
 }
 

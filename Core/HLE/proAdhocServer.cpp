@@ -1398,140 +1398,140 @@ void game_product_override(SceNetAdhocctlProductCode * product)
  */
 void update_status()
 {
-	// Open Logfile
-	FILE * log = File::OpenCFile(Path(SERVER_STATUS_XMLOUT), "w");
+	// // Open Logfile
+	// FILE * log = File::OpenCFile(Path(SERVER_STATUS_XMLOUT), "w");
 
-	// Opened Logfile
-	if(log != NULL)
-	{
-		// Write XML Header
-		fprintf(log, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+	// // Opened Logfile
+	// if(log != NULL)
+	// {
+	// 	// Write XML Header
+	// 	fprintf(log, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
 
-		// Write XSL Processor Information
-		fprintf(log, "<?xml-stylesheet type=\"text/xsl\" href=\"status.xsl\"?>\n");
+	// 	// Write XSL Processor Information
+	// 	fprintf(log, "<?xml-stylesheet type=\"text/xsl\" href=\"status.xsl\"?>\n");
 
-		// Output Root Tag + User Count
-		fprintf(log, "<prometheus usercount=\"%u\">\n", _db_user_count);
+	// 	// Output Root Tag + User Count
+	// 	fprintf(log, "<prometheus usercount=\"%u\">\n", _db_user_count);
 
-		// Database Handle
-		//sqlite3 * db = NULL;
+	// 	// Database Handle
+	// 	//sqlite3 * db = NULL;
 
-		// Open Database
-		//if(sqlite3_open(SERVER_DATABASE, &db) == SQLITE_OK)
-		{
-			// Iterate Games
-			SceNetAdhocctlGameNode * game = _db_game; for(; game != NULL; game = game->next)
-			{
-				// Safe Product ID
-				char productid[PRODUCT_CODE_LENGTH + 1];
-				strncpy(productid, game->game.data, PRODUCT_CODE_LENGTH);
-				productid[PRODUCT_CODE_LENGTH] = 0;
+	// 	// Open Database
+	// 	//if(sqlite3_open(SERVER_DATABASE, &db) == SQLITE_OK)
+	// 	{
+	// 		// Iterate Games
+	// 		SceNetAdhocctlGameNode * game = _db_game; for(; game != NULL; game = game->next)
+	// 		{
+	// 			// Safe Product ID
+	// 			char productid[PRODUCT_CODE_LENGTH + 1];
+	// 			strncpy(productid, game->game.data, PRODUCT_CODE_LENGTH);
+	// 			productid[PRODUCT_CODE_LENGTH] = 0;
 
-				// Display Name
-				char displayname[128];
-				memset(displayname, 0, sizeof(displayname));
+	// 			// Display Name
+	// 			char displayname[128];
+	// 			memset(displayname, 0, sizeof(displayname));
 
-				// SQL Statement
-				//const char * sql = "SELECT name FROM productids WHERE id=?;";
+	// 			// SQL Statement
+	// 			//const char * sql = "SELECT name FROM productids WHERE id=?;";
 
-				// Prepared SQL Statement
-				//sqlite3_stmt * statement = NULL;
+	// 			// Prepared SQL Statement
+	// 			//sqlite3_stmt * statement = NULL;
 
-				// Prepare SQL Statement
-				/*if(sqlite3_prepare_v2(db, sql, strlen(sql) + 1, &statement, NULL) == SQLITE_OK)
-				{
-					// Bind SQL Statement Data
-					if(sqlite3_bind_text(statement, 1, productid, strlen(productid), SQLITE_STATIC) == SQLITE_OK)
-					{
-						// Found Matching Row
-						if(sqlite3_step(statement) == SQLITE_ROW)
-						{
-							// Fetch Game Name from Database
-							const char * gamename = (const char *)sqlite3_column_text(statement, 0);
+	// 			// Prepare SQL Statement
+	// 			/*if(sqlite3_prepare_v2(db, sql, strlen(sql) + 1, &statement, NULL) == SQLITE_OK)
+	// 			{
+	// 				// Bind SQL Statement Data
+	// 				if(sqlite3_bind_text(statement, 1, productid, strlen(productid), SQLITE_STATIC) == SQLITE_OK)
+	// 				{
+	// 					// Found Matching Row
+	// 					if(sqlite3_step(statement) == SQLITE_ROW)
+	// 					{
+	// 						// Fetch Game Name from Database
+	// 						const char * gamename = (const char *)sqlite3_column_text(statement, 0);
 
-							// Copy Game Name
-							strcpyxml(displayname, gamename, sizeof(displayname));
-						}
+	// 						// Copy Game Name
+	// 						strcpyxml(displayname, gamename, sizeof(displayname));
+	// 					}
 
-						// Game not in Database
-						else
-						{
-							// Use Product Code as Name
-							strcpyxml(displayname, productid, sizeof(displayname));
-						}
-					}
+	// 					// Game not in Database
+	// 					else
+	// 					{
+	// 						// Use Product Code as Name
+	// 						strcpyxml(displayname, productid, sizeof(displayname));
+	// 					}
+	// 				}
 
-					// Destroy Prepared SQL Statement
-					sqlite3_finalize(statement);
-				}*/
-				//db_productid *foundid = NULL;
-				bool found = false;
-				for (const auto &product : productids) {
-					if (IsMatch(product.id, productid)) {
-						// Copy Game Name
-						strcpyxml(displayname, product.name, sizeof(displayname));
-						found = true;
-						break;
-					}
-				}
+	// 				// Destroy Prepared SQL Statement
+	// 				sqlite3_finalize(statement);
+	// 			}*/
+	// 			//db_productid *foundid = NULL;
+	// 			bool found = false;
+	// 			for (const auto &product : productids) {
+	// 				if (IsMatch(product.id, productid)) {
+	// 					// Copy Game Name
+	// 					strcpyxml(displayname, product.name, sizeof(displayname));
+	// 					found = true;
+	// 					break;
+	// 				}
+	// 			}
 
-				if (!found) {
-					// Use Product Code as Name
-					strcpyxml(displayname, productid, sizeof(displayname));
-				}
+	// 			if (!found) {
+	// 				// Use Product Code as Name
+	// 				strcpyxml(displayname, productid, sizeof(displayname));
+	// 			}
 
-				// Output Game Tag + Game Name
-				fprintf(log, "\t<game name=\"%s\" usercount=\"%u\">\n", displayname, game->playercount);
+	// 			// Output Game Tag + Game Name
+	// 			fprintf(log, "\t<game name=\"%s\" usercount=\"%u\">\n", displayname, game->playercount);
 
-				// Activate User Count
-				uint32_t activecount = 0;
+	// 			// Activate User Count
+	// 			uint32_t activecount = 0;
 
-				// Iterate Game Groups
-				SceNetAdhocctlGroupNode * group = game->group; for(; group != NULL; group = group->next)
-				{
-					// Safe Group Name
-					char groupname[ADHOCCTL_GROUPNAME_LEN + 1];
-					strncpy(groupname, (const char *)group->group.data, ADHOCCTL_GROUPNAME_LEN);
-					groupname[ADHOCCTL_GROUPNAME_LEN] = 0;
+	// 			// Iterate Game Groups
+	// 			SceNetAdhocctlGroupNode * group = game->group; for(; group != NULL; group = group->next)
+	// 			{
+	// 				// Safe Group Name
+	// 				char groupname[ADHOCCTL_GROUPNAME_LEN + 1];
+	// 				strncpy(groupname, (const char *)group->group.data, ADHOCCTL_GROUPNAME_LEN);
+	// 				groupname[ADHOCCTL_GROUPNAME_LEN] = 0;
 
-					// Output Group Tag + Group Name + User Count
-					fprintf(log, "\t\t<group name=\"%s\" usercount=\"%u\">\n", strcpyxml(displayname, groupname, sizeof(displayname)), group->playercount);
+	// 				// Output Group Tag + Group Name + User Count
+	// 				fprintf(log, "\t\t<group name=\"%s\" usercount=\"%u\">\n", strcpyxml(displayname, groupname, sizeof(displayname)), group->playercount);
 
-					// Iterate Users
-					SceNetAdhocctlUserNode * user = group->player; for(; user != NULL; user = user->group_next)
-					{
-						// Output User Tag + Username
-						fprintf(log, "\t\t\t<user>%s</user>\n", strcpyxml(displayname, (const char *)user->resolver.name.data, sizeof(displayname)));
-					}
+	// 				// Iterate Users
+	// 				SceNetAdhocctlUserNode * user = group->player; for(; user != NULL; user = user->group_next)
+	// 				{
+	// 					// Output User Tag + Username
+	// 					fprintf(log, "\t\t\t<user>%s</user>\n", strcpyxml(displayname, (const char *)user->resolver.name.data, sizeof(displayname)));
+	// 				}
 
-					// Output Closing Group Tag
-					fprintf(log, "\t\t</group>\n");
+	// 				// Output Closing Group Tag
+	// 				fprintf(log, "\t\t</group>\n");
 
-					// Increase Active Game User Count
-					activecount += group->playercount;
-				}
+	// 				// Increase Active Game User Count
+	// 				activecount += group->playercount;
+	// 			}
 
-				// Output Idle Game Group
-				if(game->playercount > activecount)
-				{
-					// Output Group Tag + Group Name + Idle User Count
-					fprintf(log, "\t\t<group name=\"Groupless\" usercount=\"%u\" />\n", game->playercount - activecount);
-				}
+	// 			// Output Idle Game Group
+	// 			if(game->playercount > activecount)
+	// 			{
+	// 				// Output Group Tag + Group Name + Idle User Count
+	// 				fprintf(log, "\t\t<group name=\"Groupless\" usercount=\"%u\" />\n", game->playercount - activecount);
+	// 			}
 
-				// Output Closing Game Tag
-				fprintf(log, "\t</game>\n");
-			}
+	// 			// Output Closing Game Tag
+	// 			fprintf(log, "\t</game>\n");
+	// 		}
 
-			// Close Database
-			//sqlite3_close(db);
-		}
+	// 		// Close Database
+	// 		//sqlite3_close(db);
+	// 	}
 
-		// Output Closing Root Tag
-		fprintf(log, "</prometheus>");
+	// 	// Output Closing Root Tag
+	// 	fprintf(log, "</prometheus>");
 
-		// Close Logfile
-		fclose(log);
-	}
+	// 	// Close Logfile
+	// 	fclose(log);
+	// }
 }
 
 /**

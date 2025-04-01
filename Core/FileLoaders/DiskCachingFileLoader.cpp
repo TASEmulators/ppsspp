@@ -39,7 +39,7 @@
 
 #if PPSSPP_PLATFORM(SWITCH)
 // Far from optimal, but I guess it works...
-#define fseeko fseek
+#define jaffarCommon::file::MemoryFile::fseeko jaffarCommon::file::MemoryFile::fseek
 #endif
 
 static const char * const CACHEFILE_MAGIC = "ppssppDC";
@@ -203,11 +203,11 @@ void DiskCachingFileLoaderCache::InitCache(const Path &filename) {
 void DiskCachingFileLoaderCache::ShutdownCache() {
 	if (f_) {
 		bool failed = false;
-		if (fseek(f_, sizeof(FileHeader), SEEK_SET) != 0) {
+		if (jaffarCommon::file::MemoryFile::fseek(f_, sizeof(FileHeader), SEEK_SET) != 0) {
 			failed = true;
-		} else if (fwrite(&index_[0], sizeof(BlockInfo), indexCount_, f_) != indexCount_) {
+		} else if (jaffarCommon::file::MemoryFile::fwrite(&index_[0], sizeof(BlockInfo), indexCount_, f_) != indexCount_) {
 			failed = true;
-		} else if (fflush(f_) != 0) {
+		} else if (jaffarCommon::file::MemoryFile::fflush(f_) != 0) {
 			failed = true;
 		}
 		if (failed) {
@@ -457,7 +457,7 @@ bool DiskCachingFileLoaderCache::ReadBlockData(u8 *dest, BlockInfo &info, size_t
 
 	// Before we read, make sure the buffers are flushed.
 	// We might be trying to read an area we've recently written.
-	fflush(f_);
+	jaffarCommon::file::MemoryFile::fflush(f_);
 
 	bool failed = false;
 #ifdef __ANDROID__
@@ -467,9 +467,9 @@ bool DiskCachingFileLoaderCache::ReadBlockData(u8 *dest, BlockInfo &info, size_t
 		failed = true;
 	}
 #else
-	if (fseeko(f_, blockOffset, SEEK_SET) != 0) {
+	if (jaffarCommon::file::MemoryFile::fseeko(f_, blockOffset, SEEK_SET) != 0) {
 		failed = true;
-	} else if (fread(dest + offset, size, 1, f_) != 1) {
+	} else if (jaffarCommon::file::MemoryFile::fread(dest + offset, size, 1, f_) != 1) {
 		failed = true;
 	}
 #endif
@@ -495,9 +495,9 @@ void DiskCachingFileLoaderCache::WriteBlockData(BlockInfo &info, const u8 *src) 
 		failed = true;
 	}
 #else
-	if (fseeko(f_, blockOffset, SEEK_SET) != 0) {
+	if (jaffarCommon::file::MemoryFile::fseeko(f_, blockOffset, SEEK_SET) != 0) {
 		failed = true;
-	} else if (fwrite(src, blockSize_, 1, f_) != 1) {
+	} else if (jaffarCommon::file::MemoryFile::fwrite(src, blockSize_, 1, f_) != 1) {
 		failed = true;
 	}
 #endif
@@ -516,9 +516,9 @@ void DiskCachingFileLoaderCache::WriteIndexData(u32 indexPos, BlockInfo &info) {
 	u32 offset = (u32)sizeof(FileHeader) + indexPos * (u32)sizeof(BlockInfo);
 
 	bool failed = false;
-	if (fseek(f_, offset, SEEK_SET) != 0) {
+	if (jaffarCommon::file::MemoryFile::fseek(f_, offset, SEEK_SET) != 0) {
 		failed = true;
-	} else if (fwrite(&info, sizeof(BlockInfo), 1, f_) != 1) {
+	} else if (jaffarCommon::file::MemoryFile::fwrite(&info, sizeof(BlockInfo), 1, f_) != 1) {
 		failed = true;
 	}
 
@@ -529,14 +529,14 @@ void DiskCachingFileLoaderCache::WriteIndexData(u32 indexPos, BlockInfo &info) {
 }
 
 bool DiskCachingFileLoaderCache::LoadCacheFile(const Path &path) {
-	FILE *fp = File::OpenCFile(path, "rb+");
+	auto fp = File::OpenCFile(path, "rb+");
 	if (!fp) {
 		return false;
 	}
 
 	FileHeader header;
 	bool valid = true;
-	if (fread(&header, sizeof(FileHeader), 1, fp) != 1) {
+	if (jaffarCommon::file::MemoryFile::fread(&header, sizeof(FileHeader), 1, fp) != 1) {
 		valid = false;
 	} else if (memcmp(header.magic, CACHEFILE_MAGIC, sizeof(header.magic)) != 0) {
 		valid = false;
@@ -565,14 +565,14 @@ bool DiskCachingFileLoaderCache::LoadCacheFile(const Path &path) {
 		LoadCacheIndex();
 	} else {
 		ERROR_LOG(Log::Loader, "Disk cache file header did not match, recreating cache file");
-		fclose(fp);
+		_memFileDirectory.fclose(fp);
 	}
 
 	return valid;
 }
 
 void DiskCachingFileLoaderCache::LoadCacheIndex() {
-	if (fseek(f_, sizeof(FileHeader), SEEK_SET) != 0) {
+	if (jaffarCommon::file::MemoryFile::fseek(f_, sizeof(FileHeader), SEEK_SET) != 0) {
 		CloseFileHandle();
 		return;
 	}
@@ -582,7 +582,7 @@ void DiskCachingFileLoaderCache::LoadCacheIndex() {
 	blockIndexLookup_.resize(maxBlocks_);
 	memset(&blockIndexLookup_[0], INVALID_INDEX, maxBlocks_ * sizeof(blockIndexLookup_[0]));
 
-	if (fread(&index_[0], sizeof(BlockInfo), indexCount_, f_) != indexCount_) {
+	if (jaffarCommon::file::MemoryFile::fread(&index_[0], sizeof(BlockInfo), indexCount_, f_) != indexCount_) {
 		CloseFileHandle();
 		return;
 	}
@@ -646,7 +646,7 @@ void DiskCachingFileLoaderCache::CreateCacheFile(const Path &path) {
 	header.maxBlocks = maxBlocks_;
 	header.flags = flags_;
 
-	if (fwrite(&header, sizeof(header), 1, f_) != 1) {
+	if (jaffarCommon::file::MemoryFile::fwrite(&header, sizeof(header), 1, f_) != 1) {
 		CloseFileHandle();
 		return;
 	}
@@ -657,11 +657,11 @@ void DiskCachingFileLoaderCache::CreateCacheFile(const Path &path) {
 	blockIndexLookup_.resize(maxBlocks_);
 	memset(&blockIndexLookup_[0], INVALID_INDEX, maxBlocks_ * sizeof(blockIndexLookup_[0]));
 
-	if (fwrite(&index_[0], sizeof(BlockInfo), indexCount_, f_) != indexCount_) {
+	if (jaffarCommon::file::MemoryFile::fwrite(&index_[0], sizeof(BlockInfo), indexCount_, f_) != indexCount_) {
 		CloseFileHandle();
 		return;
 	}
-	if (fflush(f_) != 0) {
+	if (jaffarCommon::file::MemoryFile::fflush(f_) != 0) {
 		CloseFileHandle();
 		return;
 	}
@@ -677,9 +677,9 @@ bool DiskCachingFileLoaderCache::LockCacheFile(bool lockStatus) {
 	u32 offset = (u32)offsetof(FileHeader, flags);
 
 	bool failed = false;
-	if (fseek(f_, offset, SEEK_SET) != 0) {
+	if (jaffarCommon::file::MemoryFile::fseek(f_, offset, SEEK_SET) != 0) {
 		failed = true;
-	} else if (fread(&flags_, sizeof(u32), 1, f_) != 1) {
+	} else if (jaffarCommon::file::MemoryFile::fread(&flags_, sizeof(u32), 1, f_) != 1) {
 		failed = true;
 	}
 
@@ -704,11 +704,11 @@ bool DiskCachingFileLoaderCache::LockCacheFile(bool lockStatus) {
 		flags_ &= ~FLAG_LOCKED;
 	}
 
-	if (fseek(f_, offset, SEEK_SET) != 0) {
+	if (jaffarCommon::file::MemoryFile::fseek(f_, offset, SEEK_SET) != 0) {
 		failed = true;
-	} else if (fwrite(&flags_, sizeof(u32), 1, f_) != 1) {
+	} else if (jaffarCommon::file::MemoryFile::fwrite(&flags_, sizeof(u32), 1, f_) != 1) {
 		failed = true;
-	} else if (fflush(f_) != 0) {
+	} else if (jaffarCommon::file::MemoryFile::fflush(f_) != 0) {
 		failed = true;
 	}
 
@@ -734,7 +734,7 @@ bool DiskCachingFileLoaderCache::RemoveCacheFile(const Path &path) {
 
 void DiskCachingFileLoaderCache::CloseFileHandle() {
 	if (f_) {
-		fclose(f_);
+		_memFileDirectory.fclose(f_);
 	}
 	f_ = nullptr;
 	fd_ = 0;

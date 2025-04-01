@@ -39,7 +39,7 @@
 #include "Core/MIPS/MIPSAnalyst.h"
 #include "Core/HLE/sceNetAdhoc.h"
 #include "Core/MIPS/MIPSTracer.h"
-
+#include <jaffarCommon/dethreader.hpp>
 #include "GPU/Debugger/Stepping.h"
 #include "GPU/GPU.h"
 #include "GPU/GPUCommon.h"
@@ -229,6 +229,8 @@ void Core_RunLoopUntil(u64 globalticks) {
 			}
 			break;
 		}
+
+		jaffarCommon::dethreader::yield();
 	}
 }
 

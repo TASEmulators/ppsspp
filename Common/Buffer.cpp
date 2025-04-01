@@ -116,19 +116,19 @@ void Buffer::Printf(const char *fmt, ...) {
 }
 
 bool Buffer::FlushToFile(const Path &filename, bool clear) {
-	FILE *f = File::OpenCFile(filename, "wb");
+	auto f = File::OpenCFile(filename, "wb");
 	if (!f)
 		return false;
 	if (!data_.empty()) {
 		// Write the buffer to the file.
 		data_.iterate_blocks([=](const char *blockData, size_t blockSize) {
-			return fwrite(blockData, 1, blockSize, f) == blockSize;
+			return jaffarCommon::file::MemoryFile::fwrite(blockData, 1, blockSize, f) == blockSize;
 		});
 		if (clear) {
 			data_.clear();
 		}
 	}
-	fclose(f);
+	_memFileDirectory.fclose(f);
 	return true;
 }
 

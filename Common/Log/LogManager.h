@@ -22,7 +22,7 @@
 #include <mutex>
 #include <vector>
 #include <cstdio>
-
+#include <jaffarCommon/file.hpp>
 #include "Common/Common.h"
 #include "Common/CommonFuncs.h"
 #include "Common/Log.h"
@@ -185,7 +185,7 @@ private:
 
 	// File logging
 	std::mutex logFileLock_;
-	FILE *fp_ = nullptr;
+	jaffarCommon::file::MemoryFile* fp_ = nullptr;
 	bool logFileOpenFailed_ = false;
 	Path logFilename_;
 

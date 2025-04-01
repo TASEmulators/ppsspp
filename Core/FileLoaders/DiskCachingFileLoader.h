@@ -25,6 +25,8 @@
 #include "Common/File/Path.h"
 #include "Common/Swap.h"
 #include "Core/Loaders.h"
+#include <jaffarCommon/file.hpp>
+extern jaffarCommon::file::MemoryFileDirectory _memFileDirectory;
 
 class DiskCachingFileLoaderCache;
 
@@ -174,7 +176,7 @@ private:
 	std::vector<BlockInfo> index_;
 	std::vector<u32> blockIndexLookup_;
 
-	FILE *f_ = nullptr;
+	jaffarCommon::file::MemoryFile *f_ = nullptr;
 	int fd_ = 0;
 
 	static Path cacheDir_;

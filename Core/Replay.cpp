@@ -173,63 +173,63 @@ bool ReplayExecuteBlob(int version, const std::vector<uint8_t> &data) {
 }
 
 bool ReplayExecuteFile(const Path &filename) {
-	ReplayAbort();
+	// ReplayAbort();
 
-	FILE *fp = File::OpenCFile(filename, "rb");
-	if (!fp) {
-		DEBUG_LOG(Log::System, "Failed to open replay file: %s", filename.c_str());
-		return false;
-	}
+	// FILE *fp = File::OpenCFile(filename, "rb");
+	// if (!fp) {
+	// 	DEBUG_LOG(Log::System, "Failed to open replay file: %s", filename.c_str());
+	// 	return false;
+	// }
 
-	int version = -1;
-	std::vector<uint8_t> data;
-	auto loadData = [&]() {
-		// TODO: Maybe stream instead.
-		size_t sz = File::GetFileSize(fp);
-		if (sz <= sizeof(ReplayFileHeader)) {
-			ERROR_LOG(Log::System, "Empty replay data");
-			return false;
-		}
+	// int version = -1;
+	// std::vector<uint8_t> data;
+	// auto loadData = [&]() {
+	// 	// TODO: Maybe stream instead.
+	// 	size_t sz = File::GetFileSize(fp);
+	// 	if (sz <= sizeof(ReplayFileHeader)) {
+	// 		ERROR_LOG(Log::System, "Empty replay data");
+	// 		return false;
+	// 	}
 
-		ReplayFileHeader fh;
-		if (fread(&fh, sizeof(fh), 1, fp) != 1) {
-			ERROR_LOG(Log::System, "Could not read replay file header");
-			return false;
-		}
-		sz -= sizeof(fh);
+	// 	ReplayFileHeader fh;
+	// 	if (fread(&fh, sizeof(fh), 1, fp) != 1) {
+	// 		ERROR_LOG(Log::System, "Could not read replay file header");
+	// 		return false;
+	// 	}
+	// 	sz -= sizeof(fh);
 
-		if (memcmp(fh.magic, REPLAY_MAGIC, sizeof(fh.magic)) != 0) {
-			ERROR_LOG(Log::System, "Replay header corrupt");
-			return false;
-		}
+	// 	if (memcmp(fh.magic, REPLAY_MAGIC, sizeof(fh.magic)) != 0) {
+	// 		ERROR_LOG(Log::System, "Replay header corrupt");
+	// 		return false;
+	// 	}
 
-		if (fh.version < REPLAY_VERSION_MIN) {
-			ERROR_LOG(Log::System, "Replay version %d unsupported", fh.version);
-			return false;
-		} else if (fh.version > REPLAY_VERSION_CURRENT) {
-			WARN_LOG(Log::System, "Replay version %d scary and futuristic, trying anyway", fh.version);
-		}
+	// 	if (fh.version < REPLAY_VERSION_MIN) {
+	// 		ERROR_LOG(Log::System, "Replay version %d unsupported", fh.version);
+	// 		return false;
+	// 	} else if (fh.version > REPLAY_VERSION_CURRENT) {
+	// 		WARN_LOG(Log::System, "Replay version %d scary and futuristic, trying anyway", fh.version);
+	// 	}
 
-		RtcSetBaseTime((int32_t)fh.rtcBaseSeconds, 0);
-		version = fh.version;
+	// 	RtcSetBaseTime((int32_t)fh.rtcBaseSeconds, 0);
+	// 	version = fh.version;
 
-		data.resize(sz);
+	// 	data.resize(sz);
 
-		if (fread(&data[0], sz, 1, fp) != 1) {
-			ERROR_LOG(Log::System, "Could not read replay data");
-			return false;
-		}
+	// 	if (fread(&data[0], sz, 1, fp) != 1) {
+	// 		ERROR_LOG(Log::System, "Could not read replay data");
+	// 		return false;
+	// 	}
 
-		return true;
-	};
+	// 	return true;
+	// };
 
-	if (loadData()) {
-		fclose(fp);
-		ReplayExecuteBlob(version, data);
-		return true;
-	}
+	// if (loadData()) {
+	// 	fclose(fp);
+	// 	ReplayExecuteBlob(version, data);
+	// 	return true;
+	// }
 
-	fclose(fp);
+	// fclose(fp);
 	return false;
 }
 
@@ -277,37 +277,37 @@ void ReplayFlushBlob(std::vector<uint8_t> *data) {
 }
 
 bool ReplayFlushFile(const Path &filename) {
-	FILE *fp = File::OpenCFile(filename, replaySaveWroteHeader ? "ab" : "wb");
-	if (!fp) {
-		ERROR_LOG(Log::System, "Failed to open replay file: %s", filename.c_str());
-		return false;
-	}
+	// FILE *fp = File::OpenCFile(filename, replaySaveWroteHeader ? "ab" : "wb");
+	// if (!fp) {
+	// 	ERROR_LOG(Log::System, "Failed to open replay file: %s", filename.c_str());
+	// 	return false;
+	// }
 
 	bool success = true;
-	if (!replaySaveWroteHeader) {
-		ReplayFileHeader fh;
-		memcpy(fh.magic, REPLAY_MAGIC, sizeof(fh.magic));
-		fh.rtcBaseSeconds = RtcBaseTime();
+	// if (!replaySaveWroteHeader) {
+	// 	ReplayFileHeader fh;
+	// 	memcpy(fh.magic, REPLAY_MAGIC, sizeof(fh.magic));
+	// 	fh.rtcBaseSeconds = RtcBaseTime();
 
-		success = fwrite(&fh, sizeof(fh), 1, fp) == 1;
-		replaySaveWroteHeader = true;
-	}
+	// 	success = fwrite(&fh, sizeof(fh), 1, fp) == 1;
+	// 	replaySaveWroteHeader = true;
+	// }
 
-	size_t c = replayItems.size();
-	if (success && c != 0) {
-		// TODO: Maybe stream instead.
-		std::vector<uint8_t> data;
-		ReplayFlushBlob(&data);
+	// size_t c = replayItems.size();
+	// if (success && c != 0) {
+	// 	// TODO: Maybe stream instead.
+	// 	std::vector<uint8_t> data;
+	// 	ReplayFlushBlob(&data);
 
-		success = fwrite(&data[0], data.size(), 1, fp) == 1;
-	}
-	fclose(fp);
+	// 	success = fwrite(&data[0], data.size(), 1, fp) == 1;
+	// }
+	// fclose(fp);
 
-	if (success) {
-		DEBUG_LOG(Log::System, "Flushed %lld replay items", (long long)c);
-	} else {
-		ERROR_LOG(Log::System, "Could not write %lld replay items (disk full?)", (long long)c);
-	}
+	// if (success) {
+	// 	DEBUG_LOG(Log::System, "Flushed %lld replay items", (long long)c);
+	// } else {
+	// 	ERROR_LOG(Log::System, "Could not write %lld replay items (disk full?)", (long long)c);
+	// }
 	return success;
 }
 

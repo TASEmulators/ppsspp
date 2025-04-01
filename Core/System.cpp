@@ -209,6 +209,7 @@ bool DiscIDFromGEDumpPath(const Path &path, FileLoader *fileLoader, std::string 
 }
 
 bool CPU_Init(std::string *errorString, FileLoader *loadedFile) {
+	printf("PSP CPU INIT A\n");
 	coreState = CORE_POWERUP;
 	currentMIPS = &mipsr4k;
 
@@ -238,6 +239,7 @@ bool CPU_Init(std::string *errorString, FileLoader *loadedFile) {
 	bool allowPlugins = true;
 	std::string geDumpDiscID;
 
+	printf("PSP CPU INIT B type: %d\n", type);
 	switch (type) {
 	case IdentifiedFileType::PSP_ISO:
 	case IdentifiedFileType::PSP_ISO_NP:
@@ -383,14 +385,16 @@ void PSP_ForceDebugStats(bool enable) {
 }
 
 bool PSP_InitStart(const CoreParameter &coreParam, std::string *error_string) {
+	printf("PSP INIT START A\n");
 	if (pspIsIniting || pspIsQuitting) {
 		return false;
 	}
-
+	printf("PSP INIT START B\n");
 	if (!Achievements::IsReadyToStart()) {
 		return false;
 	}
 
+	printf("PSP INIT START C\n");
 #if defined(_WIN32) && PPSSPP_ARCH(AMD64)
 	NOTICE_LOG(Log::Boot, "PPSSPP %s Windows 64 bit", PPSSPP_GIT_VERSION);
 #elif defined(_WIN32) && !PPSSPP_ARCH(AMD64)
@@ -399,6 +403,7 @@ bool PSP_InitStart(const CoreParameter &coreParam, std::string *error_string) {
 	NOTICE_LOG(Log::Boot, "PPSSPP %s", PPSSPP_GIT_VERSION);
 #endif
 
+printf("PSP INIT START D\n");
 	Core_NotifyLifecycle(CoreLifecycle::STARTING);
 	GraphicsContext *temp = g_CoreParameter.graphicsContext;
 	g_CoreParameter = coreParam;
@@ -409,7 +414,10 @@ bool PSP_InitStart(const CoreParameter &coreParam, std::string *error_string) {
 	pspIsIniting = true;
 
 	Path filename = g_CoreParameter.fileToStart;
+	printf("PSP INIT START E\n");
 	FileLoader *loadedFile = ResolveFileLoaderTarget(ConstructFileLoader(filename));
+
+	printf("PSP INIT START F\n");
 #if PPSSPP_ARCH(AMD64)
 	if (g_Config.bCacheFullIsoInRam) {
 		switch (coreParam.fileType) {
@@ -424,6 +432,7 @@ bool PSP_InitStart(const CoreParameter &coreParam, std::string *error_string) {
 	}
 #endif
 
+printf("PSP INIT START G\n");
 	if (g_Config.bAchievementsEnable) {
 		// Need to re-identify after ResolveFileLoaderTarget - although in practice probably not,
 		// but also, re-using the identification would require some plumbing, to be done later.
@@ -432,6 +441,7 @@ bool PSP_InitStart(const CoreParameter &coreParam, std::string *error_string) {
 		Achievements::SetGame(filename, type, loadedFile);
 	}
 
+	printf("PSP INIT START H\n");
 	if (!CPU_Init(&g_CoreParameter.errorString, loadedFile)) {
 		*error_string = g_CoreParameter.errorString;
 		if (error_string->empty()) {
@@ -441,6 +451,7 @@ bool PSP_InitStart(const CoreParameter &coreParam, std::string *error_string) {
 		return false;
 	}
 
+	printf("PSP INIT START I\n");
 	// Compat flags get loaded in CPU_Init (which is a bit of a misnomer) so we check for SW renderer here.
 	if (g_Config.bSoftwareRendering || PSP_CoreParameter().compat.flags().ForceSoftwareRenderer) {
 		g_CoreParameter.gpuCore = GPUCORE_SOFTWARE;

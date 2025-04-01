@@ -689,22 +689,22 @@ ReplacedTexture *TextureReplacer::FindReplacement(u64 cachekey, u32 hash, int w,
 }
 
 static bool WriteTextureToPNG(png_imagep image, const Path &filename, int convert_to_8bit, const void *buffer, png_int_32 row_stride, const void *colormap) {
-	FILE *fp = File::OpenCFile(filename, "wb");
-	if (!fp) {
-		ERROR_LOG(Log::TexReplacement, "Save texture: Unable to open texture file '%s' for writing.", filename.c_str());
-		return false;
-	}
+	// FILE *fp = File::OpenCFile(filename, "wb");
+	// if (!fp) {
+	// 	ERROR_LOG(Log::TexReplacement, "Save texture: Unable to open texture file '%s' for writing.", filename.c_str());
+	// 	return false;
+	// }
 
-	if (png_image_write_to_stdio(image, fp, convert_to_8bit, buffer, row_stride, colormap)) {
-		fclose(fp);
-		return true;
-	} else {
-		// This shouldn't really happen.
-		ERROR_LOG(Log::TexReplacement, "Texture PNG encode failed.");
-		fclose(fp);
-		remove(filename.c_str());
-		return false;
-	}
+	// if (png_image_write_to_stdio(image, fp, convert_to_8bit, buffer, row_stride, colormap)) {
+	// 	fclose(fp);
+	// 	return true;
+	// } else {
+	// 	// This shouldn't really happen.
+	// 	ERROR_LOG(Log::TexReplacement, "Texture PNG encode failed.");
+	// 	fclose(fp);
+	// 	remove(filename.c_str());
+	// 	return false;
+	// }
 }
 
 // We save textures on threadpool tasks since it's a fire-and-forget task, and both I/O and png compression
@@ -1055,48 +1055,48 @@ bool TextureReplacer::GenerateIni(const std::string &gameID, Path &generatedFile
 	if (File::Exists(generatedFilename))
 		return true;
 
-	FILE *f = File::OpenCFile(generatedFilename, "wb");
-	if (f) {
-		// Unicode byte order mark
-		fwrite("\xEF\xBB\xBF", 1, 3, f);
+// 	FILE *f = File::OpenCFile(generatedFilename, "wb");
+// 	if (f) {
+// 		// Unicode byte order mark
+// 		fwrite("\xEF\xBB\xBF", 1, 3, f);
 
-		// Let's also write some defaults.
-		fprintf(f, R"(# This describes your textures and set up options for texture replacement.
-# Documentation about the options and syntax is available here:
-# https://www.ppsspp.org/docs/reference/texture-replacement
+// 		// Let's also write some defaults.
+// 		fprintf(f, R"(# This describes your textures and set up options for texture replacement.
+// # Documentation about the options and syntax is available here:
+// # https://www.ppsspp.org/docs/reference/texture-replacement
 
-[options]
-version = 1
-hash = quick             # options available: "quick", "xxh32" - more accurate, but slower, "xxh64" - more accurate and quite fast, but slower than xxh32 on 32 bit cpu's
-ignoreMipmap = true      # Usually, can just generate them with basisu, no need to dump.
-reduceHash = false       # Unsafe and can cause glitches in some cases, but allows to skip garbage data in some textures reducing endless duplicates as a side effect speeds up hashing as well, requires stronger hash like xxh32 or xxh64
-ignoreAddress = false    # Reduces duplicates at the cost of making hash less reliable, requires stronger hash like xxh32 or xxh64. Basically automatically sets the address to 0 in the dumped filenames.
+// [options]
+// version = 1
+// hash = quick             # options available: "quick", "xxh32" - more accurate, but slower, "xxh64" - more accurate and quite fast, but slower than xxh32 on 32 bit cpu's
+// ignoreMipmap = true      # Usually, can just generate them with basisu, no need to dump.
+// reduceHash = false       # Unsafe and can cause glitches in some cases, but allows to skip garbage data in some textures reducing endless duplicates as a side effect speeds up hashing as well, requires stronger hash like xxh32 or xxh64
+// ignoreAddress = false    # Reduces duplicates at the cost of making hash less reliable, requires stronger hash like xxh32 or xxh64. Basically automatically sets the address to 0 in the dumped filenames.
 
-[games]
-# Used to make it easier to install, and override settings for other regions.
-# Files still have to be copied to each TEXTURES folder.
-%s = %s
+// [games]
+// # Used to make it easier to install, and override settings for other regions.
+// # Files still have to be copied to each TEXTURES folder.
+// %s = %s
 
-[hashes]
-# Use / for folders not \\, avoid special characters, and stick to lowercase.
-# See wiki for more info.
+// [hashes]
+// # Use / for folders not \\, avoid special characters, and stick to lowercase.
+// # See wiki for more info.
 
-[hashranges]
-# This is useful for images that very clearly have smaller dimensions, like 480x272 image. They'll need to be redumped, since the hash will change. See the documentation.
-# Example: 08b31020,512,512 = 480,272
-# Example: 0x08b31020,512,512 = 480,272
+// [hashranges]
+// # This is useful for images that very clearly have smaller dimensions, like 480x272 image. They'll need to be redumped, since the hash will change. See the documentation.
+// # Example: 08b31020,512,512 = 480,272
+// # Example: 0x08b31020,512,512 = 480,272
 
-[filtering]
-# You can enforce specific filtering modes with this. Available modes are linear, nearest, auto. See the docs.
-# Example: 08d3961000000909ba70b2af = nearest
+// [filtering]
+// # You can enforce specific filtering modes with this. Available modes are linear, nearest, auto. See the docs.
+// # Example: 08d3961000000909ba70b2af = nearest
 
-[reducehashranges]
-# Lets you set texture sizes where the hash range is reduced by a factor. See the docs.
-# Example:
-512,512=0.5
+// [reducehashranges]
+// # Lets you set texture sizes where the hash range is reduced by a factor. See the docs.
+// # Example:
+// 512,512=0.5
 
-)", gameID.c_str(), INI_FILENAME.c_str());
-		fclose(f);
-	}
+// )", gameID.c_str(), INI_FILENAME.c_str());
+// 		fclose(f);
+// 	}
 	return File::Exists(generatedFilename);
 }
