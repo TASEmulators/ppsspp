@@ -470,19 +470,24 @@ printf("PSP INIT START G\n");
 }
 
 bool PSP_InitUpdate(std::string *error_string) {
+
+	printf("RetroRun InitUpdateA\n");
 	if (pspIsInited || !pspIsIniting) {
 		return true;
 	}
 
+	printf("RetroRun InitUpdateB\n");
 	if (!CPU_IsReady()) {
 		return false;
 	}
 
+	printf("RetroRun InitUpdateC\n");
 	bool success = !g_CoreParameter.fileToStart.empty();
 	if (!g_CoreParameter.errorString.empty()) {
 		*error_string = g_CoreParameter.errorString;
 	}
 
+	printf("RetroRun InitUpdateD\n");
 	if (success && gpu == nullptr) {
 		INFO_LOG(Log::System, "Starting graphics...");
 		Draw::DrawContext *draw = g_CoreParameter.graphicsContext ? g_CoreParameter.graphicsContext->GetDrawContext() : nullptr;
@@ -491,12 +496,15 @@ bool PSP_InitUpdate(std::string *error_string) {
 			*error_string = "Unable to initialize rendering engine.";
 		}
 	}
+
+	printf("RetroRun InitUpdateE\n");
 	if (!success) {
 		pspIsRebooting = false;
 		PSP_Shutdown();
 		return true;
 	}
 
+	printf("RetroRun InitUpdateF\n");
 	pspIsInited = GPU_IsReady();
 	pspIsIniting = !pspIsInited;
 	if (pspIsInited) {

@@ -59,7 +59,7 @@ ThreadManager::~ThreadManager() {
 
 void ThreadManager::Teardown() {
 	for (TaskThreadContext *&threadCtx : global_->threads_) {
-		std::unique_lock<std::mutex> lock(threadCtx->mutex);
+		// std::unique_lock<std::mutex> lock(threadCtx->mutex);
 		threadCtx->cancelled = true;
 		threadCtx->cond.notify_one();
 	}
@@ -79,7 +79,7 @@ void ThreadManager::Teardown() {
 			return true;
 		};
 
-		std::unique_lock<std::mutex> lock(global_->mutex);
+		// std::unique_lock<std::mutex> lock(global_->mutex);
 		while (!drainQueue(global_->compute_queue, global_->compute_queue_size))
 			continue;
 		while (!drainQueue(global_->io_queue, global_->io_queue_size))
@@ -153,7 +153,7 @@ static void WorkerThreadFunc(GlobalThreadContext *global, TaskThreadContext *thr
 		// Check the global queue first, then check the private queue and wait if there's nothing to do.
 		if (global_queue_size() > 0) {
 			// Grab one from the global queue if there is any.
-			std::unique_lock<std::mutex> lock(global->mutex);
+			// std::unique_lock<std::mutex> lock(global->mutex);
 			auto queue = isCompute ? global->compute_queue : global->io_queue;
 			auto &queue_size = isCompute ? global->compute_queue_size : global->io_queue_size;
 
@@ -168,7 +168,7 @@ static void WorkerThreadFunc(GlobalThreadContext *global, TaskThreadContext *thr
 					break;
 				} else if (thread->queue_size != 0) {
 					// Check the thread, as we prefer a HIGH thread task to a global NORMAL task.
-					std::unique_lock<std::mutex> lock(thread->mutex);
+					// std::unique_lock<std::mutex> lock(thread->mutex);
 					if (!thread->private_queue[p].empty()) {
 						task = thread->private_queue[p].front();
 						thread->private_queue[p].pop_front();
@@ -180,7 +180,7 @@ static void WorkerThreadFunc(GlobalThreadContext *global, TaskThreadContext *thr
 
 		if (!task) {
 			// We didn't have any global, do we have anything on the thread?
-			std::unique_lock<std::mutex> lock(thread->mutex);
+			// std::unique_lock<std::mutex> lock(thread->mutex);
 			for (size_t p = 0; p < TASK_PRIORITY_COUNT; ++p) {
 				if (thread->private_queue[p].empty())
 					continue;
@@ -273,7 +273,7 @@ void ThreadManager::EnqueueTask(Task *task) {
 	for (int threadNum = minThread; threadNum < maxThread; threadNum++) {
 		TaskThreadContext *thread = global_->threads_[threadNum];
 		if (thread->queue_size.load() == 0) {
-			std::unique_lock<std::mutex> lock(thread->mutex);
+			// std::unique_lock<std::mutex> lock(thread->mutex);
 			thread->private_queue[queueIndex].push_back(task);
 			thread->queue_size++;
 			thread->cond.notify_one();
@@ -285,7 +285,7 @@ void ThreadManager::EnqueueTask(Task *task) {
 	// Still not scheduled? Put it on the global queue and notify a thread chosen by round-robin.
 	// Not particularly scientific, but hopefully we should not run into this too much.
 	{
-		std::unique_lock<std::mutex> lock(global_->mutex);
+		// std::unique_lock<std::mutex> lock(global_->mutex);
 		if (task->Type() == TaskType::CPU_COMPUTE) {
 			global_->compute_queue[queueIndex].push_back(task);
 			global_->compute_queue_size++;
@@ -302,7 +302,7 @@ void ThreadManager::EnqueueTask(Task *task) {
 	TaskThreadContext *&chosenThread = global_->threads_[chosenIndex];
 
 	// Lock the thread to ensure it gets the message.
-	std::unique_lock<std::mutex> lock(chosenThread->mutex);
+	// std::unique_lock<std::mutex> lock(chosenThread->mutex);
 	chosenThread->cond.notify_one();
 }
 
@@ -315,7 +315,7 @@ void ThreadManager::EnqueueTaskOnThread(int threadNum, Task *task) {
 
 	thread->queue_size++;
 
-	std::unique_lock<std::mutex> lock(thread->mutex);
+	// std::unique_lock<std::mutex> lock(thread->mutex);
 	thread->private_queue[queueIndex].push_back(task);
 	thread->cond.notify_one();
 }

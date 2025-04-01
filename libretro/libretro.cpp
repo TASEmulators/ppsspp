@@ -1630,13 +1630,16 @@ static void retro_input(void)
 
 void retro_run(void)
 {
+   printf("RetroRun A\n");
    if (PSP_IsIniting())
    {
       std::string error_string;
+      printf("RetroRun B\n");
       while (!PSP_InitUpdate(&error_string))
          jaffarCommon::dethreader::sleep(4000);
          // sleep_ms(4, "libretro-init-poll");
 
+      printf("RetroRun C\n");
       if (!PSP_IsInited())
       {
          ERROR_LOG(Log::Boot, "%s", error_string.c_str());
@@ -1644,6 +1647,7 @@ void retro_run(void)
          return;
       }
 
+      printf("RetroRun D\n");
       if (softwareRenderInitHack)
       {
          log_cb(RETRO_LOG_DEBUG, "Software rendering init hack for opengl triggered.\n");
@@ -1652,6 +1656,7 @@ void retro_run(void)
          retro_reset();
       }
 
+      printf("RetroRun E\n");
    }
 
    check_variables(PSP_CoreParameter());
