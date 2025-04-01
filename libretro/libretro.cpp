@@ -26,7 +26,7 @@
 #include "Common/File/VFS/DirectoryReader.h"
 #include "Common/Data/Text/I18n.h"
 #include "Common/StringUtils.h"
-
+#include <jaffarCommon/dethreader.hpp>
 #include "Core/Config.h"
 #include "Core/ConfigValues.h"
 #include "Core/Core.h"
@@ -1322,7 +1322,7 @@ namespace Libretro
    bool useEmuThread = false;
    std::atomic<EmuThreadState> emuThreadState(EmuThreadState::DISABLED);
 
-   static std::thread emuThread;
+   static jaffarCommon::dethreader::threadId_t emuThread;
    static void EmuFrame()
    {
       ctx->SetRenderTarget();
@@ -1379,7 +1379,7 @@ namespace Libretro
       if (!wasPaused)
       {
          ctx->ThreadStart();
-         emuThread = std::thread(&EmuThreadFunc);
+         emuThread = jaffarCommon::dethreader::createThread( [] () { EmuThreadFunc(); });
       }
    }
 
@@ -1394,8 +1394,8 @@ namespace Libretro
       while (ctx->ThreadFrame())
          ;
 
-      emuThread.join();
-      emuThread = std::thread();
+      // emuThread.join();
+      // emuThread = std::thread();
       ctx->ThreadEnd();
    }
 
@@ -1636,7 +1636,11 @@ void retro_run(void)
       std::string error_string;
       printf("RetroRun B\n");
       while (!PSP_InitUpdate(&error_string))
-         jaffarCommon::dethreader::sleep(4000);
+      {
+         // printf("----------Going to sleep\n");
+         // jaffarCommon::dethreader::sleep(4000);
+         jaffarCommon::dethreader::yield();
+      }
          // sleep_ms(4, "libretro-init-poll");
 
       printf("RetroRun C\n");
@@ -1665,6 +1669,7 @@ void retro_run(void)
 
    if (useEmuThread)
    {
+      printf("Using emu thread-------------------\n");
       if (  emuThreadState == EmuThreadState::PAUSED ||
             emuThreadState == EmuThreadState::PAUSE_REQUESTED)
       {

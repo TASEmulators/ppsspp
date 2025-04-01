@@ -38,7 +38,7 @@
 #include "Common/File/DirListing.h"
 #include "Common/TimeUtil.h"
 #include "Common/GraphicsContext.h"
-
+#include <jaffarCommon/dethreader.hpp>
 #include "Core/RetroAchievements.h"
 #include "Core/MemFault.h"
 #include "Core/HDRemaster.h"
@@ -126,8 +126,10 @@ std::string GetGPUBackendDevice() {
 }
 
 bool CPU_IsReady() {
+	printf("CPU_IsReady A\n");
 	if (coreState == CORE_POWERUP)
 		return false;
+		printf("CPU_IsReady B\n");
 	return cpuThreadState == CPU_THREAD_RUNNING || cpuThreadState == CPU_THREAD_NOT_RUNNING;
 }
 
@@ -405,13 +407,20 @@ bool PSP_InitStart(const CoreParameter &coreParam, std::string *error_string) {
 
 printf("PSP INIT START D\n");
 	Core_NotifyLifecycle(CoreLifecycle::STARTING);
+	printf("PSP INIT START D2\n");
 	GraphicsContext *temp = g_CoreParameter.graphicsContext;
+	printf("PSP INIT START D3\n");
 	g_CoreParameter = coreParam;
+	printf("PSP INIT START D4\n");
 	if (g_CoreParameter.graphicsContext == nullptr) {
+		printf("PSP INIT START D5\n");
 		g_CoreParameter.graphicsContext = temp;
 	}
+	printf("PSP INIT START D6\n");
 	g_CoreParameter.errorString.clear();
+	printf("PSP INIT START D7\n");
 	pspIsIniting = true;
+	printf("PSP INIT START D8\n");
 
 	Path filename = g_CoreParameter.fileToStart;
 	printf("PSP INIT START E\n");
@@ -529,7 +538,10 @@ bool PSP_Init(const CoreParameter &coreParam, std::string *error_string) {
 		return false;
 
 	while (!PSP_InitUpdate(error_string))
-		sleep_ms(10, "psp-init-poll");
+	{
+		printf("At Sleep\n");
+		jaffarCommon::dethreader::sleep(10000);
+	}
 	return pspIsInited;
 }
 
