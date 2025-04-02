@@ -40,7 +40,7 @@
 #include "Core/FileSystems/MetaFileSystem.h"
 #include "Core/ELF/ParamSFO.h"
 #include "Core/HLE/HLE.h"
-#include "Core/HLE/sceNet.h"
+//#include "Core/HLE/sceNet.h"
 #include "Core/HLE/ReplaceTables.h"
 #include "Core/HLE/sceDisplay.h"
 #include "Core/HLE/sceKernel.h"
@@ -409,9 +409,6 @@ double g_lastSaveTime = -1.0;
 
 	void Enqueue(const SaveState::Operation &op)
 	{
-		if (!NetworkAllowSaveState()) {
-			return;
-		}
 		if (Achievements::HardcoreModeActive()) {
 			if (g_Config.bAchievementsSaveStateInHardcoreMode && ((op.type == SaveState::SAVESTATE_SAVE) || (op.type == SAVESTATE_SAVE_SCREENSHOT))) {
 				// We allow saving in hardcore mode if this setting is on.
@@ -431,10 +428,6 @@ double g_lastSaveTime = -1.0;
 
 	void Load(const Path &filename, int slot, Callback callback, void *cbUserData)
 	{
-		if (!NetworkAllowSaveState()) {
-			return;
-		}
-
 		rewindStates.NotifyState();
 		if (coreState == CoreState::CORE_RUNTIME_ERROR)
 			Core_Break(BreakReason::SavestateLoad, 0);
@@ -443,10 +436,6 @@ double g_lastSaveTime = -1.0;
 
 	void Save(const Path &filename, int slot, Callback callback, void *cbUserData)
 	{
-		if (!NetworkAllowSaveState()) {
-			return;
-		}
-
 		rewindStates.NotifyState();
 		if (coreState == CoreState::CORE_RUNTIME_ERROR)
 			Core_Break(BreakReason::SavestateSave, 0);
@@ -460,9 +449,6 @@ double g_lastSaveTime = -1.0;
 
 	void Rewind(Callback callback, void *cbUserData)
 	{
-		if (g_netInited) {
-			return;
-		}
 		if (coreState == CoreState::CORE_RUNTIME_ERROR)
 			Core_Break(BreakReason::SavestateRewind, 0);
 		Enqueue(Operation(SAVESTATE_REWIND, Path(), -1, callback, cbUserData));
@@ -593,10 +579,6 @@ double g_lastSaveTime = -1.0;
 
 	void LoadSlot(const Path &gameFilename, int slot, Callback callback, void *cbUserData)
 	{
-		if (!NetworkAllowSaveState()) {
-			return;
-		}
-
 		Path fn = GenerateSaveSlotFilename(gameFilename, slot, STATE_EXTENSION);
 		if (!fn.empty()) {
 			// This add only 1 extra state, should we just always enable it?
@@ -634,10 +616,6 @@ double g_lastSaveTime = -1.0;
 
 	bool UndoLoad(const Path &gameFilename, Callback callback, void *cbUserData)
 	{
-		if (!NetworkAllowSaveState()) {
-			return false;
-		}
-
 		if (g_Config.sStateLoadUndoGame != GenerateFullDiscId(gameFilename)) {
 			if (callback) {
 				auto sy = GetI18NCategory(I18NCat::SYSTEM);
@@ -661,10 +639,6 @@ double g_lastSaveTime = -1.0;
 
 	void SaveSlot(const Path &gameFilename, int slot, Callback callback, void *cbUserData)
 	{
-		if (!NetworkAllowSaveState()) {
-			return;
-		}
-
 		Path fn = GenerateSaveSlotFilename(gameFilename, slot, STATE_EXTENSION);
 		Path fnUndo = GenerateSaveSlotFilename(gameFilename, slot, UNDO_STATE_EXTENSION);
 		if (!fn.empty()) {
@@ -703,9 +677,6 @@ double g_lastSaveTime = -1.0;
 	}
 
 	bool UndoSaveSlot(const Path &gameFilename, int slot) {
-		if (!NetworkAllowSaveState()) {
-			return false;
-		}
 
 		Path fnUndo = GenerateSaveSlotFilename(gameFilename, slot, UNDO_STATE_EXTENSION);
 
@@ -725,10 +696,6 @@ double g_lastSaveTime = -1.0;
 
 
 	bool UndoLastSave(const Path &gameFilename) {
-		if (!NetworkAllowSaveState()) {
-			return false;
-		}
-
 		if (g_Config.sStateUndoLastSaveGame != GenerateFullDiscId(gameFilename))
 			return false;
 

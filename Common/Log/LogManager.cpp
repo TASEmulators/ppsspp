@@ -30,11 +30,6 @@
 
 #include "Common/Log/LogManager.h"
 
-#if PPSSPP_PLATFORM(WINDOWS)
-#include <io.h>
-#include "Common/Log/ConsoleListener.h"
-#endif
-
 #include "Common/TimeUtil.h"
 #include "Common/Thread/ThreadUtil.h"
 #include "Common/File/FileUtil.h"
@@ -174,16 +169,6 @@ LogManager::LogManager() {
 	stdioUseColor_ = isatty(fileno(stdout));
 #endif
 
-#if PPSSPP_PLATFORM(WINDOWS) && !PPSSPP_PLATFORM(UWP)
-	if (IsDebuggerPresent()) {
-		outputs_ |= LogOutput::DebugString;
-	}
-
-	if (!consoleLog_) {
-		consoleLog_ = new ConsoleListener();
-	}
-	outputs_ |= LogOutput::WinConsole;
-#endif
 }
 
 LogManager::~LogManager() {
@@ -341,14 +326,6 @@ void LogManager::LogLine(LogLevel level, Log type, const char *file, int line, c
 		PrintfLog(message);
 	}
 
-#if PPSSPP_PLATFORM(WINDOWS) && !PPSSPP_PLATFORM(UWP)
-	if (outputs_ & LogOutput::WinConsole) {
-		if (consoleLog_) {
-			consoleLog_->Log(message);
-		}
-	}
-#endif
-
 	if (outputs_ & LogOutput::ExternalCallback) {
 		if (externalCallback_) {
 			externalCallback_(message, externalUserData_);
@@ -367,15 +344,6 @@ void RingbufferLog::Log(const LogMessage &message) {
 #ifdef _WIN32
 
 void OutputDebugStringUTF8(const char *p) {
-	wchar_t *temp = new wchar_t[65536];
-
-	int len = std::min(16383*4, (int)strlen(p));
-	int size = (int)MultiByteToWideChar(CP_UTF8, 0, p, len, NULL, 0);
-	MultiByteToWideChar(CP_UTF8, 0, p, len, temp, size);
-	temp[size] = 0;
-
-	OutputDebugString(temp);
-	delete[] temp;
 }
 
 #else

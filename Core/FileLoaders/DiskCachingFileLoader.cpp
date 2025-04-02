@@ -29,7 +29,6 @@
 #include "Common/File/FileUtil.h"
 #include "Common/File/Path.h"
 #include "Common/Log.h"
-#include "Common/CommonWindows.h"
 #include "Core/FileLoaders/DiskCachingFileLoader.h"
 #include "Core/System.h"
 
@@ -835,7 +834,7 @@ void DiskCachingFileLoaderCache::GarbageCollectCacheFiles(u64 goalBytes) {
 #if PPSSPP_PLATFORM(UWP)
 		bool success = DeleteFileFromAppW(w32path.c_str()) != 0;
 #else
-		bool success = DeleteFileW(w32path.c_str()) != 0;
+		bool success = false;
 #endif
 #else
 		bool success = unlink(file.fullName.c_str()) == 0;

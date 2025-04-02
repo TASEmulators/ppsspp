@@ -43,28 +43,6 @@
 #include "Common/TimeUtil.h"
 #include "Common/SysError.h"
 
-#ifdef _WIN32
-#include "Common/CommonWindows.h"
-#include <sys/utime.h>
-#include <shlobj.h>		// for SHGetFolderPath
-#include <shellapi.h>
-#include <commdlg.h>	// for GetSaveFileName
-#include <io.h>
-#include <direct.h>		// getcwd
-#if PPSSPP_PLATFORM(UWP)
-#include <fileapifromapp.h>
-#include "UWP/UWPHelpers/StorageManager.h"
-#endif
-#else
-#include <sys/param.h>
-#include <sys/types.h>
-#include <dirent.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <utime.h>
-#endif
-
 #if defined(__DragonFly__) || defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || defined(__NetBSD__)
 #include <sys/sysctl.h>		// KERN_PROC_PATHNAME
 #endif
@@ -134,167 +112,12 @@ static std::string OpenFlagToString(OpenFlag flags) {
 }
 
 int OpenFD(const Path &path, OpenFlag flags) {
-	if (LOG_IO) {
-		INFO_LOG(Log::System, "OpenFD %s, %d", path.c_str(), flags);
-	}
-	if (SIMULATE_SLOW_IO) {
-		sleep_ms(300, "slow-io-sim");
-	}
 
-	switch (path.Type()) {
-	case PathType::CONTENT_URI:
-		break;
-	default:
-		ERROR_LOG(Log::Common, "OpenFD: Only supports Content URI paths. Not '%s' (%s)!", path.c_str(), OpenFlagToString(flags).c_str());
-		// Not yet supported - use other paths.
-		return -1;
-	}
-
-	if (flags & OPEN_CREATE) {
-		if (!File::Exists(path)) {
-			INFO_LOG(Log::Common, "OpenFD(%s): Creating file.", path.c_str());
-			std::string name = path.GetFilename();
-			if (path.CanNavigateUp()) {
-				Path parent = path.NavigateUp();
-				if (Android_CreateFile(parent.ToString(), name) != StorageError::SUCCESS) {
-					WARN_LOG(Log::Common, "OpenFD: Failed to create file '%s' in '%s'", name.c_str(), parent.c_str());
-					return -1;
-				}
-			} else {
-				INFO_LOG(Log::Common, "Failed to navigate up to create file: %s", path.c_str());
-				return -1;
-			}
-		} else {
-			INFO_LOG(Log::Common, "OpenCFile(%s): Opening existing content file ('%s')", path.c_str(), OpenFlagToString(flags).c_str());
-		}
-	}
-
-	Android_OpenContentUriMode mode;
-	if (flags == OPEN_READ) {
-		mode = Android_OpenContentUriMode::READ;
-	} else if (flags & OPEN_WRITE) {
-		if (flags & OPEN_TRUNCATE) {
-			mode = Android_OpenContentUriMode::READ_WRITE_TRUNCATE;
-		} else {
-			mode = Android_OpenContentUriMode::READ_WRITE;
-		}
-		// TODO: Maybe better checking of additional flags here.
-	} else {
-		// TODO: Add support for more modes if possible.
-		ERROR_LOG_REPORT_ONCE(openFlagNotSupported, Log::Common, "OpenFlag %s not yet supported", OpenFlagToString(flags).c_str());
-		return -1;
-	}
-
-	INFO_LOG(Log::Common, "Android_OpenContentUriFd: %s (%s)", path.c_str(), OpenFlagToString(flags).c_str());
-	int descriptor = Android_OpenContentUriFd(path.ToString(), mode);
-	if (descriptor < 0) {
-		ERROR_LOG(Log::Common, "Android_OpenContentUriFd failed: '%s'", path.c_str());
-	}
-
-	if (flags & OPEN_APPEND) {
-		// Simply seek to the end of the file to simulate append mode.
-		lseek(descriptor, 0, SEEK_END);
-	}
-
-	return descriptor;
+	return -1;
 }
-
-#ifdef _WIN32
-static bool ResolvePathVista(const std::wstring &path, wchar_t *buf, DWORD bufSize) {
-	typedef DWORD(WINAPI *getFinalPathNameByHandleW_f)(HANDLE hFile, LPWSTR lpszFilePath, DWORD cchFilePath, DWORD dwFlags);
-	static getFinalPathNameByHandleW_f getFinalPathNameByHandleW = nullptr;
-
-#if PPSSPP_PLATFORM(UWP)
-	getFinalPathNameByHandleW = &GetFinalPathNameByHandleW;
-#else
-	if (!getFinalPathNameByHandleW) {
-		HMODULE kernel32 = GetModuleHandle(L"kernel32.dll");
-		if (kernel32)
-			getFinalPathNameByHandleW = (getFinalPathNameByHandleW_f)GetProcAddress(kernel32, "GetFinalPathNameByHandleW");
-	}
-#endif
-
-	if (getFinalPathNameByHandleW) {
-#if PPSSPP_PLATFORM(UWP)
-		HANDLE hFile = CreateFile2FromAppW(path.c_str(), GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, nullptr);
-#else
-		HANDLE hFile = CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
-#endif
-		if (hFile == INVALID_HANDLE_VALUE)
-			return false;
-
-		DWORD result = getFinalPathNameByHandleW(hFile, buf, bufSize - 1, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
-		CloseHandle(hFile);
-
-		return result < bufSize && result != 0;
-	}
-
-	return false;
-}
-#endif
 
 std::string ResolvePath(const std::string &path) {
-	if (LOG_IO) {
-		INFO_LOG(Log::System, "ResolvePath %s", path.c_str());
-	}
-	if (SIMULATE_SLOW_IO) {
-		sleep_ms(100, "slow-io-sim");
-	}
-
-	if (startsWith(path, "http://") || startsWith(path, "https://")) {
-		return path;
-	}
-
-	if (Android_IsContentUri(path)) {
-		// Nothing to do?
-		return path;
-	}
-
-#ifdef _WIN32
-	static const int BUF_SIZE = 32768;
-	wchar_t *buf = new wchar_t[BUF_SIZE] {};
-
-	std::wstring input = ConvertUTF8ToWString(path);
-	// Try to resolve symlinks (such as Documents aliases, etc.) if possible on Vista and higher.
-	// For some paths and remote shares, this may fail, so fall back.
-	if (!ResolvePathVista(input, buf, BUF_SIZE)) {
-		wchar_t *longBuf = new wchar_t[BUF_SIZE] {};
-
-		int result = GetLongPathNameW(input.c_str(), longBuf, BUF_SIZE - 1);
-		if (result >= BUF_SIZE || result == 0)
-			wcscpy_s(longBuf, BUF_SIZE - 1, input.c_str());
-
-		result = GetFullPathNameW(longBuf, BUF_SIZE - 1, buf, nullptr);
-		if (result >= BUF_SIZE || result == 0)
-			wcscpy_s(buf, BUF_SIZE - 1, input.c_str());
-
-		delete [] longBuf;
-	}
-
-	// Normalize slashes just in case.
-	for (int i = 0; i < BUF_SIZE; ++i) {
-		if (buf[i] == '\\')
-			buf[i] = '/';
-		else if (buf[i] == '\0')
-			break;
-	}
-
-	// Undo the \\?\C:\ syntax that's normally returned (after normalization of slashes.)
-	std::string output = ConvertWStringToUTF8(buf);
-	if (buf[0] == '/' && buf[1] == '/' && buf[2] == '?' && buf[3] == '/' && isalpha(buf[4]) && buf[5] == ':')
-		output = output.substr(4);
-	delete [] buf;
-	return output;
-
-#elif PPSSPP_PLATFORM(IOS)
-	// Resolving has wacky effects on documents paths.
 	return path;
-#else
-	std::unique_ptr<char[]> buf(new char[PATH_MAX + 32768]);
-	if (realpath(path.c_str(), buf.get()) == nullptr)
-		return path;
-	return buf.get();
-#endif
 }
 
 static int64_t RecursiveSize(const Path &path) {
@@ -329,215 +152,24 @@ bool ExistsInDir(const Path &path, const std::string &filename) {
 }
 
 bool Exists(const Path &path) {
-	if (LOG_IO) {
-		INFO_LOG(Log::System, "Exists %s", path.ToVisualString().c_str());
-	}
-	if (SIMULATE_SLOW_IO) {
-		sleep_ms(200, "slow-io-sim");
-	}
-
-	if (path.Type() == PathType::CONTENT_URI) {
-		return Android_FileExists(path.c_str());
-	}
-
-#if defined(_WIN32)
-
-	// Make sure Windows will no longer handle critical errors, which means no annoying "No disk" dialog
-#if !PPSSPP_PLATFORM(UWP)
-	int OldMode = SetErrorMode(SEM_FAILCRITICALERRORS);
-#endif
-	WIN32_FILE_ATTRIBUTE_DATA data{};
-#if PPSSPP_PLATFORM(UWP)
-	if (!GetFileAttributesExFromAppW(path.ToWString().c_str(), GetFileExInfoStandard, &data) || data.dwFileAttributes == INVALID_FILE_ATTRIBUTES) {
-		return false;
-	}
-#else
-	if (!GetFileAttributesEx(path.ToWString().c_str(), GetFileExInfoStandard, &data) || data.dwFileAttributes == INVALID_FILE_ATTRIBUTES) {
-		return false;
-	}
-#endif
-#if !PPSSPP_PLATFORM(UWP)
-	SetErrorMode(OldMode);
-#endif
 	return true;
-#else  // !WIN32
-	struct stat file_info{};
-	return stat(path.c_str(), &file_info) == 0;
-#endif
 }
 
 // Returns true if filename exists and is a directory
 bool IsDirectory(const Path &path) {
-	if (LOG_IO) {
-		INFO_LOG(Log::System, "IsDirectory %s", path.c_str());
-	}
-	if (SIMULATE_SLOW_IO) {
-		sleep_ms(100, "slow-io-sim");
-	}
-
-	switch (path.Type()) {
-	case PathType::NATIVE:
-		break; // OK
-	case PathType::CONTENT_URI:
-	{
-		FileInfo info;
-		if (!Android_GetFileInfo(path.ToString(), &info)) {
-			return false;
-		}
-		return info.exists && info.isDirectory;
-	}
-	default:
-		return false;
-	}
-
-#if defined(_WIN32)
-	WIN32_FILE_ATTRIBUTE_DATA data{};
-#if PPSSPP_PLATFORM(UWP)
-	if (!GetFileAttributesExFromAppW(path.ToWString().c_str(), GetFileExInfoStandard, &data) || data.dwFileAttributes == INVALID_FILE_ATTRIBUTES) {
-#else
-	if (!GetFileAttributesEx(path.ToWString().c_str(), GetFileExInfoStandard, &data) || data.dwFileAttributes == INVALID_FILE_ATTRIBUTES) {
-#endif
-		auto err = GetLastError();
-		if (err != ERROR_FILE_NOT_FOUND) {
-			WARN_LOG(Log::Common, "GetFileAttributes failed on %s: %08x %s", path.ToVisualString().c_str(), (uint32_t)err, GetStringErrorMsg(err).c_str());
-		}
-		return false;
-	}
-	DWORD result = data.dwFileAttributes;
-	return (result & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY;
-#else
-	std::string copy = path.ToString();
-	struct stat file_info{};
-	int result = stat(copy.c_str(), &file_info);
-	if (result < 0) {
-		WARN_LOG(Log::Common, "IsDirectory: stat failed on %s: %s", copy.c_str(), GetLastErrorMsg().c_str());
-		return false;
-	}
-	return S_ISDIR(file_info.st_mode);
-#endif
+	return false;
 }
 
 // Deletes a given filename, return true on success
 // Doesn't supports deleting a directory
 bool Delete(const Path &filename) {
-	if (SIMULATE_SLOW_IO) {
-		sleep_ms(200, "slow-io-sim");
-	}
-	switch (filename.Type()) {
-	case PathType::NATIVE:
-		break; // OK
-	case PathType::CONTENT_URI:
-		return Android_RemoveFile(filename.ToString()) == StorageError::SUCCESS;
-	default:
-		return false;
-	}
 
-	INFO_LOG(Log::Common, "Delete: file %s", filename.c_str());
-
-	// Return true because we care about the file no
-	// being there, not the actual delete.
-	if (!Exists(filename)) {
-		WARN_LOG(Log::Common, "Delete: '%s' already does not exist", filename.c_str());
-		return true;
-	}
-
-	// We can't delete a directory
-	if (IsDirectory(filename)) {
-		WARN_LOG(Log::Common, "Delete failed: '%s' is a directory", filename.c_str());
-		return false;
-	}
-
-#ifdef _WIN32
-#if PPSSPP_PLATFORM(UWP)
-	if (!DeleteFileFromAppW(filename.ToWString().c_str())) {
-		WARN_LOG(Log::Common, "Delete: DeleteFile failed on %s: %s", filename.c_str(), GetLastErrorMsg().c_str());
-		return false;
-	}
-#else
-	if (!DeleteFile(filename.ToWString().c_str())) {
-		WARN_LOG(Log::Common, "Delete: DeleteFile failed on %s: %s", filename.c_str(), GetLastErrorMsg().c_str());
-		return false;
-	}
-#endif
-#else
-	if (unlink(filename.c_str()) == -1) {
-		WARN_LOG(Log::Common, "Delete: unlink failed on %s: %s",
-				 filename.c_str(), GetLastErrorMsg().c_str());
-		return false;
-	}
-#endif
-
-	return true;
+	return false;
 }
 
 // Returns true if successful, or path already exists.
 bool CreateDir(const Path &path) {
     return false;
-
-	if (SIMULATE_SLOW_IO) {
-		sleep_ms(100, "slow-io-sim");
-		INFO_LOG(Log::System, "CreateDir %s", path.c_str());
-	}
-	switch (path.Type()) {
-	case PathType::NATIVE:
-		break; // OK
-	case PathType::CONTENT_URI:
-	{
-		// NOTE: The Android storage API will simply create a renamed directory (append a number) if it already exists.
-		// We want to avoid that, so let's just return true if the directory already is there.
-		if (File::Exists(path)) {
-			return true;
-		}
-
-		// Convert it to a "CreateDirIn" call, if possible, since that's
-		// what we can do with the storage API.
-		AndroidContentURI uri(path.ToString());
-		std::string newDirName = uri.GetLastPart();
-		if (uri.NavigateUp()) {
-			INFO_LOG(Log::Common, "Calling Android_CreateDirectory(%s, %s)", uri.ToString().c_str(), newDirName.c_str());
-			return Android_CreateDirectory(uri.ToString(), newDirName) == StorageError::SUCCESS;
-		} else {
-			// Bad path - can't create this directory.
-			WARN_LOG(Log::Common, "CreateDir failed: '%s'", path.c_str());
-			return false;
-		}
-		break;
-	}
-	default:
-		return false;
-	}
-
-	DEBUG_LOG(Log::Common, "CreateDir('%s')", path.c_str());
-#ifdef _WIN32
-#if PPSSPP_PLATFORM(UWP)
-	if (CreateDirectoryFromAppW(path.ToWString().c_str(), NULL))
-		return true;
-#else
-	if (::CreateDirectory(path.ToWString().c_str(), NULL))
-		return true;
-#endif
-
-	DWORD error = GetLastError();
-	if (error == ERROR_ALREADY_EXISTS) {
-		DEBUG_LOG(Log::Common, "CreateDir: CreateDirectory failed on %s: already exists", path.c_str());
-		return true;
-	}
-	ERROR_LOG(Log::Common, "CreateDir: CreateDirectory failed on %s: %08x %s", path.c_str(), (uint32_t)error, GetStringErrorMsg(error).c_str());
-	return false;
-#else
-	if (mkdir(path.ToString().c_str(), 0755) == 0) {
-		return true;
-	}
-
-	int err = errno;
-	if (err == EEXIST) {
-		DEBUG_LOG(Log::Common, "CreateDir: mkdir failed on %s: already exists", path.c_str());
-		return true;
-	}
-
-	ERROR_LOG(Log::Common, "CreateDir: mkdir failed on %s: %s", path.c_str(), strerror(err));
-	return false;
-#endif
 }
 
 // Creates the full path of fullPath returns true on success
@@ -665,18 +297,6 @@ bool Copy(const Path &srcFilename, const Path &destFilename) {
 	}
 
 	INFO_LOG(Log::Common, "Copy by OpenCFile: %s --> %s", srcFilename.c_str(), destFilename.c_str());
-#ifdef _WIN32
-#if PPSSPP_PLATFORM(UWP)
-	if (CopyFileFromAppW(srcFilename.ToWString().c_str(), destFilename.ToWString().c_str(), FALSE))
-		return true;
-#else
-	if (CopyFile(srcFilename.ToWString().c_str(), destFilename.ToWString().c_str(), FALSE))
-		return true;
-#endif
-	ERROR_LOG(Log::Common, "Copy: failed %s --> %s: %s",
-			srcFilename.c_str(), destFilename.c_str(), GetLastErrorMsg().c_str());
-	return false;
-#else  // Non-Win32
 
 	// buffer size
 #define BSIZE 16384
@@ -739,7 +359,6 @@ bool Copy(const Path &srcFilename, const Path &destFilename) {
 	_memFileDirectory.fclose(input);
 	_memFileDirectory.fclose(output);
 	return true;
-#endif
 }
 
 // Will overwrite the target.
@@ -786,101 +405,23 @@ bool MoveIfFast(const Path &srcFilename, const Path &destFilename) {
 // Returns the size of file (64bit)
 // TODO: Add a way to return an error.
 uint64_t GetFileSize(const Path &filename) {
-	if (LOG_IO) {
-		INFO_LOG(Log::System, "GetFileSize %s", filename.c_str());
-	}
-	if (SIMULATE_SLOW_IO) {
-		sleep_ms(100, "slow-io-sim");
-	}
-	switch (filename.Type()) {
-	case PathType::NATIVE:
-		break; // OK
-	case PathType::CONTENT_URI:
-		{
-			FileInfo info;
-			if (Android_GetFileInfo(filename.ToString(), &info)) {
-				return info.size;
-			} else {
-				return 0;
-			}
-		}
-		break;
-	default:
-		return false;
-	}
-
-#if defined(_WIN32) && defined(UNICODE)
-	WIN32_FILE_ATTRIBUTE_DATA attr;
-#if PPSSPP_PLATFORM(UWP)
-	if (!GetFileAttributesExFromAppW(filename.ToWString().c_str(), GetFileExInfoStandard, &attr))
-#else
-	if (!GetFileAttributesEx(filename.ToWString().c_str(), GetFileExInfoStandard, &attr))
-#endif
-		return 0;
-	if (attr.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-		return 0;
-	return ((uint64_t)attr.nFileSizeHigh << 32) | (uint64_t)attr.nFileSizeLow;
-#else
-#if __ANDROID__ && __ANDROID_API__ < 21
-	struct stat file_info;
-	int result = stat(filename.c_str(), &file_info);
-#else
-	struct stat64 file_info;
-	int result = stat64(filename.c_str(), &file_info);
-#endif
-	if (result != 0) {
-		WARN_LOG(Log::Common, "GetSize: failed %s: No such file", filename.ToVisualString().c_str());
-		return 0;
-	}
-	if (S_ISDIR(file_info.st_mode)) {
-		WARN_LOG(Log::Common, "GetSize: failed %s: is a directory", filename.ToVisualString().c_str());
-		return 0;
-	}
-	DEBUG_LOG(Log::Common, "GetSize: %s: %lld", filename.ToVisualString().c_str(), (long long)file_info.st_size);
-	return file_info.st_size;
-#endif
+	return 0;
 }
 
 uint64_t GetFileSize(auto f) {
-	// This will only support 64-bit when large file support is available.
-	// That won't be the case on some versions of Android, at least.
-#if defined(__ANDROID__) || (defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS < 64)
-	int fd = fileno(f);
-
-	off64_t pos = lseek64(fd, 0, SEEK_CUR);
-	off64_t size = lseek64(fd, 0, SEEK_END);
-	if (size != pos && lseek64(fd, pos, SEEK_SET) != pos) {
-		// Should error here.
-		return 0;
-	}
-	if (size == -1)
-		return 0;
-	return size;
-#else
-#ifdef _WIN32
-	uint64_t pos = _ftelli64(f);
-#else
 	uint64_t pos = jaffarCommon::file::MemoryFile::ftell(f);
-#endif
 	if (jaffarCommon::file::MemoryFile::fseek(f, 0, SEEK_END) != 0) {
 		return 0;
 	}
-#ifdef _WIN32
-	uint64_t size = _ftelli64(f);
-	// Reset the seek position to where it was when we started.
-	if (size != pos && _jaffarCommon::file::MemoryFile::fseeki64(f, pos, SEEK_SET) != 0) {
-#else
 	uint64_t size = jaffarCommon::file::MemoryFile::ftell(f);
 	// Reset the seek position to where it was when we started.
 	if (size != pos && jaffarCommon::file::MemoryFile::fseek(f, pos, SEEK_SET) != 0) {
-#endif
 		// Should error here.
 		return 0;
 	}
 	if (size == -1)
 		return 0;
 	return size;
-#endif
 }
 
 // creates an empty file filename, returns true on success
@@ -898,42 +439,6 @@ bool CreateEmptyFile(const Path &filename) {
 // Deletes an empty directory, returns true on success
 // WARNING: On Android with content URIs, it will delete recursively!
 bool DeleteDir(const Path &path) {
-	if (LOG_IO) {
-		INFO_LOG(Log::System, "DeleteDir %s", path.c_str());
-	}
-	if (SIMULATE_SLOW_IO) {
-		sleep_ms(100, "slow-io-sim");
-	}
-	switch (path.Type()) {
-	case PathType::NATIVE:
-		break; // OK
-	case PathType::CONTENT_URI:
-		return Android_RemoveFile(path.ToString()) == StorageError::SUCCESS;
-	default:
-		return false;
-	}
-	INFO_LOG(Log::Common, "DeleteDir: directory %s", path.c_str());
-
-	// check if a directory
-	if (!File::IsDirectory(path)) {
-		ERROR_LOG(Log::Common, "DeleteDir: Not a directory %s", path.c_str());
-		return false;
-	}
-
-#ifdef _WIN32
-#if PPSSPP_PLATFORM(UWP)
-	if (RemoveDirectoryFromAppW(path.ToWString().c_str()))
-		return true;
-#else
-	if (::RemoveDirectory(path.ToWString().c_str()))
-		return true;
-#endif
-#else
-	if (rmdir(path.c_str()) == 0)
-		return true;
-#endif
-	ERROR_LOG(Log::Common, "DeleteDir: %s: %s", path.c_str(), GetLastErrorMsg().c_str());
-
 	return false;
 }
 
@@ -963,106 +468,16 @@ bool DeleteDirRecursively(const Path &path) {
 }
 
 bool OpenFileInEditor(const Path &fileName) {
-	switch (fileName.Type()) {
-	case PathType::NATIVE:
-		break;  // OK
-	default:
-		ERROR_LOG(Log::Common, "OpenFileInEditor(%s): Path type not supported", fileName.c_str());
-		return false;
-	}
-
-#if PPSSPP_PLATFORM(WINDOWS)
-#if PPSSPP_PLATFORM(UWP)
-	OpenFile(fileName.ToString());
-#else
-	ShellExecuteW(nullptr, L"open", fileName.ToWString().c_str(), nullptr, nullptr, SW_SHOW);
-#endif
-#elif !defined(MOBILE_DEVICE)
-	std::string iniFile;
-#if defined(__APPLE__)
-	iniFile = "open ";
-#else
-	iniFile = "xdg-open ";
-#endif
-	iniFile.append(fileName.ToString());
-	NOTICE_LOG(Log::Boot, "Launching %s", iniFile.c_str());
-	int retval = system(iniFile.c_str());
-	if (retval != 0) {
-		ERROR_LOG(Log::Common, "Failed to launch ini file");
-	}
-#endif
-	return true;
+	return false;
 }
 
 const Path GetCurDirectory() {
-#ifdef _WIN32
-	wchar_t buffer[4096];
-	size_t len = GetCurrentDirectory(sizeof(buffer) / sizeof(wchar_t), buffer);
-	std::string curDir = ConvertWStringToUTF8(buffer);
-	return Path(curDir);
-#else
-	char temp[4096]{};
-	getcwd(temp, 4096);
-	return Path(temp);
-#endif
+	return Path(".");
 }
 
 const Path &GetExeDirectory() {
 	static Path ExePath;
 
-	if (ExePath.empty()) {
-#ifdef _WIN32
-		std::wstring program_path;
-		size_t sz;
-		do {
-			program_path.resize(program_path.size() + MAX_PATH);
-			// On failure, this will return the same value as passed in, but success will always be one lower.
-			sz = GetModuleFileNameW(nullptr, &program_path[0], (DWORD)program_path.size());
-		} while (sz >= program_path.size());
-
-		const wchar_t *last_slash = wcsrchr(&program_path[0], '\\');
-		if (last_slash != nullptr)
-			program_path.resize(last_slash - &program_path[0] + 1);
-		else
-			program_path.resize(sz);
-		ExePath = Path(program_path);
-
-#elif (defined(__APPLE__) && !PPSSPP_PLATFORM(IOS)) || defined(__linux__) || defined(KERN_PROC_PATHNAME)
-		char program_path[4096]{};
-		uint32_t program_path_size = sizeof(program_path) - 1;
-
-#if defined(__linux__)
-		if (readlink("/proc/self/exe", program_path, program_path_size) > 0)
-#elif defined(__APPLE__) && !PPSSPP_PLATFORM(IOS)
-		if (_NSGetExecutablePath(program_path, &program_path_size) == 0)
-#elif defined(KERN_PROC_PATHNAME)
-		int mib[4] = {
-			CTL_KERN,
-#if defined(__NetBSD__)
-			KERN_PROC_ARGS,
-			-1,
-			KERN_PROC_PATHNAME,
-#else
-			KERN_PROC,
-			KERN_PROC_PATHNAME,
-			-1,
-#endif
-		};
-		size_t sz = program_path_size;
-
-		if (sysctl(mib, 4, program_path, &sz, NULL, 0) == 0)
-#else
-#error Unmatched ifdef.
-#endif
-		{
-			program_path[sizeof(program_path) - 1] = '\0';
-			char *last_slash = strrchr(program_path, '/');
-			if (last_slash != nullptr)
-				*last_slash = '\0';
-			ExePath = Path(program_path);
-		}
-#endif
-	}
 
 	return ExePath;
 }
@@ -1248,22 +663,6 @@ bool WriteDataToFile(bool text_file, const void* data, size_t size, const Path &
 }
 
 void ChangeMTime(const Path &path, time_t mtime) {
-	if (path.Type() == PathType::CONTENT_URI) {
-		// No clue what to do here. There doesn't seem to be a way.
-		return;
-	}
-
-#ifdef _WIN32
-	_utimbuf buf{};
-	buf.actime = mtime;
-	buf.modtime = mtime;
-	_utime(path.c_str(), &buf);
-#else
-	utimbuf buf{};
-	buf.actime = mtime;
-	buf.modtime = mtime;
-	utime(path.c_str(), &buf);
-#endif
 }
 
 bool IsProbablyInDownloadsFolder(const Path &filename) {

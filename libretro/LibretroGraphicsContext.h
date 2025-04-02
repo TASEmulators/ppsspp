@@ -3,7 +3,7 @@
 
 #include "libretro/libretro.h"
 #include "Common/GraphicsContext.h"
-#include "Common/GPU/thin3d_create.h"
+//#include "Common/GPU/thin3d_create.h"
 
 #include "Core/Config.h"
 #include "Core/System.h"
@@ -75,8 +75,6 @@ public:
 	bool Init() override { return false; }
 
 	void CreateDrawContext() override {
-		draw_ = Draw::T3DCreateDX9Context(nullptr, nullptr, 0, nullptr, nullptr);
-		draw_->CreatePresets();
 	}
 
 	GPUCore GetGPUCore() override { return GPUCORE_DIRECTX9; }

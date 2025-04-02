@@ -67,10 +67,10 @@
 #include "sceKernelTime.h"
 #include "sceMp3.h"
 #include "sceMpeg.h"
-#include "sceNet.h"
+//#include "sceNet.h"
 #include "sceNp.h"
-#include "sceNetAdhoc.h"
-#include "sceNetAdhocMatching.h"
+//#include "sceNetAdhoc.h"
+//#include "sceNetAdhocMatching.h"
 #include "scePower.h"
 #include "sceUtility.h"
 #include "sceUmd.h"
@@ -148,9 +148,6 @@ void __KernelInit()
 	__ImposeInit();
 	__UsbInit();
 	__FontInit();
-	__NetInit();
-	__NetAdhocInit();
-	__NetAdhocMatchingInit();
 	__VaudioInit();
 	__CheatInit();
 	__HeapInit();
@@ -196,9 +193,6 @@ void __KernelShutdown()
 	__AudioCodecShutdown();
 	__VideoPmpShutdown();
 	__AACShutdown();
-	__NetAdhocShutdown();
-	__NetAdhocMatchingShutdown();
-	__NetShutdown();
 	__FontShutdown();
 
 	__Mp3Shutdown();
@@ -281,8 +275,6 @@ void __KernelDoState(PointerWrap &p)
 		__JpegDoState(p);
 		__Mp3DoState(p);
 		__MpegDoState(p);
-		__NetDoState(p);
-		__NetAdhocDoState(p);
 		__PowerDoState(p);
 		__PsmfDoState(p);
 		__PsmfPlayerDoState(p);

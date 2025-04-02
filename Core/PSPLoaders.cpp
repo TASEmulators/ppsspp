@@ -25,9 +25,9 @@
 #include "Common/File/AndroidContentURI.h"
 #include "Common/File/FileUtil.h"
 #include "Common/StringUtils.h"
-#ifdef _WIN32
-#include "Common/CommonWindows.h"
-#endif
+//#ifdef _WIN32
+//#include "Common/CommonWindows.h"
+//#endif
 
 #include "Core/ELF/ParamSFO.h"
 #include "Core/ELF/PBPReader.h"
@@ -337,7 +337,7 @@ static Path NormalizePath(const Path &path) {
 		// Nothing to do - these can't be non-normalized.
 		return path;
 	}
-
+/*
 #ifdef _WIN32
 	std::wstring wpath = path.ToWString();
 	std::wstring buf;
@@ -358,6 +358,7 @@ static Path NormalizePath(const Path &path) {
 		return Path();
 	return Path(buf);
 #endif
+*/
 }
 
 bool Load_PSP_ELF_PBP(FileLoader *fileLoader, std::string *error_string) {

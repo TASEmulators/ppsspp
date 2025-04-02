@@ -705,6 +705,7 @@ static bool WriteTextureToPNG(png_imagep image, const Path &filename, int conver
 	// 	remove(filename.c_str());
 	// 	return false;
 	// }
+	return false;
 }
 
 // We save textures on threadpool tasks since it's a fire-and-forget task, and both I/O and png compression

@@ -25,6 +25,7 @@
 
 #include "ppsspp_config.h"
 #include <jaffarCommon/dethreader.hpp>
+
 #include "Common/GPU/OpenGL/GLFeatures.h"
 #include "Common/Net/HTTPClient.h"
 #include "Common/Net/URL.h"
@@ -45,8 +46,9 @@
 #include "Common/System/Display.h"
 #include "Common/System/System.h"
 #include "Common/StringUtils.h"
+
 #include "Common/Thread/ThreadUtil.h"
-#include "Common/GPU/Vulkan/VulkanLoader.h"
+//#include "Common/GPU/Vulkan/VulkanLoader.h"
 #include "Common/VR/PPSSPPVR.h"
 #include "Common/System/OSD.h"
 #include "Core/Config.h"
@@ -58,6 +60,7 @@
 #include "Core/HLE/sceUtility.h"
 #include "Core/Instance.h"
 #include "GPU/Common/FramebufferManagerCommon.h"
+
 
 // TODO: Find a better place for this.
 http::RequestManager g_DownloadManager;

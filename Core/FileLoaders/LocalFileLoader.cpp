@@ -28,7 +28,6 @@
 #endif
 
 #ifdef _WIN32
-#include "Common/CommonWindows.h"
 #if PPSSPP_PLATFORM(UWP)
 #include <fileapifromapp.h>
 #endif

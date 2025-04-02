@@ -115,6 +115,8 @@ static bool WriteScreenshotToPNG(png_imagep image, const Path &filename, int con
 	// 	File::Delete(filename);
 	// 	return false;
 	// }
+
+	return false;
 }
 
 static bool ConvertPixelTo8888RGBA(GPUDebugBufferFormat fmt, u8 &r, u8 &g, u8 &b, u8 &a, const void *buffer, int offset, bool rev) {

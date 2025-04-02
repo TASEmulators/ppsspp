@@ -52,101 +52,9 @@ void ovrFramebuffer_Clear(ovrFramebuffer* frameBuffer) {
 	frameBuffer->GLFrameBuffers = NULL;
 	frameBuffer->Acquired = false;
 }
-
-#if XR_USE_GRAPHICS_API_OPENGL || XR_USE_GRAPHICS_API_OPENGL_ES
-
-static const char* GlErrorString(GLenum error) {
-	switch (error) {
-	case GL_NO_ERROR:
-		return "GL_NO_ERROR";
-	case GL_INVALID_ENUM:
-		return "GL_INVALID_ENUM";
-	case GL_INVALID_VALUE:
-		return "GL_INVALID_VALUE";
-	case GL_INVALID_OPERATION:
-		return "GL_INVALID_OPERATION";
-	case GL_INVALID_FRAMEBUFFER_OPERATION:
-		return "GL_INVALID_FRAMEBUFFER_OPERATION";
-	case GL_OUT_OF_MEMORY:
-		return "GL_OUT_OF_MEMORY";
-	default:
-		return "unknown";
-	}
-}
-
-void GLCheckErrors(const char* file, int line) {
-	for (int i = 0; i < 10; i++) {
-		const GLenum error = glGetError();
-		if (error == GL_NO_ERROR) {
-			break;
-		}
-		ALOGE("GL error on line %s:%d %s", file, line, GlErrorString(error));
-	}
-}
-
-#endif
-
 #if XR_USE_GRAPHICS_API_OPENGL_ES || XR_USE_GRAPHICS_API_OPENGL
 
 static bool ovrFramebuffer_CreateGL(XrSession session, ovrFramebuffer* frameBuffer, int width, int height) {
-	frameBuffer->Width = width;
-	frameBuffer->Height = height;
-
-	XrSwapchainCreateInfo swapChainCreateInfo;
-	memset(&swapChainCreateInfo, 0, sizeof(swapChainCreateInfo));
-	swapChainCreateInfo.type = XR_TYPE_SWAPCHAIN_CREATE_INFO;
-	swapChainCreateInfo.sampleCount = 1;
-	swapChainCreateInfo.width = width;
-	swapChainCreateInfo.height = height;
-	swapChainCreateInfo.faceCount = 1;
-	swapChainCreateInfo.mipCount = 1;
-	swapChainCreateInfo.arraySize = 1;
-
-	frameBuffer->ColorSwapChain.Width = swapChainCreateInfo.width;
-	frameBuffer->ColorSwapChain.Height = swapChainCreateInfo.height;
-
-	// Create the color swapchain.
-	swapChainCreateInfo.format = GL_SRGB8_ALPHA8;
-	swapChainCreateInfo.usageFlags = XR_SWAPCHAIN_USAGE_COLOR_ATTACHMENT_BIT;
-	OXR(xrCreateSwapchain(session, &swapChainCreateInfo, &frameBuffer->ColorSwapChain.Handle));
-	OXR(xrEnumerateSwapchainImages(frameBuffer->ColorSwapChain.Handle, 0, &frameBuffer->TextureSwapChainLength, NULL));
-	frameBuffer->ColorSwapChainImage = malloc(frameBuffer->TextureSwapChainLength * sizeof(XR_GL_IMAGE));
-
-	// Populate the swapchain image array.
-	for (uint32_t i = 0; i < frameBuffer->TextureSwapChainLength; i++) {
-		((XR_GL_IMAGE*)frameBuffer->ColorSwapChainImage)[i].type = XR_GL_SWAPCHAIN;
-		((XR_GL_IMAGE*)frameBuffer->ColorSwapChainImage)[i].next = NULL;
-	}
-	OXR(xrEnumerateSwapchainImages(
-			frameBuffer->ColorSwapChain.Handle,
-			frameBuffer->TextureSwapChainLength,
-			&frameBuffer->TextureSwapChainLength,
-			(XrSwapchainImageBaseHeader*)frameBuffer->ColorSwapChainImage));
-
-	frameBuffer->GLDepthBuffers = (GLuint*)malloc(frameBuffer->TextureSwapChainLength * sizeof(GLuint));
-	frameBuffer->GLFrameBuffers = (GLuint*)malloc(frameBuffer->TextureSwapChainLength * sizeof(GLuint));
-	for (uint32_t i = 0; i < frameBuffer->TextureSwapChainLength; i++) {
-		const GLuint colorTexture = ((XR_GL_IMAGE*)frameBuffer->ColorSwapChainImage)[i].image;
-
-		// Create the depth buffer.
-		GL(glGenRenderbuffers(1, &frameBuffer->GLDepthBuffers[i]));
-		GL(glBindRenderbuffer(GL_RENDERBUFFER, frameBuffer->GLDepthBuffers[i]));
-		GL(glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, width, height));
-		GL(glBindRenderbuffer(GL_RENDERBUFFER, 0));
-
-		// Create the frame buffer.
-		GL(glGenFramebuffers(1, &frameBuffer->GLFrameBuffers[i]));
-		GL(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, frameBuffer->GLFrameBuffers[i]));
-		GL(glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, frameBuffer->GLDepthBuffers[i]));
-		GL(glFramebufferRenderbuffer(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, frameBuffer->GLDepthBuffers[i]));
-		GL(glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture, 0));
-		GL(GLenum renderFramebufferStatus = glCheckFramebufferStatus(GL_DRAW_FRAMEBUFFER));
-		GL(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0));
-		if (renderFramebufferStatus != GL_FRAMEBUFFER_COMPLETE) {
-			ALOGE("Incomplete frame buffer object: %d", renderFramebufferStatus);
-			return false;
-		}
-	}
 
 	return true;
 }
@@ -154,12 +62,6 @@ static bool ovrFramebuffer_CreateGL(XrSession session, ovrFramebuffer* frameBuff
 #endif
 
 void ovrFramebuffer_Destroy(ovrFramebuffer* frameBuffer) {
-#if XR_USE_GRAPHICS_API_OPENGL_ES || XR_USE_GRAPHICS_API_OPENGL
-	GL(glDeleteRenderbuffers(frameBuffer->TextureSwapChainLength, frameBuffer->GLDepthBuffers));
-	GL(glDeleteFramebuffers(frameBuffer->TextureSwapChainLength, frameBuffer->GLFrameBuffers));
-	free(frameBuffer->GLDepthBuffers);
-	free(frameBuffer->GLFrameBuffers);
-#endif
 	OXR(xrDestroySwapchain(frameBuffer->ColorSwapChain.Handle));
 	free(frameBuffer->ColorSwapChainImage);
 
@@ -167,9 +69,6 @@ void ovrFramebuffer_Destroy(ovrFramebuffer* frameBuffer) {
 }
 
 void* ovrFramebuffer_SetCurrent(ovrFramebuffer* frameBuffer) {
-#if XR_USE_GRAPHICS_API_OPENGL_ES || XR_USE_GRAPHICS_API_OPENGL
-	GL(glBindFramebuffer(GL_DRAW_FRAMEBUFFER, frameBuffer->GLFrameBuffers[frameBuffer->TextureSwapChainIndex]));
-#endif
 	return nullptr;
 }
 
@@ -186,15 +85,6 @@ void ovrFramebuffer_Acquire(ovrFramebuffer* frameBuffer) {
 
 	ovrFramebuffer_SetCurrent(frameBuffer);
 
-#if XR_USE_GRAPHICS_API_OPENGL_ES || XR_USE_GRAPHICS_API_OPENGL
-	GL(glEnable( GL_SCISSOR_TEST ));
-	GL(glViewport( 0, 0, frameBuffer->Width, frameBuffer->Height ));
-	GL(glClearColor( 0.0f, 0.0f, 0.0f, 1.0f ));
-	GL(glScissor( 0, 0, frameBuffer->Width, frameBuffer->Height ));
-	GL(glClear( GL_COLOR_BUFFER_BIT ));
-	GL(glScissor( 0, 0, 0, 0 ));
-	GL(glDisable( GL_SCISSOR_TEST ));
-#endif
 }
 
 void ovrFramebuffer_Release(ovrFramebuffer* frameBuffer) {
@@ -204,12 +94,6 @@ void ovrFramebuffer_Release(ovrFramebuffer* frameBuffer) {
 		frameBuffer->Acquired = false;
 
 		// Clear the alpha channel, other way OpenXR would not transfer the framebuffer fully
-#if XR_USE_GRAPHICS_API_OPENGL_ES || XR_USE_GRAPHICS_API_OPENGL
-		GL(glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE));
-		GL(glClearColor(0.0f, 0.0f, 0.0f, 1.0f));
-		GL(glClear(GL_COLOR_BUFFER_BIT));
-		GL(glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE));
-#endif
 	}
 }
 
@@ -242,14 +126,6 @@ void ovrRenderer_Destroy(ovrRenderer* renderer) {
 }
 
 void ovrRenderer_MouseCursor(ovrRenderer* renderer, int x, int y, int sx, int sy) {
-#if XR_USE_GRAPHICS_API_OPENGL_ES || XR_USE_GRAPHICS_API_OPENGL
-	GL(glEnable(GL_SCISSOR_TEST));
-	GL(glScissor(x, y, sx, sy));
-	GL(glViewport(x, y, sx, sy));
-	GL(glClearColor(1.0f, 1.0f, 1.0f, 1.0f));
-	GL(glClear(GL_COLOR_BUFFER_BIT));
-	GL(glDisable(GL_SCISSOR_TEST));
-#endif
 }
 
 /*
