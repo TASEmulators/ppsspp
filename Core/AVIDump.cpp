@@ -204,7 +204,6 @@ void AVIDump::AddFrame() {
 	}
 	CheckResolution(w, h);
 	u8 *flipbuffer = nullptr;
-	const u8 *buffer = ConvertBufferToScreenshot(buf, false, flipbuffer, w, h);
 
 #ifdef USE_FFMPEG
 

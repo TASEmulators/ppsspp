@@ -1048,23 +1048,6 @@ double g_lastSaveTime = -1.0;
 				}
 				break;
 
-			case SAVESTATE_SAVE_SCREENSHOT:
-			{
-				int maxResMultiplier = 2;
-				tempResult = TakeGameScreenshot(nullptr, op.filename, ScreenshotFormat::JPG, SCREENSHOT_DISPLAY, nullptr, nullptr, maxResMultiplier);
-				callbackResult = tempResult ? Status::SUCCESS : Status::FAILURE;
-				if (!tempResult) {
-					WARN_LOG(Log::SaveState, "Failed to take a screenshot for the savestate! (%s) The savestate will lack an icon.", op.filename.c_str());
-					if (coreState != CORE_STEPPING_CPU && screenshotFailures++ < SCREENSHOT_FAILURE_RETRIES) {
-						// Requeue for next frame (if we were stepping, no point, will just spam errors quickly).
-						SaveScreenshot(op.filename, op.callback, op.cbUserData);
-					}
-				} else {
-					screenshotFailures = 0;
-				}
-				readbackImage = true;
-				break;
-			}
 			default:
 				ERROR_LOG(Log::SaveState, "Savestate failure: unknown operation type %d", op.type);
 				callbackResult = Status::FAILURE;
