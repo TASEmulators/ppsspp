@@ -17,7 +17,6 @@
 
 #include "Core/HLE/HLE.h"
 #include "Core/HLE/FunctionWrappers.h"
-#include "Core/HLE/proAdhoc.h"
 #include "Core/HLE/sceOpenPSID.h"
 #include "Core/MemMapHelpers.h"
 #include "Core/Reporting.h"
@@ -26,7 +25,6 @@ SceOpenPSID dummyOpenPSID = { 0x10, 0x02, 0xA3, 0x44, 0x13, 0xF5, 0x93, 0xB0, 0x
 
 void __OpenPSIDInit() {
 	// Making sure the ID is unique
-	getLocalMac((SceNetEtherAddr*)&dummyOpenPSID);
 	return;
 }
 

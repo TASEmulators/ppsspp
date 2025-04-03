@@ -5,7 +5,6 @@
 #include <cstring>
 
 #include "Common/File/Path.h"
-#include "Common/File/AndroidContentURI.h"
 #include "Common/File/FileUtil.h"
 #include "Common/StringUtils.h"
 #include "Common/Log.h"
@@ -41,25 +40,6 @@ void Path::Init(std::string_view str) {
 	} else if (startsWith(str, "http://") || startsWith(str, "https://")) {
 		type_ = PathType::HTTP;
 		path_ = str;
-	} else if (Android_IsContentUri(str)) {
-		// Content URIs on non scoped-storage (and possibly other cases?) can contain
-		// "raw:/" URIs inside. This happens when picking the Download folder using the folder browser
-		// on Android 9.
-		// Here's an example:
-		// content://com.android.providers.downloads.documents/tree/raw%3A%2Fstorage%2Femulated%2F0%2FDownload%2Fp/document/raw%3A%2Fstorage%2Femulated%2F0%2FDownload%2Fp
-		//
-		// Since this is a legacy use case, I think it's safe enough to just detect this
-		// and flip it to a NATIVE url and hope for the best.
-		AndroidContentURI uri(str);
-		if (startsWith(uri.FilePath(), "raw:/")) {
-			INFO_LOG(Log::System, "Raw path detected: %s", uri.FilePath().c_str());
-			path_ = uri.FilePath().substr(4);
-			type_ = PathType::NATIVE;
-		} else {
-			// A normal content URI path.
-			type_ = PathType::CONTENT_URI;
-			path_ = str;
-		}
 	} else {
 		type_ = PathType::NATIVE;
 		path_ = str;
@@ -83,11 +63,6 @@ void Path::Init(std::string_view str) {
 // We always use forward slashes internally, we convert to backslash only when
 // converted to a wstring.
 Path Path::operator /(std::string_view subdir) const {
-	if (type_ == PathType::CONTENT_URI) {
-		AndroidContentURI uri(path_);
-		return Path(uri.WithComponent(subdir).ToString());
-	}
-
 	// Direct string manipulation.
 
 	if (subdir.empty()) {
@@ -110,20 +85,12 @@ void Path::operator /=(std::string_view subdir) {
 }
 
 Path Path::WithExtraExtension(std::string_view ext) const {
-	if (type_ == PathType::CONTENT_URI) {
-		AndroidContentURI uri(path_);
-		return Path(uri.WithExtraExtension(ext).ToString());
-	}
 
 	_dbg_assert_(!ext.empty() && ext[0] == '.');
 	return Path(path_ + std::string(ext));
 }
 
 Path Path::WithReplacedExtension(const std::string &oldExtension, const std::string &newExtension) const {
-	if (type_ == PathType::CONTENT_URI) {
-		AndroidContentURI uri(path_);
-		return Path(uri.WithReplacedExtension(oldExtension, newExtension).ToString());
-	}
 
 	_dbg_assert_(!oldExtension.empty() && oldExtension[0] == '.');
 	_dbg_assert_(!newExtension.empty() && newExtension[0] == '.');
@@ -136,10 +103,6 @@ Path Path::WithReplacedExtension(const std::string &oldExtension, const std::str
 }
 
 Path Path::WithReplacedExtension(const std::string &newExtension) const {
-	if (type_ == PathType::CONTENT_URI) {
-		AndroidContentURI uri(path_);
-		return Path(uri.WithReplacedExtension(newExtension).ToString());
-	}
 
 	_dbg_assert_(!newExtension.empty() && newExtension[0] == '.');
 	if (path_.empty()) {
@@ -151,10 +114,6 @@ Path Path::WithReplacedExtension(const std::string &newExtension) const {
 }
 
 std::string Path::GetFilename() const {
-	if (type_ == PathType::CONTENT_URI) {
-		AndroidContentURI uri(path_);
-		return uri.GetLastPart();
-	}
 	size_t pos = path_.rfind('/');
 	if (pos != std::string::npos) {
 		return path_.substr(pos + 1);
@@ -180,20 +139,10 @@ std::string GetExtFromString(std::string_view str) {
 }
 
 std::string Path::GetFileExtension() const {
-	if (type_ == PathType::CONTENT_URI) {
-		AndroidContentURI uri(path_);
-		return uri.GetFileExtension();
-	}
 	return GetExtFromString(path_);
 }
 
 std::string Path::GetDirectory() const {
-	if (type_ == PathType::CONTENT_URI) {
-		// Unclear how meaningful this is.
-		AndroidContentURI uri(path_);
-		uri.NavigateUp();
-		return uri.ToString();
-	}
 
 	size_t pos = path_.rfind('/');
 	if (type_ == PathType::HTTP) {
@@ -230,11 +179,7 @@ std::string Path::GetDirectory() const {
 
 bool Path::FilePathContainsNoCase(std::string_view needle) const {
 	std::string haystack;
-	if (type_ == PathType::CONTENT_URI) {
-		haystack = AndroidContentURI(path_).FilePath();
-	} else {
-		haystack = path_;
-	}
+	haystack = path_;
 	auto pred = [](char ch1, char ch2) { return std::toupper(ch1) == std::toupper(ch2); };
 	auto found = std::search(haystack.begin(), haystack.end(), needle.begin(), needle.end(), pred);
 	return found != haystack.end();
@@ -277,47 +222,11 @@ std::string Path::ToCString() const {
 #endif
 
 std::string Path::ToVisualString(const char *relativeRoot) const {
-	if (type_ == PathType::CONTENT_URI) {
-		return AndroidContentURI(path_).ToVisualString();
-#if PPSSPP_PLATFORM(WINDOWS)
-	} else if (type_ == PathType::NATIVE) {
-#if PPSSPP_PLATFORM(UWP) && !defined(__LIBRETRO__)
-		return GetPreviewPath(path_);
-#else
-		// It can be useful to show the path as relative to the memstick
-		if (relativeRoot) {
-			std::string root = ReplaceAll(relativeRoot, "/", "\\");
-			std::string path = ReplaceAll(path_, "/", "\\");
-			if (startsWithNoCase(path, root)) {
-				return path.substr(root.size());
-			} else {
-				return path;
-			}
-		} else {
-			return ReplaceAll(path_, "/", "\\");
-		}
-#endif
-#else
-		if (relativeRoot) {
-			std::string root = relativeRoot;
-			if (startsWithNoCase(path_, root)) {
-				return path_.substr(root.size());
-			} else {
-				return path_;
-			}
-		} else {
-			return path_;
-		}
-#endif
-	} else {
 		return path_;
-	}
 }
 
 bool Path::CanNavigateUp() const {
-	if (type_ == PathType::CONTENT_URI) {
-		return AndroidContentURI(path_).CanNavigateUp();
-	} else if (type_ == PathType::HTTP) {
+    if (type_ == PathType::HTTP) {
 		size_t rootSlash = path_.find_first_of('/', strlen("https://"));
 		if (rootSlash == path_.npos || path_.size() == rootSlash + 1) {
 			// This means, "http://server" or "http://server/".  Can't go up.
@@ -331,11 +240,6 @@ bool Path::CanNavigateUp() const {
 }
 
 Path Path::NavigateUp() const {
-	if (type_ == PathType::CONTENT_URI) {
-		AndroidContentURI uri(path_);
-		uri.NavigateUp();
-		return Path(uri.ToString());
-	}
 	std::string dir = GetDirectory();
 	return Path(dir);
 }
@@ -346,11 +250,6 @@ Path Path::GetRootVolume() const {
 		return Path(path_);
 	}
 
-	if (type_ == PathType::CONTENT_URI) {
-		AndroidContentURI uri(path_);
-		AndroidContentURI rootPath = uri.WithRootFilePath("");
-		return Path(rootPath.ToString());
-	}
 
 #if PPSSPP_PLATFORM(WINDOWS)
 	if (path_[1] == ':') {
@@ -408,15 +307,7 @@ bool Path::ComputePathTo(const Path &other, std::string &path) const {
 		return true;
 	}
 
-	if (type_ == PathType::CONTENT_URI) {
-		AndroidContentURI a(path_);
-		AndroidContentURI b(other.path_);
-		if (a.RootPath() != b.RootPath()) {
-			// No common root, can't do anything
-			return false;
-		}
-		return a.ComputePathTo(b, path);
-	} else if (path_ == "/") {
+	if (path_ == "/") {
 		path = other.path_.substr(1);
 		return true;
 	} else {

@@ -34,7 +34,6 @@
 #include "sceGe.h"
 #include "sceHeap.h"
 #include "sceHprm.h"
-#include "sceHttp.h"
 #include "sceImpose.h"
 #include "sceIo.h"
 #include "sceJpeg.h"
@@ -51,15 +50,9 @@
 #include "sceMp4.h"
 #include "sceAac.h"
 #include "sceMp3.h"
-#include "sceNet.h"
-#include "sceNetAdhoc.h"
-#include "sceNetAdhocMatching.h"
-#include "sceNp.h"
 #include "sceMpeg.h"
 #include "sceOpenPSID.h"
 #include "sceP3da.h"
-#include "sceParseHttp.h"
-#include "sceParseUri.h"
 #include "scePauth.h"
 #include "scePower.h"
 #include "scePspNpDrm_user.h"
@@ -82,10 +75,6 @@
 #include "sceSfmt19937.h"
 #include "sceG729.h"
 #include "KUBridge.h"
-#include "sceNetInet.h"
-#include "sceNetResolver.h"
-// #include "sceNp2.h"
-#include "sceNet_lib.h"
 
 #define N(s) s
 
@@ -241,19 +230,9 @@ void RegisterAllModules() {
 	Register_sceAudio();
 	Register_sceSasCore();
 	Register_sceFont();
-	Register_sceNet();
-	Register_sceNetResolver();
-	Register_sceNetInet();
-	Register_sceNetApctl();
-	Register_sceNetAdhoc();
-	Register_sceNetAdhocMatching();
-	Register_sceNetAdhocDiscover();
-	Register_sceNetAdhocctl();
 	Register_sceRtc();
-	Register_sceWlanDrv();
 	Register_sceMpeg();
 	Register_sceMp3();
-	Register_sceHttp();
 	Register_scePower();
 	Register_sceImpose();
 	Register_sceSuspendForUser();
@@ -265,9 +244,6 @@ void RegisterAllModules() {
 	Register_scePsmf();
 	Register_scePsmfPlayer();
 	Register_sceOpenPSID();
-	Register_sceParseUri();
-	Register_sceSsl();
-	Register_sceParseHttp();
 	Register_sceVaudio();
 	Register_sceUsb();
 	Register_sceChnnlsv();
@@ -278,10 +254,6 @@ void RegisterAllModules() {
 	Register_sceMp4();
 	Register_sceAac();
 	Register_scePauth();
-	Register_sceNp();
-	Register_sceNpCommerce2();
-	Register_sceNpService();
-	Register_sceNpAuth();
 	Register_sceMd5();
 	Register_sceJpeg();
 	Register_sceAudiocodec();
@@ -311,8 +283,6 @@ void RegisterAllModules() {
 	Register_sceAudioRouting();
 	Register_sceUsbCam();
 	Register_sceG729();
-	Register_sceNetUpnp();
-	Register_sceNetIfhandle();
 	Register_KUBridge();
 	Register_sceUsbAcc();
 	Register_sceUsbMic();
@@ -322,7 +292,6 @@ void RegisterAllModules() {
 	Register_mp4msv();
 	Register_InterruptManagerForKernel();
 	Register_sceSircs();
-	Register_sceNet_lib();
 	// Not ready to enable this due to apparent softlocks in Patapon 3.
 	// Register_sceNpMatching2();
 

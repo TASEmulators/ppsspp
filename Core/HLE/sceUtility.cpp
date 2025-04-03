@@ -41,15 +41,12 @@
 #include "Core/HLE/sceKernelThread.h"
 #include "Core/HLE/scePower.h"
 #include "Core/HLE/sceUtility.h"
-#include "Core/HLE/sceNet.h"
 
 #include "Core/Dialog/PSPSaveDialog.h"
 #include "Core/Dialog/PSPMsgDialog.h"
 #include "Core/Dialog/PSPPlaceholderDialog.h"
 #include "Core/Dialog/PSPOskDialog.h"
 #include "Core/Dialog/PSPGamedataInstallDialog.h"
-#include "Core/Dialog/PSPNetconfDialog.h"
-#include "Core/Dialog/PSPNpSigninDialog.h"
 #include "Core/Dialog/PSPScreenshotDialog.h"
 
 #define PSP_AV_MODULE_AVCODEC     0
@@ -132,10 +129,8 @@ bool currentDialogActive;
 static PSPSaveDialog *saveDialog;
 static PSPMsgDialog *msgDialog;
 static PSPOskDialog *oskDialog;
-static PSPNetconfDialog *netDialog;
 static PSPScreenshotDialog *screenshotDialog;
 static PSPGamedataInstallDialog *gamedataInstallDialog;
-static PSPNpSigninDialog *npSigninDialog;
 
 static int oldStatus = -1;
 static std::map<int, u32> currentlyLoadedModules;
@@ -193,16 +188,12 @@ static PSPDialog *CurrentDialog(UtilityDialogType type) {
 		return msgDialog;
 	case UtilityDialogType::OSK:
 		return oskDialog;
-	case UtilityDialogType::NET:
-		return netDialog;
 	case UtilityDialogType::SCREENSHOT:
 		return screenshotDialog;
 	case UtilityDialogType::GAMESHARING:
 		break;
 	case UtilityDialogType::GAMEDATAINSTALL:
 		return gamedataInstallDialog;
-	case UtilityDialogType::NPSIGNIN:
-		return npSigninDialog;
 	}
 	return nullptr;
 }
@@ -217,10 +208,8 @@ void __UtilityInit() {
 	saveDialog = new PSPSaveDialog(UtilityDialogType::SAVEDATA);
 	msgDialog = new PSPMsgDialog(UtilityDialogType::MSG);
 	oskDialog = new PSPOskDialog(UtilityDialogType::OSK);
-	netDialog = new PSPNetconfDialog(UtilityDialogType::NET);
 	screenshotDialog = new PSPScreenshotDialog(UtilityDialogType::SCREENSHOT);
 	gamedataInstallDialog = new PSPGamedataInstallDialog(UtilityDialogType::GAMEDATAINSTALL);
-	npSigninDialog = new PSPNpSigninDialog(UtilityDialogType::NPSIGNIN);
 
 	currentDialogType = UtilityDialogType::NONE;
 	DeactivateDialog();
@@ -242,7 +231,6 @@ void __UtilityDoState(PointerWrap &p) {
 	saveDialog->DoState(p);
 	msgDialog->DoState(p);
 	oskDialog->DoState(p);
-	netDialog->DoState(p);
 	screenshotDialog->DoState(p);
 	gamedataInstallDialog->DoState(p);
 
@@ -279,7 +267,6 @@ void __UtilityDoState(PointerWrap &p) {
 		Do(p, accessThreadFinished);
 
 	if (s >= 6) {
-		npSigninDialog->DoState(p);
 		lastSaveStateVersion = -1;
 	} else {
 		lastSaveStateVersion = s.Version();
@@ -297,10 +284,8 @@ void __UtilityShutdown() {
 	saveDialog->Shutdown(true);
 	msgDialog->Shutdown(true);
 	oskDialog->Shutdown(true);
-	netDialog->Shutdown(true);
 	screenshotDialog->Shutdown(true);
 	gamedataInstallDialog->Shutdown(true);
-	npSigninDialog->Shutdown(true);
 
 	if (accessThread) {
 		// Don't need to free it during shutdown, may have already been freed.
@@ -315,10 +300,8 @@ void __UtilityShutdown() {
 	delete saveDialog;
 	delete msgDialog;
 	delete oskDialog;
-	delete netDialog;
 	delete screenshotDialog;
 	delete gamedataInstallDialog;
-	delete npSigninDialog;
 }
 
 void UtilityDialogInitialize(UtilityDialogType type, int delayUs, int priority) {
@@ -658,298 +641,6 @@ static int sceUtilityOskGetStatus() {
 }
 
 
-static int sceUtilityNetconfInitStart(u32 paramsAddr) {
-	if (currentDialogActive && currentDialogType != UtilityDialogType::NET) {
-		return hleLogWarning(Log::sceUtility, SCE_ERROR_UTILITY_WRONG_TYPE, "wrong dialog type");
-	}
-	
-	ActivateDialog(UtilityDialogType::NET);
-	return hleLogInfo(Log::sceUtility, netDialog->Init(paramsAddr));
-}
-
-static int sceUtilityNetconfShutdownStart() {
-	if (currentDialogType != UtilityDialogType::NET) {
-		return hleLogWarning(Log::sceUtility, SCE_ERROR_UTILITY_WRONG_TYPE, "wrong dialog type");
-	}
-	
-	DeactivateDialog();
-	return hleLogDebug(Log::sceUtility, netDialog->Shutdown());
-}
-
-static int sceUtilityNetconfUpdate(int animSpeed) {
-	if (currentDialogType != UtilityDialogType::NET) {
-		return hleLogWarning(Log::sceUtility, SCE_ERROR_UTILITY_WRONG_TYPE, "wrong dialog type");
-	}
-
-	return hleLogDebug(Log::sceUtility, netDialog->Update(animSpeed));
-}
-
-static int sceUtilityNetconfGetStatus() {
-	if (currentDialogType != UtilityDialogType::NET) {
-		// Spam in Danball Senki BOOST.
-		return hleLogDebug(Log::sceUtility, SCE_ERROR_UTILITY_WRONG_TYPE, "wrong dialog type");
-	}
-
-	int status = netDialog->GetStatus();
-	CleanupDialogThreads();
-	if (oldStatus != status) {
-		oldStatus = status;
-		return hleLogDebug(Log::sceUtility, status);
-	}
-	return hleLogVerbose(Log::sceUtility, status);
-}
-
-/**
-* Check existence of a Net Configuration
-*
-* @param id - id of net Configuration (1 to n)
-* @return 0 on success
-* 
-* Note: some homebrew may only support a limited number of entries (ie. 10 entries)
-*/
-static int sceUtilityCheckNetParam(int id)
-{
-	bool available = (id >= 0 && id <= 24);
-	// We only have 1 faked net config entry
-	if (id > PSP_NETPARAM_MAX_NUMBER_DUMMY_ENTRIES) {
-		available = false;
-	}
-	int ret = available ? 0 : SCE_ERROR_NETPARAM_BAD_NETCONF;
-	return hleLogDebugOrError(Log::sceUtility, ret);
-}
-
-/**
-* Get Net Configuration Parameter
-*
-* @param conf - Net Configuration number (1 to n) (0 returns valid but seems to be a copy of the last config requested)
-* @param param - which parameter to get
-* @param data - parameter data
-* @return 0 on success
-*/
-// Let's figure out what games use this.
-static int sceUtilityGetNetParam(int id, int param, u32 dataAddr) {
-	if (id < 0 || id > 24) {
-		return hleLogWarning(Log::sceUtility, SCE_ERROR_NETPARAM_BAD_NETCONF, "invalid id=%d", id);
-	}
-
-	if (!g_netApctlInited) {
-		// Is this allowed?
-		WARN_LOG_REPORT_ONCE(getnetparam_early, Log::sceNet, "sceUtilityGetNetParam called before initializing netApctl!");
-	}
-
-	// TODO: Replace the temporary netApctlInfo with netConfInfo, since some of netApctlInfo contents supposed to be taken from netConfInfo during ApctlInit, while sceUtilityGetNetParam can be used before Apctl Initialized
-	char name[APCTL_PROFILENAME_MAXLEN];
-	truncate_cpy(name, sizeof(name), defaultNetConfigName + std::to_string(id == 0 ? netParamLatestId:id));
-	char dummyWEPKey[6] = "XXXXX"; // WEP 64-bit = 10 hex digits key or 5-digit ASCII equivalent
-	char dummyUserPass[256] = "PPSSPP"; // FIXME: Username / Password max length = 255 chars?
-	char dummyWPAKey[64] = "XXXXXXXX"; // FIXME: WPA 256-bit = 64 hex digits key or 8 to 63-chars ASCII passphrases?
-	switch (param) {
-	case PSP_NETPARAM_NAME:
-		if (!Memory::IsValidRange(dataAddr, APCTL_PROFILENAME_MAXLEN))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, name, APCTL_PROFILENAME_MAXLEN);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, APCTL_PROFILENAME_MAXLEN, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_SSID:
-		if (!Memory::IsValidRange(dataAddr, APCTL_SSID_MAXLEN))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, netApctlInfo.ssid, APCTL_SSID_MAXLEN);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, APCTL_SSID_MAXLEN, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_SECURE:
-		// 0 is no security.
-		// 1 is WEP (64-bit).
-		// 2 is WEP (128-bit).
-		// 3 is WPA (256-bit ?).
-		if (!Memory::IsValidRange(dataAddr, 4))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::WriteUnchecked_U32(1, dataAddr); // WEP 64-bit
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 4, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_WEPKEY:
-		// WEP 64-bit = 10 hex digits key or 5-digit ASCII equivalent
-		// WEP 128-bit = 26 hex digits key or 13-digit ASCII equivalent
-		// WEP 256-bit = 58 hex digits key or 29-digit ASCII equivalent
-		// WPA 256-bit = 64 hex digits key or 8 to 63-chars ASCII passphrases?
-		if (!Memory::IsValidRange(dataAddr, 5))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, dummyWEPKey, 5);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 5, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_IS_STATIC_IP:
-		// 0 is DHCP.
-		// 1 is static.
-		// 2 is PPPOE.
-		if (!Memory::IsValidRange(dataAddr, 4))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::WriteUnchecked_U32(1, dataAddr);  // static IP
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 4, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_IP:
-		if (!Memory::IsValidRange(dataAddr, APCTL_IPADDR_MAXLEN))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, netApctlInfo.ip, APCTL_IPADDR_MAXLEN);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, APCTL_IPADDR_MAXLEN, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_NETMASK:
-		if (!Memory::IsValidRange(dataAddr, APCTL_IPADDR_MAXLEN))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, netApctlInfo.subNetMask, APCTL_IPADDR_MAXLEN);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, APCTL_IPADDR_MAXLEN, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_ROUTE:
-		if (!Memory::IsValidRange(dataAddr, APCTL_IPADDR_MAXLEN))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, netApctlInfo.gateway, APCTL_IPADDR_MAXLEN);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, APCTL_IPADDR_MAXLEN, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_MANUAL_DNS:
-		// 0 is auto.
-		// 1 is manual. We always use manual.
-		if (!Memory::IsValidRange(dataAddr, 4))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::WriteUnchecked_U32(1, dataAddr);  // manual
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 4, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_PRIMARYDNS:
-		if (!Memory::IsValidRange(dataAddr, APCTL_IPADDR_MAXLEN))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, netApctlInfo.primaryDns, APCTL_IPADDR_MAXLEN);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, APCTL_IPADDR_MAXLEN, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_SECONDARYDNS:
-		if (!Memory::IsValidRange(dataAddr, APCTL_IPADDR_MAXLEN))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, netApctlInfo.secondaryDns, APCTL_IPADDR_MAXLEN);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, APCTL_IPADDR_MAXLEN, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_PROXY_USER:
-		// FIXME: Proxy's Username max length = 255 chars?
-		if (!Memory::IsValidRange(dataAddr, 255))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, dummyUserPass, 255);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 255, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_PROXY_PASS:
-		// FIXME: Proxy's Password max length = 255 chars?
-		if (!Memory::IsValidRange(dataAddr, 255))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, dummyUserPass, 255);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 255, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_USE_PROXY:
-		// 0 is to not use proxy.
-		// 1 is to use proxy.
-		if (!Memory::IsValidRange(dataAddr, 4))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::WriteUnchecked_U32(netApctlInfo.useProxy, dataAddr);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 4, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_PROXY_SERVER:
-		if (!Memory::IsValidRange(dataAddr, APCTL_URL_MAXLEN))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, netApctlInfo.proxyUrl, APCTL_URL_MAXLEN);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, APCTL_URL_MAXLEN, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_PROXY_PORT:
-		if (!Memory::IsValidRange(dataAddr, 2))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::WriteUnchecked_U16(netApctlInfo.proxyPort, dataAddr);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 2, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_VERSION:
-		// 0 is not used.
-		// 1 is old version.
-		// 2 is new version.
-		if (!Memory::IsValidRange(dataAddr, 4))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::WriteUnchecked_U32(2, dataAddr);  // new version
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 4, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_UNKNOWN:
-		if (!Memory::IsValidRange(dataAddr, 4))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::WriteUnchecked_U32(0, dataAddr);  // reserved?
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 4, "UtilityGetNetParam");
-		DEBUG_LOG(Log::sceUtility, "sceUtilityGetNetParam - Unknown Param(%d)", param);
-		break;
-	case PSP_NETPARAM_8021X_AUTH_TYPE:
-		// 0 is none.
-		// 1 is EAP (MD5).
-		if (!Memory::IsValidRange(dataAddr, 4))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::WriteUnchecked_U32(netApctlInfo.eapType, dataAddr);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 4, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_8021X_USER:
-		// FIXME: 8021X's Username max length = 255 chars?
-		if (!Memory::IsValidRange(dataAddr, 255))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, dummyUserPass, 255);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 255, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_8021X_PASS:
-		// FIXME: 8021X's Password max length = 255 chars?
-		if (!Memory::IsValidRange(dataAddr, 255))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, dummyUserPass, 255);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 255, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_WPA_TYPE:
-		// 0 is key in hexadecimal format.
-		// 1 is key in ASCII format.
-		if (!Memory::IsValidRange(dataAddr, 4))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::WriteUnchecked_U32(1, dataAddr);  // ASCII format
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 4, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_WPA_KEY:
-		// FIXME: WPA 256-bit = 64 hex digits key or 8 to 63-chars ASCII passphrases?
-		if (!Memory::IsValidRange(dataAddr, 63))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::MemcpyUnchecked(dataAddr, dummyWPAKey, 63);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 63, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_BROWSER:
-		// 0 is to not start the native browser.
-		// 1 is to start the native browser.
-		if (!Memory::IsValidRange(dataAddr, 4))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::WriteUnchecked_U32(netApctlInfo.startBrowser, dataAddr);
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 4, "UtilityGetNetParam");
-		break;
-	case PSP_NETPARAM_WIFI_CONFIG:
-		// 0 is no config.
-		// 1 is unknown. (WISP ?)
-		// 2 is Playstation Spot.
-		// 3 is unknown.
-		if (!Memory::IsValidRange(dataAddr, 4))
-			return hleLogError(Log::sceNet, -1, "invalid arg");
-		Memory::WriteUnchecked_U32(0, dataAddr);  // no config / netApctlInfo.wifisp ?
-		NotifyMemInfo(MemBlockFlags::WRITE, dataAddr, 4, "UtilityGetNetParam");
-		break;
-	default:
-		return hleLogWarning(Log::sceUtility, SCE_ERROR_NETPARAM_BAD_PARAM, "invalid param=%d", param);
-	}
-
-	return hleLogDebug(Log::sceUtility, 0);
-}
-
-/**
-* Get Current Net Configuration ID
-*
-* @param idAddr - Address to store the current net ID (ie. The actual Net Config ID when using ID=0 on sceUtilityGetNetParam ?)
-* @return 0 on success
-*/
-static int sceUtilityGetNetParamLatestID(u32 idAddr) {
-	DEBUG_LOG(Log::sceUtility, "sceUtilityGetNetParamLatestID(%08x)", idAddr);
-	// This function is saving the last net param ID (non-zero ID?) and not the number of net configurations.
-	Memory::Write_U32(netParamLatestId, idAddr);
-
-	return 0;
-}
-
-
 //TODO: Implement all sceUtilityScreenshot* for real, it doesn't seem to be complex
 //but it requires more investigation
 static int sceUtilityScreenshotInitStart(u32 paramAddr) {
@@ -1160,46 +851,6 @@ static u32 sceUtilityUnloadNetModule(u32 module) {
 	return hleLogInfo(Log::sceUtility, 0, "FAKE");
 }
 
-static int sceUtilityNpSigninInitStart(u32 paramsPtr) {
-	if (currentDialogActive && currentDialogType != UtilityDialogType::NPSIGNIN) {
-		return hleLogWarning(Log::sceUtility, SCE_ERROR_UTILITY_WRONG_TYPE, "wrong dialog type");
-	}
-
-	ActivateDialog(UtilityDialogType::NPSIGNIN);
-	return hleLogInfo(Log::sceUtility, npSigninDialog->Init(paramsPtr));
-}
-
-static int sceUtilityNpSigninShutdownStart() {
-	if (currentDialogType != UtilityDialogType::NPSIGNIN) {
-		return hleLogWarning(Log::sceUtility, SCE_ERROR_UTILITY_WRONG_TYPE, "wrong dialog type");
-	}
-
-	DeactivateDialog();
-	return hleLogDebug(Log::sceUtility, npSigninDialog->Shutdown());
-}
-
-static int sceUtilityNpSigninUpdate(int animSpeed) {
-	if (currentDialogType != UtilityDialogType::NPSIGNIN) {
-		return hleLogWarning(Log::sceUtility, SCE_ERROR_UTILITY_WRONG_TYPE, "wrong dialog type");
-	}
-
-	return hleLogDebug(Log::sceUtility, npSigninDialog->Update(animSpeed));
-}
-
-static int sceUtilityNpSigninGetStatus() {
-	if (currentDialogType != UtilityDialogType::NPSIGNIN) {
-		return hleLogDebug(Log::sceUtility, SCE_ERROR_UTILITY_WRONG_TYPE, "wrong dialog type");
-	}
-
-	int status = npSigninDialog->GetStatus();
-	CleanupDialogThreads();
-	if (oldStatus != status) {
-		oldStatus = status;
-		return hleLogDebug(Log::sceUtility, status);
-	}
-	return hleLogVerbose(Log::sceUtility, status);
-}
-
 static void sceUtilityInstallInitStart(u32 unknown) {
 	WARN_LOG_REPORT(Log::sceUtility, "UNIMPL sceUtilityInstallInitStart()");
 	return hleNoLogVoid();
@@ -1284,14 +935,6 @@ const HLEFunction sceUtility[] =
 	{0X1579A159, &WrapU_U<sceUtilityLoadNetModule>,                "sceUtilityLoadNetModule",                'x', "x"  },
 	{0X64D50C56, &WrapU_U<sceUtilityUnloadNetModule>,              "sceUtilityUnloadNetModule",              'x', "x"  },
 
-	{0XF88155F6, &WrapI_V<sceUtilityNetconfShutdownStart>,         "sceUtilityNetconfShutdownStart",         'i', ""   },
-	{0X4DB1E739, &WrapI_U<sceUtilityNetconfInitStart>,             "sceUtilityNetconfInitStart",             'i', "x"  },
-	{0X91E70E35, &WrapI_I<sceUtilityNetconfUpdate>,                "sceUtilityNetconfUpdate",                'i', "i"  },
-	{0X6332AA39, &WrapI_V<sceUtilityNetconfGetStatus>,             "sceUtilityNetconfGetStatus",             'i', ""   },
-	{0X5EEE6548, &WrapI_I<sceUtilityCheckNetParam>,                "sceUtilityCheckNetParam",                'i', "i"  },
-	{0X434D4B3A, &WrapI_IIU<sceUtilityGetNetParam>,                "sceUtilityGetNetParam",                  'i', "iix"},
-	{0X4FED24D8, &WrapI_U<sceUtilityGetNetParamLatestID>,          "sceUtilityGetNetParamLatestID",          'i', "x"  },
-
 	{0X67AF3428, &WrapI_V<sceUtilityMsgDialogShutdownStart>,       "sceUtilityMsgDialogShutdownStart",       'i', ""   },
 	{0X2AD8E239, &WrapI_U<sceUtilityMsgDialogInitStart>,           "sceUtilityMsgDialogInitStart",           'i', "x"  },
 	{0X95FC253B, &WrapI_I<sceUtilityMsgDialogUpdate>,              "sceUtilityMsgDialogUpdate",              'i', "i"  },
@@ -1354,11 +997,6 @@ const HLEFunction sceUtility[] =
 	{0X4AECD179, &WrapI_I<sceUtilityGamedataInstallUpdate>,        "sceUtilityGamedataInstallUpdate",        'i', "i"  },
 	{0XB57E95D9, &WrapI_V<sceUtilityGamedataInstallGetStatus>,     "sceUtilityGamedataInstallGetStatus",     'i', ""   },
 	{0X180F7B62, &WrapI_V<sceUtilityGamedataInstallAbort>,         "sceUtilityGamedataInstallAbort",         'i', ""   },
-
-	{0X16D02AF0, &WrapI_U<sceUtilityNpSigninInitStart>,            "sceUtilityNpSigninInitStart",            'i', "x"  },
-	{0XE19C97D6, &WrapI_V<sceUtilityNpSigninShutdownStart>,        "sceUtilityNpSigninShutdownStart",        'i', ""   },
-	{0XF3FBC572, &WrapI_I<sceUtilityNpSigninUpdate>,               "sceUtilityNpSigninUpdate",               'i', "i"  },
-	{0X86ABDB1B, &WrapI_V<sceUtilityNpSigninGetStatus>,            "sceUtilityNpSigninGetStatus",            'i', ""   },
 
 	{0X1281DA8E, &WrapV_U<sceUtilityInstallInitStart>,             "sceUtilityInstallInitStart",             'v', "x"  },
 	{0X5EF1C24A, nullptr,                                          "sceUtilityInstallShutdownStart",         '?', ""   },

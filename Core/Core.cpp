@@ -37,8 +37,8 @@
 #include "Core/Debugger/Breakpoints.h"
 #include "Core/MIPS/MIPS.h"
 #include "Core/MIPS/MIPSAnalyst.h"
-#include "Core/HLE/sceNetAdhoc.h"
 #include "Core/MIPS/MIPSTracer.h"
+#include "Core/HLE/sceKernelThread.h"
 #include <jaffarCommon/dethreader.hpp>
 #include "GPU/Debugger/Stepping.h"
 #include "GPU/GPU.h"

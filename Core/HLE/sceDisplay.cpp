@@ -46,7 +46,6 @@
 #include "Core/HLE/FunctionWrappers.h"
 #include "Core/HLE/sceDisplay.h"
 #include "Core/HLE/sceKernel.h"
-#include "Core/HLE/sceNet.h"
 #include "Core/HLE/sceKernelThread.h"
 #include "Core/HLE/sceKernelInterrupt.h"
 #include "Core/HW/Display.h"
@@ -353,9 +352,6 @@ void __DisplaySetWasPaused() {
 
 // TOOD: Should return 59.997?
 static int FrameTimingLimit() {
-	if (!NetworkAllowSpeedControl()) {
-		return 60;
-	}
 
 	auto fixRate = [=](int limit) {
 		int minRate = 1;

@@ -39,9 +39,6 @@ extern "C" {
 #include "Common/StringUtils.h"
 #include "Common/System/OSD.h"
 #include "Common/Data/Text/I18n.h"
-#include "Common/Net/HTTPClient.h"
-#include "Common/Net/Resolve.h"
-#include "Common/Net/URL.h"
 #include "Common/Thread/ThreadUtil.h"
 #include "Core/Core.h"
 #include "Core/CoreTiming.h"
@@ -293,11 +290,6 @@ namespace Reporting
 	}
 
 	static void SendReportRequest(const char *uri, const std::string &data, const std::string &mimeType, std::function<void(http::Request &)> callback) {
-		char url[1024];
-		std::string hostname = ServerHostname();
-		int port = ServerPort();
-		snprintf(url, sizeof(url), "http://%s:%d%s", hostname.c_str(), port, uri);
-		g_DownloadManager.AsyncPostWithCallback(url, data, mimeType, http::RequestFlags::Default, callback);
 	}
 
 	std::string StripTrailingNull(const std::string &str) {
@@ -409,12 +401,6 @@ namespace Reporting
 
 	void AddGameInfo(UrlEncoder &postdata)
 	{
-		postdata.Add("game", CurrentGameID());
-		postdata.Add("game_title", StripTrailingNull(g_paramSFO.GetValueString("TITLE")));
-		postdata.Add("sdkver", sceKernelGetCompiledSdkVersion());
-		postdata.Add("module_name", lastModuleName);
-		postdata.Add("module_ver", lastModuleVersion);
-		postdata.Add("module_crc", lastModuleCrc);
 	}
 
 	void AddSystemInfo(UrlEncoder &postdata)
@@ -423,104 +409,19 @@ namespace Reporting
 		if (gpu)
 			gpu->GetReportingInfo(gpuPrimary, gpuFull);
 		
-		postdata.Add("version", PPSSPP_GIT_VERSION);
-		postdata.Add("gpu", gpuPrimary);
-		postdata.Add("gpu_full", gpuFull);
-		postdata.Add("cpu", cpu_info.Summarize());
-		postdata.Add("platform", GetPlatformIdentifer());
 	}
 
 	void AddConfigInfo(UrlEncoder &postdata)
 	{
-		postdata.Add("pixel_width", PSP_CoreParameter().pixelWidth);
-		postdata.Add("pixel_height", PSP_CoreParameter().pixelHeight);
-
 		g_Config.GetReportingInfo(postdata);
 	}
 
 	void AddGameplayInfo(UrlEncoder &postdata)
 	{
-		// Just to get an idea of how long they played.
-		if (PSP_IsInited())
-			postdata.Add("ticks", (const uint64_t)CoreTiming::GetTicks());
-
-		float vps, fps;
-		__DisplayGetAveragedFPS(&vps, &fps);
-		postdata.Add("vps", vps);
-		postdata.Add("fps", fps);
-
-		postdata.Add("savestate_used", SaveState::HasLoadedState());
 	}
 
-	void AddScreenshotData(MultipartFormDataEncoder &postdata, const Path &filename)
-	{
-		std::string data;
-		if (!filename.empty() && File::ReadBinaryFileToString(filename, &data)) {
-			postdata.Add("screenshot", data, "screenshot.jpg", "image/jpeg");
-		}
-
-		const std::string iconFilename = "disc0:/PSP_GAME/ICON0.PNG";
-		std::vector<u8> iconData;
-		if (pspFileSystem.ReadEntireFile(iconFilename, iconData) >= 0) {
-			postdata.Add("icon", iconData, "icon.png", "image/png");
-		}
-	}
 
 	int Process(const Payload &payload) {
-		Buffer output;
-
-		MultipartFormDataEncoder postdata;
-		AddSystemInfo(postdata);
-		AddGameInfo(postdata);
-		AddConfigInfo(postdata);
-		AddGameplayInfo(postdata);
-
-		switch (payload.type) {
-		case RequestType::MESSAGE:
-			// TODO: Add CRC?
-			postdata.Add("message", payload.string1);
-			postdata.Add("value", payload.string2);
-			// We tend to get corrupted data, this acts as a very primitive verification check.
-			postdata.Add("verify", payload.string1 + payload.string2);
-
-			postdata.Finish();
-			SendReportRequest("/report/message", postdata.ToString(), postdata.GetMimeType(), [=](http::Request &req) {
-				serverWorking = !req.Failed();
-			});
-			break;
-
-		case RequestType::COMPAT:
-			postdata.Add("compat", payload.string1);
-			// We tend to get corrupted data, this acts as a very primitive verification check.
-			postdata.Add("verify", payload.string1);
-			postdata.Add("graphics", StringFromFormat("%d", payload.int1));
-			postdata.Add("speed", StringFromFormat("%d", payload.int2));
-			postdata.Add("gameplay", StringFromFormat("%d", payload.int3));
-			postdata.Add("crc", StringFromFormat("%08x", RetrieveCRCUnlessPowerSaving(PSP_CoreParameter().fileToStart)));
-			postdata.Add("suggestions", payload.string1 != "perfect" && payload.string1 != "playable" ? "1" : "0");
-			AddScreenshotData(postdata, Path(payload.string2));
-
-			postdata.Finish();
-			serverWorking = true;
-			SendReportRequest("/report/compat", postdata.ToString(), postdata.GetMimeType(), [=](http::Request &req) {
-				if (req.Failed()) {
-					serverWorking = false;
-					return;
-				}
-				serverWorking = true;
-
-				std::string result;
-				req.buffer().TakeAll(&result);
-				lastCompatResult.clear();
-				if (result.empty() || result[0] == '0')
-					serverWorking = false;
-				else if (result[0] != '1')
-					SplitString(result, '\n', lastCompatResult);
-			});
-			break;
-		case RequestType::NONE:
-			break;
-		}
 		return 0;
 	}
 

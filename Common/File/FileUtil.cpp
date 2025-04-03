@@ -37,7 +37,6 @@
 
 #include "Common/Log.h"
 #include "Common/LogReporting.h"
-#include "Common/File/AndroidContentURI.h"
 #include "Common/File/FileUtil.h"
 #include "Common/StringUtils.h"
 #include "Common/TimeUtil.h"
@@ -668,16 +667,6 @@ void ChangeMTime(const Path &path, time_t mtime) {
 bool IsProbablyInDownloadsFolder(const Path &filename) {
 	INFO_LOG(Log::Common, "IsProbablyInDownloadsFolder: Looking at %s (%s)...", filename.c_str(), filename.ToVisualString().c_str());
 	switch (filename.Type()) {
-	case PathType::CONTENT_URI:
-	{
-		AndroidContentURI uri(filename.ToString());
-		INFO_LOG(Log::Common, "Content URI provider: %s", uri.Provider().c_str());
-		if (containsNoCase(uri.Provider(), "download")) {
-			// like com.android.providers.downloads.documents
-			return true;
-		}
-		break;
-	}
 	default:
 		break;
 	}
