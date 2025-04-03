@@ -39,7 +39,6 @@
 #include "Common/TimeUtil.h"
 #include "Common/GraphicsContext.h"
 #include <jaffarCommon/dethreader.hpp>
-#include "Core/RetroAchievements.h"
 #include "Core/MemFault.h"
 #include "Core/HDRemaster.h"
 #include "Core/MIPS/MIPS.h"
@@ -65,7 +64,6 @@
 #include "GPU/GPUCommon.h"
 #include "GPU/Debugger/Playback.h"
 #include "GPU/Debugger/RecordFormat.h"
-#include "Core/RetroAchievements.h"
 
 enum CPUThreadState {
 	CPU_THREAD_NOT_RUNNING,
@@ -391,10 +389,6 @@ bool PSP_InitStart(const CoreParameter &coreParam, std::string *error_string) {
 	if (pspIsIniting || pspIsQuitting) {
 		return false;
 	}
-	printf("PSP INIT START B\n");
-	if (!Achievements::IsReadyToStart()) {
-		return false;
-	}
 
 	printf("PSP INIT START C\n");
 #if defined(_WIN32) && PPSSPP_ARCH(AMD64)
@@ -441,14 +435,6 @@ printf("PSP INIT START D\n");
 	}
 #endif
 
-printf("PSP INIT START G\n");
-	if (g_Config.bAchievementsEnable) {
-		// Need to re-identify after ResolveFileLoaderTarget - although in practice probably not,
-		// but also, re-using the identification would require some plumbing, to be done later.
-		std::string errorString;
-		IdentifiedFileType type = Identify_File(loadedFile, &errorString);
-		Achievements::SetGame(filename, type, loadedFile);
-	}
 
 	printf("PSP INIT START H\n");
 	if (!CPU_Init(&g_CoreParameter.errorString, loadedFile)) {
@@ -564,8 +550,6 @@ bool PSP_IsQuitting() {
 void PSP_Shutdown() {
 	// Reduce the risk for weird races with the Windows GE debugger.
 	gpuDebug = nullptr;
-
-	Achievements::UnloadGame();
 
 	// Do nothing if we never inited.
 	if (!pspIsInited && !pspIsIniting && !pspIsQuitting) {
