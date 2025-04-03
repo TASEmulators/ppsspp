@@ -22,7 +22,8 @@
 #include <cstring>
 #include <cstdint>
 #include <ctime>
-
+#include "Common/Serialize/Serializer.h"
+#include "Common/Serialize/SerializeFuncs.h"
 #include "Common.h"
 #include "Common/File/Path.h"
 #include "Core/HLE/sceKernel.h"
@@ -105,7 +106,24 @@ struct PSPFileInfo {
 	PSPFileInfo() {
 	}
 
-	void DoState(PointerWrap &p);
+	void DoState(PointerWrap& p) {
+		auto s = p.Section("PSPFileInfo", 1);
+		if (!s)
+			return;
+
+		Do(p, name);
+		Do(p, size);
+		Do(p, access);
+		Do(p, exists);
+		Do(p, type);
+		Do(p, atime);
+		Do(p, ctime);
+		Do(p, mtime);
+		Do(p, isOnSectorSystem);
+		Do(p, startSector);
+		Do(p, numSectors);
+		Do(p, sectorSize);
+	}
 
 	std::string name;
 	s64 size = 0;

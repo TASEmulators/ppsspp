@@ -19,22 +19,5 @@
 #include "Common/Serialize/SerializeFuncs.h"
 #include "Core/FileSystems/FileSystem.h"
 
-void PSPFileInfo::DoState(PointerWrap &p) {
-	auto s = p.Section("PSPFileInfo", 1);
-	if (!s)
-		return;
 
-	Do(p, name);
-	Do(p, size);
-	Do(p, access);
-	Do(p, exists);
-	Do(p, type);
-	Do(p, atime);
-	Do(p, ctime);
-	Do(p, mtime);
-	Do(p, isOnSectorSystem);
-	Do(p, startSector);
-	Do(p, numSectors);
-	Do(p, sectorSize);
-}
 

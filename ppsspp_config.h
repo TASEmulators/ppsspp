@@ -131,4 +131,3 @@
 #endif
 #define PPSSPP_API_D3D11 1
 #endif
-

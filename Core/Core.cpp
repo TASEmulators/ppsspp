@@ -44,6 +44,10 @@
 #include "GPU/GPU.h"
 #include "GPU/GPUCommon.h"
 
+#if defined(_WIN32)
+#pragma comment(lib, "Winmm.lib")
+#endif
+
 // Step command to execute next
 static std::mutex g_stepMutex;
 
