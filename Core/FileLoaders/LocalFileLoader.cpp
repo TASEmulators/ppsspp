@@ -57,6 +57,7 @@ void LocalFileLoader::DetectSizeFd() {
 
 LocalFileLoader::LocalFileLoader(const Path &filename)
 	: filesize_(0), filename_(filename) {
+
 	if (filename.empty()) {
 		ERROR_LOG(Log::FileSystem, "LocalFileLoader can't load empty filenames");
 		return;

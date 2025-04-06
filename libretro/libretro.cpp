@@ -1485,7 +1485,6 @@ bool retro_load_game(const struct retro_game_info *game)
       ERROR_LOG(Log::Boot, "%s", error_string.c_str());
       return false;
    }
-
    struct retro_core_option_display option_display;
 
    // Show/hide 'MSAA' and 'Texture Shader' options, Vulkan only

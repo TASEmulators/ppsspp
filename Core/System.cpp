@@ -85,7 +85,6 @@ CoreParameter g_CoreParameter;
 static FileLoader *g_loadedFile;
 // For background loading thread.
 static std::mutex loadingLock;
-static std::thread g_loadingThread;
 
 bool coreCollectDebugStats = false;
 static int coreCollectDebugStatsCounter = 0;
@@ -529,65 +528,60 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 
 	INFO_LOG(Log::System, "Starting loader thread...");
 
-	_dbg_assert_(!g_loadingThread.joinable());
+	SetCurrentThreadName("ExecLoader");
+	AndroidJNIThreadContext jniContext;
 
-	g_loadingThread = std::thread([error_string]() {
-		SetCurrentThreadName("ExecLoader");
+	NOTICE_LOG(Log::Boot, "PPSSPP %s", PPSSPP_GIT_VERSION);
 
-		AndroidJNIThreadContext jniContext;
+	Core_NotifyLifecycle(CoreLifecycle::STARTING);
 
-		NOTICE_LOG(Log::Boot, "PPSSPP %s", PPSSPP_GIT_VERSION);
+	Path filename = g_CoreParameter.fileToStart;
+	FileLoader *loadedFile = ResolveFileLoaderTarget(ConstructFileLoader(filename));
+	IdentifiedFileType type = Identify_File(loadedFile, &g_CoreParameter.errorString);
+	g_CoreParameter.fileType = type;
 
-		Core_NotifyLifecycle(CoreLifecycle::STARTING);
-
-		Path filename = g_CoreParameter.fileToStart;
-		FileLoader *loadedFile = ResolveFileLoaderTarget(ConstructFileLoader(filename));
-
-		IdentifiedFileType type = Identify_File(loadedFile, &g_CoreParameter.errorString);
-		g_CoreParameter.fileType = type;
-
-		if (System_GetPropertyBool(SYSPROP_ENOUGH_RAM_FOR_FULL_ISO)) {
-			if (g_Config.bCacheFullIsoInRam) {
-				switch (g_CoreParameter.fileType) {
-				case IdentifiedFileType::PSP_ISO:
-				case IdentifiedFileType::PSP_ISO_NP:
-					loadedFile = new RamCachingFileLoader(loadedFile);
-					break;
-				default:
-					INFO_LOG(Log::System, "RAM caching is on, but file is not an ISO, so ignoring");
-					break;
-				}
+	if (System_GetPropertyBool(SYSPROP_ENOUGH_RAM_FOR_FULL_ISO)) {
+		if (g_Config.bCacheFullIsoInRam) {
+			switch (g_CoreParameter.fileType) {
+			case IdentifiedFileType::PSP_ISO:
+			case IdentifiedFileType::PSP_ISO_NP:
+				loadedFile = new RamCachingFileLoader(loadedFile);
+				break;
+			default:
+				INFO_LOG(Log::System, "RAM caching is on, but file is not an ISO, so ignoring");
+				break;
 			}
 		}
+	}
 
-		if (g_Config.bAchievementsEnable) {
-			std::string errorString;
-			Achievements::SetGame(filename, type, loadedFile);
+	if (g_Config.bAchievementsEnable) {
+		std::string errorString;
+		Achievements::SetGame(filename, type, loadedFile);
+	}
+
+	// TODO: The reason we pass in g_CoreParameter.errorString here is that it's persistent -
+	// it gets written to from the loader thread that gets spawned.
+	if (!CPU_Init(loadedFile, type, &g_CoreParameter.errorString)) {
+		CPU_Shutdown(false);
+		coreState = CORE_BOOT_ERROR;
+		g_CoreParameter.fileToStart.clear();
+		*error_string = g_CoreParameter.errorString;
+		if (error_string->empty()) {
+			*error_string = "Failed initializing CPU/Memory";
 		}
+		g_bootState = BootState::Failed;
+		return false;
+	}
 
-		// TODO: The reason we pass in g_CoreParameter.errorString here is that it's persistent -
-		// it gets written to from the loader thread that gets spawned.
-		if (!CPU_Init(loadedFile, type, &g_CoreParameter.errorString)) {
-			CPU_Shutdown(false);
-			coreState = CORE_BOOT_ERROR;
-			g_CoreParameter.fileToStart.clear();
-			*error_string = g_CoreParameter.errorString;
-			if (error_string->empty()) {
-				*error_string = "Failed initializing CPU/Memory";
-			}
-			g_bootState = BootState::Failed;
-			return;
-		}
+	if (PSP_CoreParameter().startBreak) {
+		coreState = CORE_STEPPING_CPU;
+		System_Notify(SystemNotification::DEBUG_MODE_CHANGE);
+	} else {
+		coreState = CORE_RUNNING_CPU;
+	}
 
-		if (PSP_CoreParameter().startBreak) {
-			coreState = CORE_STEPPING_CPU;
-			System_Notify(SystemNotification::DEBUG_MODE_CHANGE);
-		} else {
-			coreState = CORE_RUNNING_CPU;
-		}
+	g_bootState = BootState::Complete;
 
-		g_bootState = BootState::Complete;
-	});
 
 	return true;
 }
@@ -599,10 +593,6 @@ BootState PSP_InitUpdate(std::string *error_string) {
 	}
 
 	_dbg_assert_(g_bootState == BootState::Complete || g_bootState == BootState::Failed);
-
-	// Since we load on a background thread, wait for startup to complete.
-	_dbg_assert_(g_loadingThread.joinable());
-	g_loadingThread.join();
 
 	if (g_bootState == BootState::Failed) {
 		// Failed! (Note: PSP_Shutdown was already called on the loader thread).
