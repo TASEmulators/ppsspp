@@ -263,7 +263,7 @@ void CachingFileLoader::StartReadAhead(s64 pos) {
 		return;
 	}
 
-	fprintf(stderr, "Reached an unexpected thread create\n");
+	fprintf(stderr, "Reached an unexpected thread create A\n");
 	std::abort();
 
 	// aheadThreadRunning_ = true;

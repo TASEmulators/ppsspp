@@ -222,7 +222,7 @@ void RamCachingFileLoader::StartReadAhead(s64 pos) {
 	// if (aheadThread_.joinable())
 	// 	aheadThread_.join();
 
-	fprintf(stderr, "Reached an unexpected thread create\n");
+	fprintf(stderr, "Reached an unexpected thread create B\n");
     std::abort();
 	// aheadThread_ = std::-thread([this] {
 	// 	SetCurrentThreadName("FileLoaderReadAhead");
