@@ -92,6 +92,7 @@ s64 LocalFileLoader::FileSize() {
 	return filesize_;
 }
 
+extern size_t readSegmentFromCD(void *buf_, const uint64_t address, const size_t size);
 size_t LocalFileLoader::ReadAt(s64 absolutePos, size_t bytes, size_t count, void *data, Flags flags) {
 	if (bytes == 0)
 		return 0;
@@ -101,6 +102,7 @@ size_t LocalFileLoader::ReadAt(s64 absolutePos, size_t bytes, size_t count, void
 		return 0;
 	}
 
-	jaffarCommon::file::MemoryFile::fseek(handle_, absolutePos, SEEK_SET);
-	return jaffarCommon::file::MemoryFile::fread(data, bytes, count, handle_);
+	// jaffarCommon::file::MemoryFile::fseek(handle_, absolutePos, SEEK_SET);
+	// return jaffarCommon::file::MemoryFile::fread(data, bytes, count, handle_);
+	return readSegmentFromCD(data, absolutePos, bytes * count) / bytes;
 }
