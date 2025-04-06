@@ -432,57 +432,8 @@ bool UpdateVRKeys(const KeyInput &key) {
 ================================================================================
 */
 
-#if XR_USE_GRAPHICS_API_OPENGL || XR_USE_GRAPHICS_API_OPENGL_ES
-
-void PreprocessSkyplane(GLRStep* step) {
-
-	// Do not do anything if the scene is not in VR.
-	if (IsFlatVRScene()) {
-		return;
-	}
-
-	// Check if it is the step we need to modify.
-	for (auto& cmd : step->commands) {
-		if (cmd.cmd == GLRRenderCommand::BIND_FB_TEXTURE) {
-			return;
-		}
-	}
-
-	// Clear sky with the fog color.
-	if (!vrCompat[VR_COMPAT_FBO_CLEAR]) {
-		GLRRenderData &skyClear = step->commands.insert(step->commands.begin());
-		skyClear.cmd = GLRRenderCommand::CLEAR;
-		skyClear.clear.colorMask = 0xF;
-		skyClear.clear.clearMask = GL_COLOR_BUFFER_BIT;  // don't need to initialize clearZ, clearStencil
-		skyClear.clear.clearColor = vrCompat[VR_COMPAT_FOG_COLOR];
-		skyClear.clear.scissorX = 0;
-		skyClear.clear.scissorY = 0;
-		skyClear.clear.scissorW = 0;  // signal no scissor
-		skyClear.clear.scissorH = 0;
-		vrCompat[VR_COMPAT_FBO_CLEAR] = true;
-	}
-
-	// Remove original sky plane.
-	bool depthEnabled = false;
-	for (auto& command : step->commands) {
-		if (command.cmd == GLRRenderCommand::DEPTH) {
-			depthEnabled = command.depth.enabled;
-		} else if ((command.cmd == GLRRenderCommand::DRAW && command.draw.indexBuffer != nullptr) && !depthEnabled) {
-			command.draw.count = 0;
-		}
-	}
-}
-
-void PreprocessStepVR(void* step) {
-	auto* glrStep = (GLRStep*)step;
-	if (vrCompat[VR_COMPAT_SKYPLANE]) PreprocessSkyplane(glrStep);
-}
-
-#else
-
 void PreprocessStepVR(void* step) {}
 
-#endif
 
 void SetVRCompat(VRCompatFlag flag, long value) {
 	vrCompat[flag] = value;

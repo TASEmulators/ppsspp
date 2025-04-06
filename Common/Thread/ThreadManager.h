@@ -79,8 +79,8 @@ private:
 	// This is always pointing to a context, initialized in the constructor.
 	GlobalThreadContext *global_;
 
-	int numThreads_ = 0;
-	int numComputeThreads_ = 0;
+	int numThreads_ = 1;
+	int numComputeThreads_ = 1;
 
 	friend struct TaskThreadContext;
 };

@@ -37,12 +37,16 @@
 #include "Core/Debugger/Breakpoints.h"
 #include "Core/MIPS/MIPS.h"
 #include "Core/MIPS/MIPSAnalyst.h"
-#include "Core/HLE/sceNetAdhoc.h"
 #include "Core/MIPS/MIPSTracer.h"
+#include "Core/HLE/sceKernelThread.h"
 #include <jaffarCommon/dethreader.hpp>
 #include "GPU/Debugger/Stepping.h"
 #include "GPU/GPU.h"
 #include "GPU/GPUCommon.h"
+
+#if defined(_WIN32)
+#pragma comment(lib, "Winmm.lib")
+#endif
 
 // Step command to execute next
 static std::mutex g_stepMutex;
@@ -449,17 +453,20 @@ void Core_Break(BreakReason reason, u32 relatedAddress) {
 
 // Free-threaded (or at least should be)
 void Core_Resume() {
+	printf("Core ResumeA\n");
 	// If the current PC is on a breakpoint, the user doesn't want to do nothing.
 	if (currentMIPS) {
 		g_breakpoints.SetSkipFirst(currentMIPS->pc);
 	}
 
 	// Handle resuming from GE.
+	printf("Core ResumeB\n");
 	if (coreState == CORE_STEPPING_GE) {
 		coreState = CORE_RUNNING_GE;
 		return;
 	}
 
+	printf("Core Resume C\n");
 	// Clear the exception if we resume.
 	Core_ResetException();
 	coreState = CORE_RUNNING_CPU;

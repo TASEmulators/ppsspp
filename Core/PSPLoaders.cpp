@@ -22,12 +22,11 @@
 #include "Common/Thread/ThreadUtil.h"
 #include "Common/System/Request.h"
 
-#include "Common/File/AndroidContentURI.h"
 #include "Common/File/FileUtil.h"
 #include "Common/StringUtils.h"
-#ifdef _WIN32
-#include "Common/CommonWindows.h"
-#endif
+//#ifdef _WIN32
+//#include "Common/CommonWindows.h"
+//#endif
 
 #include "Core/ELF/ParamSFO.h"
 #include "Core/ELF/PBPReader.h"
@@ -337,7 +336,7 @@ static Path NormalizePath(const Path &path) {
 		// Nothing to do - these can't be non-normalized.
 		return path;
 	}
-
+/*
 #ifdef _WIN32
 	std::wstring wpath = path.ToWString();
 	std::wstring buf;
@@ -358,6 +357,7 @@ static Path NormalizePath(const Path &path) {
 		return Path();
 	return Path(buf);
 #endif
+*/
 }
 
 bool Load_PSP_ELF_PBP(FileLoader *fileLoader, std::string *error_string) {
@@ -378,9 +378,6 @@ bool Load_PSP_ELF_PBP(FileLoader *fileLoader, std::string *error_string) {
 	std::string path = full_path.GetDirectory();
 	std::string file = full_path.GetFilename();
 
-	if (full_path.Type() == PathType::CONTENT_URI) {
-		path = AndroidContentURI(full_path.GetDirectory()).FilePath();
-	}
 
 	size_t pos = path.find("PSP/GAME/");
 	std::string ms_path;
@@ -410,13 +407,7 @@ bool Load_PSP_ELF_PBP(FileLoader *fileLoader, std::string *error_string) {
 		}
 
 		std::string filepath;
-		if (full_path.Type() == PathType::CONTENT_URI) {
-			std::string rootFilePath = AndroidContentURI(rootNorm.c_str()).FilePath();
-			std::string pathFilePath = AndroidContentURI(pathNorm.c_str()).FilePath();
-			filepath = pathFilePath.substr(rootFilePath.size());
-		} else {
-			filepath = ReplaceAll(pathNorm.ToString().substr(rootNorm.ToString().size()), "\\", "/");
-		}
+		filepath = ReplaceAll(pathNorm.ToString().substr(rootNorm.ToString().size()), "\\", "/");
 
 		file = filepath + "/" + file;
 		path = rootNorm.ToString();

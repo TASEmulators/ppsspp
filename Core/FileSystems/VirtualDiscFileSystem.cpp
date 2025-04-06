@@ -30,7 +30,6 @@
 #include "Common/Data/Encoding/Utf8.h"
 
 #ifdef _WIN32
-#include "Common/CommonWindows.h"
 #include <sys/stat.h>
 #if PPSSPP_PLATFORM(UWP)
 #include <fileapifromapp.h>
@@ -356,11 +355,6 @@ int VirtualDiscFileSystem::OpenFile(std::string filename, FileAccess access, con
 
 		if (!success) {
 			if (!(access & FILEACCESS_PPSSPP_QUIET)) {
-#ifdef _WIN32
-				ERROR_LOG(Log::FileSystem, "VirtualDiscFileSystem::OpenFile: FAILED, %i", (int)GetLastError());
-#else
-				ERROR_LOG(Log::FileSystem, "VirtualDiscFileSystem::OpenFile: FAILED");
-#endif
 			}
 			return 0;
 		}
@@ -382,21 +376,6 @@ int VirtualDiscFileSystem::OpenFile(std::string filename, FileAccess access, con
 	}
 	bool success = entry.Open(basePath, filename, (FileAccess)(access & FILEACCESS_PSP_FLAGS));
 
-	if (!success) {
-		if (!(access & FILEACCESS_PPSSPP_QUIET)) {
-#ifdef _WIN32
-			ERROR_LOG(Log::FileSystem, "VirtualDiscFileSystem::OpenFile: FAILED, %i - access = %i", (int)GetLastError(), (int)access);
-#else
-			ERROR_LOG(Log::FileSystem, "VirtualDiscFileSystem::OpenFile: FAILED, access = %i", (int)access);
-#endif
-		}
-		return SCE_KERNEL_ERROR_ERRNO_FILE_NOT_FOUND;
-	} else {
-		u32 newHandle = hAlloc->GetNewHandle();
-		entries[newHandle] = entry;
-
-		return newHandle;
-	}
 }
 
 size_t VirtualDiscFileSystem::SeekFile(u32 handle, s32 position, FileMove type) {
@@ -641,128 +620,9 @@ PSPFileInfo VirtualDiscFileSystem::GetFileInfo(std::string filename) {
 	return x;
 }
 
-#ifdef _WIN32
-#define FILETIME_FROM_UNIX_EPOCH_US 11644473600000000ULL
-
-static void tmFromFiletime(tm &dest, const FILETIME &src)
-{
-	u64 from_1601_us = (((u64) src.dwHighDateTime << 32ULL) + (u64) src.dwLowDateTime) / 10ULL;
-	u64 from_1970_us = from_1601_us - FILETIME_FROM_UNIX_EPOCH_US;
-
-	time_t t = (time_t) (from_1970_us / 1000000UL);
-	localtime_s(&dest, &t);
-}
-#endif
-
 std::vector<PSPFileInfo> VirtualDiscFileSystem::GetDirListing(const std::string &path, bool *exists) {
 	std::vector<PSPFileInfo> myVector;
 
-	// TODO(scoped): Switch this over to GetFilesInDir!
-
-#ifdef _WIN32
-	WIN32_FIND_DATA findData;
-	HANDLE hFind;
-
-	// TODO: Handler files that are virtual might not be listed.
-
-	std::wstring w32path = GetLocalPath(path).ToWString() + L"\\*.*";
-
-#if PPSSPP_PLATFORM(UWP)
-	hFind = FindFirstFileExFromAppW(w32path.c_str(), FindExInfoStandard, &findData, FindExSearchNameMatch, NULL, 0);
-#else
-	hFind = FindFirstFileEx(w32path.c_str(), FindExInfoStandard, &findData, FindExSearchNameMatch, NULL, 0);
-#endif
-	if (hFind == INVALID_HANDLE_VALUE) {
-		if (exists)
-			*exists = false;
-		return myVector; //the empty list
-	}
-
-	if (exists)
-		*exists = true;
-
-	for (BOOL retval = 1; retval; retval = FindNextFile(hFind, &findData)) {
-		if (!wcscmp(findData.cFileName, L"..") || !wcscmp(findData.cFileName, L".")) {
-			continue;
-		}
-
-		PSPFileInfo entry;
-		if (findData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-			entry.type = FILETYPE_DIRECTORY;
-		} else {
-			entry.type = FILETYPE_NORMAL;
-		}
-
-		entry.access = 0555;
-		entry.exists = true;
-		entry.size = findData.nFileSizeLow | ((u64)findData.nFileSizeHigh<<32);
-		entry.name = ConvertWStringToUTF8(findData.cFileName);
-		tmFromFiletime(entry.atime, findData.ftLastAccessTime);
-		tmFromFiletime(entry.ctime, findData.ftCreationTime);
-		tmFromFiletime(entry.mtime, findData.ftLastWriteTime);
-		entry.isOnSectorSystem = true;
-
-		std::string fullRelativePath = path + "/" + entry.name;
-		int fileIndex = getFileListIndex(fullRelativePath);
-		if (fileIndex != -1)
-			entry.startSector = fileList[fileIndex].firstBlock;
-		myVector.push_back(entry);
-	}
-	FindClose(hFind);
-#else
-	dirent *dirp;
-	Path localPath = GetLocalPath(path);
-	DIR *dp = opendir(localPath.c_str());
-
-#if HOST_IS_CASE_SENSITIVE
-	std::string fixedPath = path;
-	if(dp == NULL && FixPathCase(basePath, fixedPath, FPC_FILE_MUST_EXIST)) {
-		// May have failed due to case sensitivity, try again
-		localPath = GetLocalPath(fixedPath);
-		dp = opendir(localPath.c_str());
-	}
-#endif
-
-	if (dp == NULL) {
-		ERROR_LOG(Log::FileSystem,"Error opening directory %s\n", path.c_str());
-		if (exists)
-			*exists = false;
-		return myVector;
-	}
-
-	if (exists)
-		*exists = true;
-
-	while ((dirp = readdir(dp)) != NULL) {
-		if (!strcmp(dirp->d_name, "..") || !strcmp(dirp->d_name, ".")) {
-			continue;
-		}
-
-		PSPFileInfo entry;
-		struct stat s;
-		std::string fullName = (localPath / std::string(dirp->d_name)).ToString();
-		stat(fullName.c_str(), &s);
-		if (S_ISDIR(s.st_mode))
-			entry.type = FILETYPE_DIRECTORY;
-		else
-			entry.type = FILETYPE_NORMAL;
-		entry.access = 0555;
-		entry.exists = true;
-		entry.name = dirp->d_name;
-		entry.size = s.st_size;
-		localtime_r((time_t*)&s.st_atime,&entry.atime);
-		localtime_r((time_t*)&s.st_ctime,&entry.ctime);
-		localtime_r((time_t*)&s.st_mtime,&entry.mtime);
-		entry.isOnSectorSystem = true;
-
-		std::string fullRelativePath = path + "/" + entry.name;
-		int fileIndex = getFileListIndex(fullRelativePath);
-		if (fileIndex != -1)
-			entry.startSector = fileList[fileIndex].firstBlock;
-		myVector.push_back(entry);
-	}
-	closedir(dp);
-#endif
 	return myVector;
 }
 
@@ -823,67 +683,9 @@ void VirtualDiscFileSystem::HandlerLogger(void *arg, HandlerHandle handle, LogLe
 
 VirtualDiscFileSystem::Handler::Handler(const char *filename, VirtualDiscFileSystem *const sys)
 : sys_(sys) {
-#if !PPSSPP_PLATFORM(SWITCH)
-#ifdef _WIN32
-#if PPSSPP_PLATFORM(UWP)
-#define dlopen(name, ignore) (void *)LoadPackagedLibrary(ConvertUTF8ToWString(name).c_str(), 0)
-#define dlsym(mod, name) GetProcAddress((HMODULE)mod, name)
-#define dlclose(mod) FreeLibrary((HMODULE)mod)
-#else
-#define dlopen(name, ignore) (void *)LoadLibrary(ConvertUTF8ToWString(name).c_str())
-#define dlsym(mod, name) GetProcAddress((HMODULE)mod, name)
-#define dlclose(mod) FreeLibrary((HMODULE)mod)
-#endif
-#endif
-
-	library = dlopen(filename, RTLD_LOCAL | RTLD_NOW);
-	if (library != NULL) {
-		Init = (InitFunc)dlsym(library, "Init");
-		Shutdown = (ShutdownFunc)dlsym(library, "Shutdown");
-		Open = (OpenFunc)dlsym(library, "Open");
-		Seek = (SeekFunc)dlsym(library, "Seek");
-		Read = (ReadFunc)dlsym(library, "Read");
-		Close = (CloseFunc)dlsym(library, "Close");
-
-		VersionFunc Version = (VersionFunc)dlsym(library, "Version");
-		if (Version && Version() >= 2) {
-			ShutdownV2 = (ShutdownV2Func)Shutdown;
-		}
-
-		if (!Init || !Shutdown || !Open || !Seek || !Read || !Close) {
-			ERROR_LOG(Log::FileSystem, "Unable to find all handler functions: %s", filename);
-			dlclose(library);
-			library = NULL;
-		} else if (!Init(&HandlerLogger, sys)) {
-			ERROR_LOG(Log::FileSystem, "Unable to initialize handler: %s", filename);
-			dlclose(library);
-			library = NULL;
-		}
-	} else {
-		ERROR_LOG(Log::FileSystem, "Unable to load handler '%s': %s", filename, GetLastErrorMsg().c_str());
-	}
-#ifdef _WIN32
-#undef dlopen
-#undef dlsym
-#undef dlclose
-#endif
-#endif
 }
 
 VirtualDiscFileSystem::Handler::~Handler() {
-	if (library != NULL) {
-		if (ShutdownV2)
-			ShutdownV2(sys_);
-		else
-			Shutdown();
 
-#if !PPSSPP_PLATFORM(UWP) && !PPSSPP_PLATFORM(SWITCH)
-#ifdef _WIN32
-		FreeLibrary((HMODULE)library);
-#else
-		dlclose(library);
-#endif
-#endif
-	}
 }
 

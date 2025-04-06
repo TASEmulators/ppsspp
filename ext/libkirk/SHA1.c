@@ -40,6 +40,7 @@ effort (for example the reengineering of a great many Capstone chips).
 #include <stdio.h>
 #include <string.h>
 
+
 static void SHAtoByte(BYTE *output, UINT4 *input, unsigned int len);
 
 /* The SHS block size and message digest sizes, in bytes */

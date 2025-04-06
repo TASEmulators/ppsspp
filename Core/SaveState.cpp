@@ -40,7 +40,7 @@
 #include "Core/FileSystems/MetaFileSystem.h"
 #include "Core/ELF/ParamSFO.h"
 #include "Core/HLE/HLE.h"
-#include "Core/HLE/sceNet.h"
+//#include "Core/HLE/sceNet.h"
 #include "Core/HLE/ReplaceTables.h"
 #include "Core/HLE/sceDisplay.h"
 #include "Core/HLE/sceKernel.h"
@@ -48,7 +48,6 @@
 #include "Core/MemMap.h"
 #include "Core/MIPS/MIPS.h"
 #include "Core/MIPS/JitCommon/JitBlockCache.h"
-#include "Core/RetroAchievements.h"
 #include "HW/MemoryStick.h"
 #include "GPU/GPUState.h"
 
@@ -402,26 +401,12 @@ double g_lastSaveTime = -1.0;
 		currentMIPS->DoState(p);
 		HLEDoState(p);
 		__KernelDoState(p);
-		Achievements::DoState(p);
 		// Kernel object destructors might close open files, so do the filesystem last.
 		pspFileSystem.DoState(p);
 	}
 
 	void Enqueue(const SaveState::Operation &op)
 	{
-		if (!NetworkAllowSaveState()) {
-			return;
-		}
-		if (Achievements::HardcoreModeActive()) {
-			if (g_Config.bAchievementsSaveStateInHardcoreMode && ((op.type == SaveState::SAVESTATE_SAVE) || (op.type == SAVESTATE_SAVE_SCREENSHOT))) {
-				// We allow saving in hardcore mode if this setting is on.
-			} else {
-				// Operation not allowed
-				return;
-			}
-		}
-
-		std::lock_guard<std::mutex> guard(mutex);
 		pending.push_back(op);
 
 		// Don't actually run it until next frame.
@@ -431,10 +416,6 @@ double g_lastSaveTime = -1.0;
 
 	void Load(const Path &filename, int slot, Callback callback, void *cbUserData)
 	{
-		if (!NetworkAllowSaveState()) {
-			return;
-		}
-
 		rewindStates.NotifyState();
 		if (coreState == CoreState::CORE_RUNTIME_ERROR)
 			Core_Break(BreakReason::SavestateLoad, 0);
@@ -443,10 +424,6 @@ double g_lastSaveTime = -1.0;
 
 	void Save(const Path &filename, int slot, Callback callback, void *cbUserData)
 	{
-		if (!NetworkAllowSaveState()) {
-			return;
-		}
-
 		rewindStates.NotifyState();
 		if (coreState == CoreState::CORE_RUNTIME_ERROR)
 			Core_Break(BreakReason::SavestateSave, 0);
@@ -460,9 +437,6 @@ double g_lastSaveTime = -1.0;
 
 	void Rewind(Callback callback, void *cbUserData)
 	{
-		if (g_netInited) {
-			return;
-		}
 		if (coreState == CoreState::CORE_RUNTIME_ERROR)
 			Core_Break(BreakReason::SavestateRewind, 0);
 		Enqueue(Operation(SAVESTATE_REWIND, Path(), -1, callback, cbUserData));
@@ -593,10 +567,6 @@ double g_lastSaveTime = -1.0;
 
 	void LoadSlot(const Path &gameFilename, int slot, Callback callback, void *cbUserData)
 	{
-		if (!NetworkAllowSaveState()) {
-			return;
-		}
-
 		Path fn = GenerateSaveSlotFilename(gameFilename, slot, STATE_EXTENSION);
 		if (!fn.empty()) {
 			// This add only 1 extra state, should we just always enable it?
@@ -634,10 +604,6 @@ double g_lastSaveTime = -1.0;
 
 	bool UndoLoad(const Path &gameFilename, Callback callback, void *cbUserData)
 	{
-		if (!NetworkAllowSaveState()) {
-			return false;
-		}
-
 		if (g_Config.sStateLoadUndoGame != GenerateFullDiscId(gameFilename)) {
 			if (callback) {
 				auto sy = GetI18NCategory(I18NCat::SYSTEM);
@@ -661,10 +627,6 @@ double g_lastSaveTime = -1.0;
 
 	void SaveSlot(const Path &gameFilename, int slot, Callback callback, void *cbUserData)
 	{
-		if (!NetworkAllowSaveState()) {
-			return;
-		}
-
 		Path fn = GenerateSaveSlotFilename(gameFilename, slot, STATE_EXTENSION);
 		Path fnUndo = GenerateSaveSlotFilename(gameFilename, slot, UNDO_STATE_EXTENSION);
 		if (!fn.empty()) {
@@ -703,9 +665,6 @@ double g_lastSaveTime = -1.0;
 	}
 
 	bool UndoSaveSlot(const Path &gameFilename, int slot) {
-		if (!NetworkAllowSaveState()) {
-			return false;
-		}
 
 		Path fnUndo = GenerateSaveSlotFilename(gameFilename, slot, UNDO_STATE_EXTENSION);
 
@@ -725,10 +684,6 @@ double g_lastSaveTime = -1.0;
 
 
 	bool UndoLastSave(const Path &gameFilename) {
-		if (!NetworkAllowSaveState()) {
-			return false;
-		}
-
 		if (g_Config.sStateUndoLastSaveGame != GenerateFullDiscId(gameFilename))
 			return false;
 
@@ -1093,23 +1048,6 @@ double g_lastSaveTime = -1.0;
 				}
 				break;
 
-			case SAVESTATE_SAVE_SCREENSHOT:
-			{
-				int maxResMultiplier = 2;
-				tempResult = TakeGameScreenshot(nullptr, op.filename, ScreenshotFormat::JPG, SCREENSHOT_DISPLAY, nullptr, nullptr, maxResMultiplier);
-				callbackResult = tempResult ? Status::SUCCESS : Status::FAILURE;
-				if (!tempResult) {
-					WARN_LOG(Log::SaveState, "Failed to take a screenshot for the savestate! (%s) The savestate will lack an icon.", op.filename.c_str());
-					if (coreState != CORE_STEPPING_CPU && screenshotFailures++ < SCREENSHOT_FAILURE_RETRIES) {
-						// Requeue for next frame (if we were stepping, no point, will just spam errors quickly).
-						SaveScreenshot(op.filename, op.callback, op.cbUserData);
-					}
-				} else {
-					screenshotFailures = 0;
-				}
-				readbackImage = true;
-				break;
-			}
 			default:
 				ERROR_LOG(Log::SaveState, "Savestate failure: unknown operation type %d", op.type);
 				callbackResult = Status::FAILURE;

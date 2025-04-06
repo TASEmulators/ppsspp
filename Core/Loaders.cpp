@@ -15,13 +15,11 @@
 // Official git repository and contact information can be found at
 // https://github.com/hrydgard/ppsspp and http://www.ppsspp.org/.
 
-#include "Common/File/AndroidContentURI.h"
 #include "Common/File/FileUtil.h"
 #include "Common/File/Path.h"
 #include "Common/StringUtils.h"
 #include "Core/FileLoaders/CachingFileLoader.h"
 #include "Core/FileLoaders/DiskCachingFileLoader.h"
-#include "Core/FileLoaders/HTTPFileLoader.h"
 #include "Core/FileLoaders/LocalFileLoader.h"
 #include "Core/FileLoaders/RetryingFileLoader.h"
 #include "Core/FileSystems/MetaFileSystem.h"
@@ -276,9 +274,6 @@ bool LoadFile(FileLoader **fileLoaderPtr, std::string *error_string) {
 				}
 
 				std::string dir = fileLoader->GetPath().GetDirectory();
-				if (fileLoader->GetPath().Type() == PathType::CONTENT_URI) {
-					dir = AndroidContentURI(dir).FilePath();
-				}
 				size_t pos = dir.find("PSP/GAME/");
 				if (pos != std::string::npos) {
 					dir = ResolvePBPDirectory(Path(dir)).ToString();

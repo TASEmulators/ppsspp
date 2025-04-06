@@ -25,9 +25,8 @@
 
 #include "ppsspp_config.h"
 #include <jaffarCommon/dethreader.hpp>
+
 #include "Common/GPU/OpenGL/GLFeatures.h"
-#include "Common/Net/HTTPClient.h"
-#include "Common/Net/URL.h"
 
 #include "Common/Log.h"
 #include "Common/TimeUtil.h"
@@ -45,8 +44,9 @@
 #include "Common/System/Display.h"
 #include "Common/System/System.h"
 #include "Common/StringUtils.h"
+
 #include "Common/Thread/ThreadUtil.h"
-#include "Common/GPU/Vulkan/VulkanLoader.h"
+//#include "Common/GPU/Vulkan/VulkanLoader.h"
 #include "Common/VR/PPSSPPVR.h"
 #include "Common/System/OSD.h"
 #include "Core/Config.h"
@@ -59,8 +59,6 @@
 #include "Core/Instance.h"
 #include "GPU/Common/FramebufferManagerCommon.h"
 
-// TODO: Find a better place for this.
-http::RequestManager g_DownloadManager;
 
 const char* gitVersion = "0";
 
@@ -1218,8 +1216,6 @@ void Config::Load(const char *iniFileName, const char *controllerIniFilename) {
 		bUpdatedInstanceCounter = true;
 	}
 
-	g_DownloadManager.SetUserAgent(StringFromFormat("PPSSPP/%s", PPSSPP_GIT_VERSION));
-
 	UpdateIniLocation(iniFileName, controllerIniFilename);
 
 	INFO_LOG(Log::Loader, "Loading config: %s", iniFilename_.c_str());
@@ -1354,16 +1350,6 @@ void Config::Load(const char *iniFileName, const char *controllerIniFilename) {
 	// even if said newer version is >= the upgrade found online.
 	if ((dismissedVersion == upgradeVersion) || (versionsValid && (installed >= upgrade))) {
 		upgradeMessage.clear();
-	}
-
-	// Check for new version on every 10 runs.
-	// Sometimes the download may not be finished when the main screen shows (if the user dismisses the
-	// splash screen quickly), but then we'll just show the notification next time instead, we store the
-	// upgrade number in the ini.
-	if (iRunCount % 10 == 0 && bCheckForNewVersion) {
-		const char *versionUrl = "http://www.ppsspp.org/version.json";
-		const char *acceptMime = "application/json, text/*; q=0.9, */*; q=0.8";
-		g_DownloadManager.StartDownloadWithCallback(versionUrl, Path(), http::RequestFlags::Default, &DownloadCompletedCallback, "version", acceptMime);
 	}
 
 	INFO_LOG(Log::Loader, "Loading controller config: %s", controllerIniFilename_.c_str());
@@ -1568,54 +1554,6 @@ void Config::NotifyUpdatedCpuCore() {
 #endif
 
 void Config::DownloadCompletedCallback(http::Request &download) {
-	if (download.ResultCode() != 200) {
-		ERROR_LOG(Log::Loader, "Failed to download %s: %d", download.url().c_str(), download.ResultCode());
-		return;
-	}
-	std::string data;
-	download.buffer().TakeAll(&data);
-	if (data.empty()) {
-		ERROR_LOG(Log::Loader, "Version check: Empty data from server!");
-		return;
-	}
-
-	json::JsonReader reader(data.c_str(), data.size());
-	const json::JsonGet root = reader.root();
-	if (!root) {
-		ERROR_LOG(Log::Loader, "Failed to parse json");
-		return;
-	}
-
-	std::string version;
-	root.getString("version", &version);
-
-	const char *gitVer = PPSSPP_GIT_VERSION;
-	Version installed(gitVer);
-	Version upgrade(version);
-	Version dismissed(g_Config.dismissedVersion);
-
-	if (!installed.IsValid()) {
-		ERROR_LOG(Log::Loader, "Version check: Local version string invalid. Build problems? %s", PPSSPP_GIT_VERSION);
-		return;
-	}
-	if (!upgrade.IsValid()) {
-		ERROR_LOG(Log::Loader, "Version check: Invalid server version: %s", version.c_str());
-		return;
-	}
-
-	if (installed >= upgrade) {
-		INFO_LOG(Log::Loader, "Version check: Already up to date, erasing any upgrade message");
-		g_Config.upgradeMessage.clear();
-		g_Config.upgradeVersion = upgrade.ToString();
-		g_Config.dismissedVersion.clear();
-		return;
-	}
-
-	if (installed < upgrade && dismissed != upgrade) {
-		g_Config.upgradeMessage = "New version of PPSSPP available!";
-		g_Config.upgradeVersion = upgrade.ToString();
-		g_Config.dismissedVersion.clear();
-	}
 }
 
 void Config::DismissUpgrade() {

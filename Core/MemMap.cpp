@@ -17,10 +17,6 @@
 
 #include "ppsspp_config.h"
 
-#if PPSSPP_PLATFORM(UWP)
-#include "Common/CommonWindows.h"
-#endif
-
 #include <algorithm>
 #include <mutex>
 

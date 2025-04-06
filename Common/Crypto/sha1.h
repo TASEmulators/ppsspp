@@ -37,10 +37,6 @@ typedef struct
 }
 sha1_context;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * \brief          SHA-1 context setup
  *
@@ -131,8 +127,5 @@ void sha1_hmac( unsigned char *key, int keylen,
  */
 int sha1_self_test( int verbose );
 
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* sha1.h */

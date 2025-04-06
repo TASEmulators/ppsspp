@@ -30,7 +30,6 @@
 #include "Core/System.h"
 #include "Core/Config.h"
 #include "Core/HW/Display.h"
-#include "Core/HLE/sceNet.h"
 #include "Core/FrameTiming.h"
 
 FrameTiming g_frameTiming;
@@ -103,14 +102,11 @@ Draw::PresentMode ComputePresentMode(Draw::DrawContext *draw, int *interval) {
 			wantInstant = true;
 		}
 
-		if (PSP_CoreParameter().fastForward && NetworkAllowSpeedControl()) {
+		if (PSP_CoreParameter().fastForward) {
 			wantInstant = true;
 		}
 
 		FPSLimit limit = PSP_CoreParameter().fpsLimit;
-		if (!NetworkAllowSpeedControl()) {
-			limit = FPSLimit::NORMAL;
-		}
 
 		if (limit != FPSLimit::NORMAL) {
 			int limit;

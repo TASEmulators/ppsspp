@@ -686,6 +686,5 @@ private:
 std::string CreateRandMAC();
 
 // TODO: Find a better place for this.
-extern http::RequestManager g_DownloadManager;
 extern Config g_Config;
 

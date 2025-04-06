@@ -41,7 +41,7 @@
 #include "Core/ELF/ParamSFO.h"
 
 #ifdef _WIN32
-#include "Common/CommonWindows.h"
+//#include "Common/CommonWindows.h"
 #include <sys/stat.h>
 #if PPSSPP_PLATFORM(UWP)
 #include <fileapifromapp.h>
@@ -127,227 +127,18 @@ Path DirectoryFileSystem::GetLocalPath(std::string internalPath) const {
 }
 
 bool DirectoryFileHandle::Open(const Path &basePath, std::string &fileName, FileAccess access, u32 &error) {
-	error = 0;
-
-	if (access == FILEACCESS_NONE) {
-		error = SCE_KERNEL_ERROR_ERRNO_INVALID_ARGUMENT;
-		return false;
-	}
-
-	if (fileSystemFlags_ & FileSystemFlags::CASE_SENSITIVE) {
-		if (access & (FILEACCESS_APPEND | FILEACCESS_CREATE | FILEACCESS_WRITE)) {
-			DEBUG_LOG(Log::FileSystem, "Checking case for path %s", fileName.c_str());
-			if (!FixPathCase(basePath, fileName, FPC_PATH_MUST_EXIST)) {
-				error = SCE_KERNEL_ERROR_ERRNO_FILE_NOT_FOUND;
-				return false;  // or go on and attempt (for a better error code than just 0?)
-			}
-		}
-	}
-	// else we try fopen first (in case we're lucky) before simulating case insensitivity
-
-	Path fullName = GetLocalPath(basePath, fileName);
-
-	// On the PSP, truncating doesn't lose data.  If you seek later, you'll recover it.
-	// This is abnormal, so we deviate from the PSP's behavior and truncate on write/close.
-	// This means it's incorrectly not truncated before the write.
-	if (access & FILEACCESS_TRUNCATE) {
-		needsTrunc_ = 0;
-	}
-
-	//TODO: tests, should append seek to end of file? seeking in a file opened for append?
-#if PPSSPP_PLATFORM(WINDOWS)
-	// Convert parameters to Windows permissions and access
-	DWORD desired = 0;
-	DWORD sharemode = 0;
-	DWORD openmode = 0;
-	if (access & FILEACCESS_READ) {
-		desired   |= GENERIC_READ;
-		sharemode |= FILE_SHARE_READ;
-	}
-	if (access & FILEACCESS_WRITE) {
-		desired   |= GENERIC_WRITE;
-		sharemode |= FILE_SHARE_WRITE | FILE_SHARE_READ;
-	}
-	if (access & FILEACCESS_CREATE) {
-		if (access & FILEACCESS_EXCL) {
-			openmode = CREATE_NEW;
-		} else {
-			openmode = OPEN_ALWAYS;
-		}
-	} else {
-		openmode = OPEN_EXISTING;
-	}
-
-	// Let's do it!
-#if PPSSPP_PLATFORM(UWP)
-	hFile = CreateFile2FromAppW(fullName.ToWString().c_str(), desired, sharemode, openmode, nullptr);
-#else
-	hFile = CreateFile(fullName.ToWString().c_str(), desired, sharemode, 0, openmode, 0, 0);
-#endif
-	bool success = hFile != INVALID_HANDLE_VALUE;
-	if (!success) {
-		DWORD w32err = GetLastError();
-
-		if (w32err == ERROR_SHARING_VIOLATION) {
-			// Sometimes, the file is locked for write, let's try again.
-			sharemode |= FILE_SHARE_WRITE;
-#if PPSSPP_PLATFORM(UWP)
-			hFile = CreateFile2FromAppW(fullName.ToWString().c_str(), desired, sharemode, openmode, nullptr);
-#else
-			hFile = CreateFile(fullName.ToWString().c_str(), desired, sharemode, 0, openmode, 0, 0);
-#endif
-			success = hFile != INVALID_HANDLE_VALUE;
-			if (!success) {
-				w32err = GetLastError();
-			}
-		}
-
-		if (w32err == ERROR_DISK_FULL || w32err == ERROR_NOT_ENOUGH_QUOTA) {
-			// This is returned when the disk is full.
-			auto err = GetI18NCategory(I18NCat::ERRORS);
-			g_OSD.Show(OSDType::MESSAGE_ERROR, err->T("Disk full while writing data"), 0.0f, "diskfull");
-			error = SCE_KERNEL_ERROR_ERRNO_NO_PERM;
-		} else if (!success) {
-			error = SCE_KERNEL_ERROR_ERRNO_FILE_NOT_FOUND;
-		}
-	}
-#else
-	if (fullName.Type() == PathType::CONTENT_URI) {
-		// Convert flags. Don't want to share this type, bad dependency.
-		u32 flags = File::OPEN_NONE;
-		if (access & FILEACCESS_READ)
-			flags |= File::OPEN_READ;
-		if (access & FILEACCESS_WRITE)
-			flags |= File::OPEN_WRITE;
-		if (access & FILEACCESS_APPEND)
-			flags |= File::OPEN_APPEND;
-		if (access & FILEACCESS_CREATE)
-			flags |= File::OPEN_CREATE;
-		// Important: don't pass TRUNCATE here, the PSP truncates weirdly.  See #579.
-		// See above about truncate behavior.  Just add READ to preserve data here.
-		if (access & FILEACCESS_TRUNCATE)
-			flags |= File::OPEN_READ;
-
-		int fd = File::OpenFD(fullName, (File::OpenFlag)flags);
-		// Try to detect reads/writes to PSP/GAME to avoid them in replays.
-		if (fullName.FilePathContainsNoCase("PSP/GAME/")) {
-			inGameDir_ = true;
-		}
-		hFile = fd;
-		if (fd != -1) {
-			// Success
-			return true;
-		} else {
-			ERROR_LOG(Log::FileSystem, "File::OpenFD returned an error");
-			// TODO: Need better error codes from OpenFD so we can distinguish
-			// disk full. Just set not found for now.
-			error = SCE_KERNEL_ERROR_ERRNO_FILE_NOT_FOUND;
-			return false;
-		}
-	}
-
-	int flags = 0;
-	if (access & FILEACCESS_APPEND) {
-		flags |= O_APPEND;
-	}
-	if ((access & FILEACCESS_READ) && (access & FILEACCESS_WRITE)) {
-		flags |= O_RDWR;
-	} else if (access & FILEACCESS_READ) {
-		flags |= O_RDONLY;
-	} else if (access & FILEACCESS_WRITE) {
-		flags |= O_WRONLY;
-	}
-	if (access & FILEACCESS_CREATE) {
-		flags |= O_CREAT;
-	}
-	if (access & FILEACCESS_EXCL) {
-		flags |= O_EXCL;
-	}
-
-	hFile = open(fullName.c_str(), flags, 0666);
-	bool success = hFile != -1;
-#endif
-
-	if (fileSystemFlags_ & FileSystemFlags::CASE_SENSITIVE) {
-		if (!success && !(access & FILEACCESS_CREATE)) {
-			if (!FixPathCase(basePath, fileName, FPC_PATH_MUST_EXIST)) {
-				error = SCE_KERNEL_ERROR_ERRNO_FILE_NOT_FOUND;
-				return false;
-			}
-			fullName = GetLocalPath(basePath, fileName);
-			DEBUG_LOG(Log::FileSystem, "Case may have been incorrect, second try opening %s (%s)", fullName.c_str(), fileName.c_str());
-
-			// And try again with the correct case this time
-#if PPSSPP_PLATFORM(UWP)
-			// Should never get here.
-#elif PPSSPP_PLATFORM(WINDOWS)
-			// Unlikely to get here, heh.
-			hFile = CreateFile(fullName.ToWString().c_str(), desired, sharemode, 0, openmode, 0, 0);
-			success = hFile != INVALID_HANDLE_VALUE;
-#else
-			hFile = open(fullName.c_str(), flags, 0666);
-			success = hFile != -1;
-#endif
-		}
-	}
-
-#if !PPSSPP_PLATFORM(WINDOWS)
-	if (success) {
-		// Reject directories, even if we succeed in opening them.
-		// TODO: Might want to do this stat first...
-		struct stat st;
-		if (fstat(hFile, &st) == 0 && S_ISDIR(st.st_mode)) {
-			close(hFile);
-			errno = EISDIR;
-			success = false;
-		}
-	} else if (errno == ENOSPC) {
-		// This is returned when the disk is full.
-		auto err = GetI18NCategory(I18NCat::ERRORS);
-		g_OSD.Show(OSDType::MESSAGE_ERROR, err->T("Disk full while writing data"), 0.0f, "diskfull");
-		error = SCE_KERNEL_ERROR_ERRNO_NO_PERM;
-	} else {
-		error = SCE_KERNEL_ERROR_ERRNO_FILE_NOT_FOUND;
-	}
-#endif
-
-	// Try to detect reads/writes to PSP/GAME to avoid them in replays.
-	if (fullName.FilePathContainsNoCase("PSP/GAME/")) {
-		inGameDir_ = true;
-	}
-	if (access & (FILEACCESS_APPEND | FILEACCESS_CREATE | FILEACCESS_WRITE)) {
-		MemoryStick_NotifyWrite();
-	}
-
-	return success;
+	
+	return 0;
 }
 
 size_t DirectoryFileHandle::Read(u8* pointer, s64 size)
 {
-	size_t bytesRead = 0;
-	if (needsTrunc_ != -1) {
-		// If the file was marked to be truncated, pretend there's nothing.
-		// On a PSP. it actually is truncated, but the data wasn't erased.
-		off_t off = (off_t)Seek(0, FILEMOVE_CURRENT);
-		if (needsTrunc_ <= off) {
-			return replay_ ? ReplayApplyDiskRead(pointer, 0, (uint32_t)size, inGameDir_, CoreTiming::GetGlobalTimeUs()) : 0;
-		}
-		if (needsTrunc_ < off + size) {
-			size = needsTrunc_ - off;
-		}
-	}
-	if (size > 0) {
-#ifdef _WIN32
-		::ReadFile(hFile, (LPVOID)pointer, (DWORD)size, (LPDWORD)&bytesRead, 0);
-#else
-		bytesRead = read(hFile, pointer, size);
-#endif
-	}
-	return replay_ ? ReplayApplyDiskRead(pointer, (uint32_t)bytesRead, (uint32_t)size, inGameDir_, CoreTiming::GetGlobalTimeUs()) : bytesRead;
+	return 0;
 }
 
 size_t DirectoryFileHandle::Write(const u8* pointer, s64 size)
 {
+	/*
 	size_t bytesWritten = 0;
 	bool diskFull = false;
 
@@ -391,7 +182,9 @@ size_t DirectoryFileHandle::Write(const u8* pointer, s64 size)
 			}
 		}
 	}
-	return bytesWritten;
+	return bytesWritten;*/
+
+	return 0;
 }
 
 size_t DirectoryFileHandle::Seek(s32 position, FileMove type)
@@ -406,6 +199,7 @@ size_t DirectoryFileHandle::Seek(s32 position, FileMove type)
 	}
 
 	size_t result;
+	/*
 #ifdef _WIN32
 	DWORD moveMethod = 0;
 	switch (type) {
@@ -428,32 +222,11 @@ size_t DirectoryFileHandle::Seek(s32 position, FileMove type)
 	}
 	result = lseek(hFile, position, moveMethod);
 #endif
-
+*/
 	return replay_ ? (size_t)ReplayApplyDisk64(ReplayAction::FILE_SEEK, result, CoreTiming::GetGlobalTimeUs()) : result;
 }
 
 void DirectoryFileHandle::Close() {
-	if (needsTrunc_ != -1) {
-#ifdef _WIN32
-		Seek((s32)needsTrunc_, FILEMOVE_BEGIN);
-		if (SetEndOfFile(hFile) == 0) {
-			ERROR_LOG_REPORT(Log::FileSystem, "Failed to truncate file to %d bytes", (int)needsTrunc_);
-		}
-#elif !PPSSPP_PLATFORM(SWITCH)
-		// Note: it's not great that Switch cannot truncate appropriately...
-		if (ftruncate(hFile, (off_t)needsTrunc_) != 0) {
-			ERROR_LOG_REPORT(Log::FileSystem, "Failed to truncate file to %d bytes", (int)needsTrunc_);
-		}
-#endif
-	}
-
-#ifdef _WIN32
-	if (hFile != (HANDLE)-1)
-		CloseHandle(hFile);
-#else
-	if (hFile != -1)
-		close(hFile);
-#endif
 }
 
 void DirectoryFileSystem::CloseAll() {
@@ -574,45 +347,7 @@ bool DirectoryFileSystem::RemoveFile(const std::string &filename) {
 }
 
 int DirectoryFileSystem::OpenFile(std::string filename, FileAccess access, const char *devicename) {
-	OpenFileEntry entry;
-	entry.hFile.fileSystemFlags_ = flags;
-	u32 err = 0;
-	bool success = entry.hFile.Open(basePath, filename, (FileAccess)(access & FILEACCESS_PSP_FLAGS), err);
-	if (err == 0 && !success) {
-		err = SCE_KERNEL_ERROR_ERRNO_FILE_NOT_FOUND;
-	}
-
-	err = ReplayApplyDisk(ReplayAction::FILE_OPEN, err, CoreTiming::GetGlobalTimeUs());
-	if (err != 0) {
-		std::string errorString;
-		int logError;
-#ifdef _WIN32
-		auto win32err = GetLastError();
-		logError = (int)win32err;
-		errorString = GetStringErrorMsg(win32err);
-#else
-		logError = (int)errno;
-#endif
-		if (!(access & FILEACCESS_PPSSPP_QUIET)) {
-			ERROR_LOG(Log::FileSystem, "DirectoryFileSystem::OpenFile('%s'): FAILED, %d - access = %d '%s'", filename.c_str(), logError, (int)(access & FILEACCESS_PSP_FLAGS), errorString.c_str());
-		}
-		return err;
-	} else {
-#ifdef _WIN32
-		if (access & FILEACCESS_APPEND) {
-			entry.hFile.Seek(0, FILEMOVE_END);
-		}
-#endif
-
-		u32 newHandle = hAlloc->GetNewHandle();
-
-		entry.guestFilename = filename;
-		entry.access = (FileAccess)(access & FILEACCESS_PSP_FLAGS);
-
-		entries[newHandle] = entry;
-
-		return newHandle;
-	}
+	return 0;
 }
 
 void DirectoryFileSystem::CloseFile(u32 handle) {
@@ -727,17 +462,6 @@ PSPFileInfo DirectoryFileSystem::GetFileInfo(std::string filename) {
 	return ReplayApplyDiskFileInfo(x, CoreTiming::GetGlobalTimeUs());
 }
 
-#ifdef _WIN32
-#define FILETIME_FROM_UNIX_EPOCH_US 11644473600000000ULL
-
-static void tmFromFiletime(tm &dest, const FILETIME &src) {
-	u64 from_1601_us = (((u64) src.dwHighDateTime << 32ULL) + (u64) src.dwLowDateTime) / 10ULL;
-	u64 from_1970_us = from_1601_us - FILETIME_FROM_UNIX_EPOCH_US;
-
-	time_t t = (time_t) (from_1970_us / 1000000UL);
-	localtime_s(&dest, &t);
-}
-#endif
 
 // This simulates a bug in the PSP VFAT driver.
 //

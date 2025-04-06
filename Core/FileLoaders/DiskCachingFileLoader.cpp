@@ -29,7 +29,6 @@
 #include "Common/File/FileUtil.h"
 #include "Common/File/Path.h"
 #include "Common/Log.h"
-#include "Common/CommonWindows.h"
 #include "Core/FileLoaders/DiskCachingFileLoader.h"
 #include "Core/System.h"
 
@@ -39,7 +38,7 @@
 
 #if PPSSPP_PLATFORM(SWITCH)
 // Far from optimal, but I guess it works...
-#define jaffarCommon::file::MemoryFile::fseeko jaffarCommon::file::MemoryFile::fseek
+#define jaffarCommon::file::MemoryFile::fseek jaffarCommon::file::MemoryFile::fseek
 #endif
 
 static const char * const CACHEFILE_MAGIC = "ppssppDC";
@@ -467,7 +466,7 @@ bool DiskCachingFileLoaderCache::ReadBlockData(u8 *dest, BlockInfo &info, size_t
 		failed = true;
 	}
 #else
-	if (jaffarCommon::file::MemoryFile::fseeko(f_, blockOffset, SEEK_SET) != 0) {
+	if (jaffarCommon::file::MemoryFile::fseek(f_, blockOffset, SEEK_SET) != 0) {
 		failed = true;
 	} else if (jaffarCommon::file::MemoryFile::fread(dest + offset, size, 1, f_) != 1) {
 		failed = true;
@@ -495,7 +494,7 @@ void DiskCachingFileLoaderCache::WriteBlockData(BlockInfo &info, const u8 *src) 
 		failed = true;
 	}
 #else
-	if (jaffarCommon::file::MemoryFile::fseeko(f_, blockOffset, SEEK_SET) != 0) {
+	if (jaffarCommon::file::MemoryFile::fseek(f_, blockOffset, SEEK_SET) != 0) {
 		failed = true;
 	} else if (jaffarCommon::file::MemoryFile::fwrite(src, blockSize_, 1, f_) != 1) {
 		failed = true;
@@ -835,7 +834,7 @@ void DiskCachingFileLoaderCache::GarbageCollectCacheFiles(u64 goalBytes) {
 #if PPSSPP_PLATFORM(UWP)
 		bool success = DeleteFileFromAppW(w32path.c_str()) != 0;
 #else
-		bool success = DeleteFileW(w32path.c_str()) != 0;
+		bool success = false;
 #endif
 #else
 		bool success = unlink(file.fullName.c_str()) == 0;

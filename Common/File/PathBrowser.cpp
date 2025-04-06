@@ -3,9 +3,6 @@
 
 #include "ppsspp_config.h"
 
-#include "Common/Net/HTTPClient.h"
-#include "Common/Net/URL.h"
-
 #include "Common/File/PathBrowser.h"
 #include "Common/File/FileUtil.h"
 #include "Common/File/DirListing.h"
@@ -19,95 +16,7 @@
 #endif
 
 bool LoadRemoteFileList(const Path &url, const std::string &userAgent, bool *cancel, std::vector<File::FileInfo> &files) {
-	_dbg_assert_(url.Type() == PathType::HTTP);
-
-	http::Client http;
-	Buffer result;
-	int code = 500;
-	std::vector<std::string> responseHeaders;
-
-	http.SetUserAgent(userAgent);
-
-	Url baseURL(url.ToString());
-	if (!baseURL.Valid()) {
-		return false;
-	}
-
-	// Start by requesting the list of files from the server.
-	if (http.Resolve(baseURL.Host().c_str(), baseURL.Port())) {
-		if (http.Connect(2, 20.0, cancel)) {
-			http::RequestParams req(baseURL.Resource(), "text/plain, text/html; q=0.9, */*; q=0.8");
-			net::RequestProgress progress(cancel);
-			code = http.GET(req, &result, responseHeaders, &progress);
-			http.Disconnect();
-		}
-	}
-
-	if (code != 200 || (cancel && *cancel)) {
-		return false;
-	}
-
-	std::string listing;
-	std::vector<std::string> items;
-	result.TakeAll(&listing);
-
-	constexpr std::string_view ContentTypeHeader = "Content-Type:";
-	std::string contentType;
-	for (const std::string &header : responseHeaders) {
-		if (startsWithNoCase(header, ContentTypeHeader)) {
-			contentType = header.substr(ContentTypeHeader.size());
-			// Strip any whitespace (TODO: maybe move this to stringutil?)
-			contentType.erase(0, contentType.find_first_not_of(" \t\r\n"));
-			contentType.erase(contentType.find_last_not_of(" \t\r\n") + 1);
-		}
-	}
-
-	// TODO: Technically, "TExt/hTml    ; chaRSet    =    Utf8" should pass, but "text/htmlese" should not.
-	// But unlikely that'll be an issue.
-	bool parseHtml = startsWithNoCase(contentType, "text/html");
-	bool parseText = startsWithNoCase(contentType, "text/plain");
-
-	if (parseText) {
-		// Plain text format - easy.
-		SplitString(listing, '\n', items);
-	} else if (parseHtml) {
-		// Try to extract from an automatic webserver directory listing...
-		GetQuotedStrings(listing, items);
-	} else {
-		ERROR_LOG(Log::IO, "Unsupported Content-Type: %s", contentType.c_str());
-		return false;
-	}
-	Path basePath(baseURL.ToString());
-	for (auto &item : items) {
-		// Apply some workarounds.
-		if (item.empty())
-			continue;
-		if (item.back() == '\r') {
-			item.pop_back();
-			if (item.empty())
-				continue;
-		}
-		if (item == baseURL.Resource())
-			continue;
-
-		File::FileInfo info;
-		if (item.back() == '/') {
-			item.pop_back();
-			if (item.empty())
-				continue;
-			info.isDirectory = true;
-		} else {
-			info.isDirectory = false;
-		}
-		info.name = item;
-		info.fullName = basePath / item;
-		info.exists = true;
-		info.size = 0;
-		info.isWritable = false;
-		files.push_back(info);
-	}
-
-	return !files.empty();
+  return false;
 }
 
 PathBrowser::~PathBrowser() {

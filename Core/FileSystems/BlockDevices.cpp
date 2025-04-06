@@ -649,52 +649,52 @@ CHDFileBlockDevice::CHDFileBlockDevice(FileLoader *fileLoader)
 	}
 	*/
 
-	chd_file *file = nullptr;
-	chd_error err = chd_open_core_file(&core_file_->core, CHD_OPEN_READ, NULL, &file);
-	if (err != CHDERR_NONE) {
-		ERROR_LOG(Log::Loader, "Error loading CHD '%s': %s", paths[depth].c_str(), chd_error_string(err));
-		NotifyReadError();
-		return;
-	}
+	// chd_file *file = nullptr;
+	// chd_error err = chd_open_core_file(&core_file_->core, CHD_OPEN_READ, NULL, &file);
+	// if (err != CHDERR_NONE) {
+	// 	ERROR_LOG(Log::Loader, "Error loading CHD '%s': %s", paths[depth].c_str(), chd_error_string(err));
+	// 	NotifyReadError();
+	// 	return;
+	// }
 
-	impl_->chd = file;
-	impl_->header = chd_get_header(impl_->chd);
+	// impl_->chd = file;
+	// impl_->header = chd_get_header(impl_->chd);
 
-	readBuffer = new u8[impl_->header->hunkbytes];
-	currentHunk = -1;
-	blocksPerHunk = impl_->header->hunkbytes / impl_->header->unitbytes;
-	numBlocks = impl_->header->unitcount;
+	// readBuffer = new u8[impl_->header->hunkbytes];
+	// currentHunk = -1;
+	// blocksPerHunk = impl_->header->hunkbytes / impl_->header->unitbytes;
+	// numBlocks = impl_->header->unitcount;
 }
 
 CHDFileBlockDevice::~CHDFileBlockDevice() {
-	if (impl_->chd) {
-		chd_close(impl_->chd);
-		delete[] readBuffer;
-	}
+	// if (impl_->chd) {
+	// 	chd_close(impl_->chd);
+	// 	delete[] readBuffer;
+	// }
 }
 
 bool CHDFileBlockDevice::ReadBlock(int blockNumber, u8 *outPtr, bool uncached) {
-	if (!impl_->chd) {
-		ERROR_LOG(Log::Loader, "ReadBlock: CHD not open. %s", fileLoader_->GetPath().c_str());
+	// if (!impl_->chd) {
+		// ERROR_LOG(Log::Loader, "ReadBlock: CHD not open. %s", fileLoader_->GetPath().c_str());
 		return false;
-	}
-	if ((u32)blockNumber >= numBlocks) {
-		memset(outPtr, 0, GetBlockSize());
-		return false;
-	}
-	u32 hunk = blockNumber / blocksPerHunk;
-	u32 blockInHunk = blockNumber % blocksPerHunk;
+	// }
+	// if ((u32)blockNumber >= numBlocks) {
+	// 	memset(outPtr, 0, GetBlockSize());
+	// 	return false;
+	// }
+	// u32 hunk = blockNumber / blocksPerHunk;
+	// u32 blockInHunk = blockNumber % blocksPerHunk;
 
-	if (currentHunk != hunk) {
-		chd_error err = chd_read(impl_->chd, hunk, readBuffer);
-		if (err != CHDERR_NONE) {
-			ERROR_LOG(Log::Loader, "CHD read failed: %d %d %s", blockNumber, hunk, chd_error_string(err));
-			NotifyReadError();
-		}
-		currentHunk = hunk;
-	}
-	memcpy(outPtr, readBuffer + blockInHunk * impl_->header->unitbytes, GetBlockSize());
-	return true;
+	// if (currentHunk != hunk) {
+	// 	chd_error err = chd_read(impl_->chd, hunk, readBuffer);
+	// 	if (err != CHDERR_NONE) {
+	// 		ERROR_LOG(Log::Loader, "CHD read failed: %d %d %s", blockNumber, hunk, chd_error_string(err));
+	// 		NotifyReadError();
+	// 	}
+	// 	currentHunk = hunk;
+	// }
+	// memcpy(outPtr, readBuffer + blockInHunk * impl_->header->unitbytes, GetBlockSize());
+	// return true;
 }
 
 bool CHDFileBlockDevice::ReadBlocks(u32 minBlock, int count, u8 *outPtr) {

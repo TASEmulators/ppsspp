@@ -1972,12 +1972,14 @@ bool __KernelLoadExec(const char *filename, u32 paramPtr, std::string *error_str
 	else
 		__KernelStartModule(module, (u32)strlen(filename) + 1, filename, &option);
 
+	printf("KernelLoadExec A\n");
 	__KernelStartIdleThreads(module->GetUID());
-
+	printf("KernelLoadExec B\n");
 	delete[] param_argp;
 	delete[] param_key;
 
 	hleSkipDeadbeef();
+	printf("KernelLoadExec C\n");
 	return true;
 }
 
@@ -2168,6 +2170,8 @@ u32 sceKernelLoadModule(const char *name, u32 flags, u32 optionAddr) {
 	} else {
 		INFO_LOG(Log::sceModule,"%i=sceKernelLoadModule(name=%s,flag=%08x,(...))", module->GetUID(), name, flags);
 	}
+
+	printf("sceKernelLoadModule A\n");
 
 	// TODO: This is not the right timing and probably not the right wait type, just an approximation.
 	return hleDelayResult(hleNoLog(module->GetUID()), "module loaded", 500);

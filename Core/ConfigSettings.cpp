@@ -1,5 +1,4 @@
 #include "Common/Data/Format/IniFile.h"
-#include "Common/Net/URL.h"
 #include "Common/Log.h"
 
 #include "Core/ConfigSettings.h"
@@ -137,21 +136,4 @@ void ConfigSetting::RestoreToDefault() const {
 }
 
 void ConfigSetting::ReportSetting(UrlEncoder &data, const std::string &prefix) const {
-	if (!Report())
-		return;
-
-	switch (type_) {
-	case TYPE_BOOL:   return data.Add(prefix + iniKey_, *ptr_.b);
-	case TYPE_INT:    return data.Add(prefix + iniKey_, *ptr_.i);
-	case TYPE_UINT32: return data.Add(prefix + iniKey_, *ptr_.u);
-	case TYPE_UINT64: return data.Add(prefix + iniKey_, *ptr_.lu);
-	case TYPE_FLOAT:  return data.Add(prefix + iniKey_, *ptr_.f);
-	case TYPE_STRING: return data.Add(prefix + iniKey_, *ptr_.s);
-	case TYPE_PATH:   return data.Add(prefix + iniKey_, ptr_.p->ToString());
-	case TYPE_TOUCH_POS: return;   // Doesn't report.
-	case TYPE_CUSTOM_BUTTON: return; // Doesn't report.
-	default:
-		_dbg_assert_msg_(false, "Report(%s): Unexpected ini setting type: %d", iniKey_, (int)type_);
-		return;
-	}
 }

@@ -38,8 +38,7 @@
 #include "Common/File/DirListing.h"
 #include "Common/TimeUtil.h"
 #include "Common/GraphicsContext.h"
-
-#include "Core/RetroAchievements.h"
+#include <jaffarCommon/dethreader.hpp>
 #include "Core/MemFault.h"
 #include "Core/HDRemaster.h"
 #include "Core/MIPS/MIPS.h"
@@ -65,7 +64,6 @@
 #include "GPU/GPUCommon.h"
 #include "GPU/Debugger/Playback.h"
 #include "GPU/Debugger/RecordFormat.h"
-#include "Core/RetroAchievements.h"
 
 enum CPUThreadState {
 	CPU_THREAD_NOT_RUNNING,
@@ -126,8 +124,10 @@ std::string GetGPUBackendDevice() {
 }
 
 bool CPU_IsReady() {
+	printf("CPU_IsReady A\n");
 	if (coreState == CORE_POWERUP)
 		return false;
+		printf("CPU_IsReady B\n");
 	return cpuThreadState == CPU_THREAD_RUNNING || cpuThreadState == CPU_THREAD_NOT_RUNNING;
 }
 
@@ -389,10 +389,6 @@ bool PSP_InitStart(const CoreParameter &coreParam, std::string *error_string) {
 	if (pspIsIniting || pspIsQuitting) {
 		return false;
 	}
-	printf("PSP INIT START B\n");
-	if (!Achievements::IsReadyToStart()) {
-		return false;
-	}
 
 	printf("PSP INIT START C\n");
 #if defined(_WIN32) && PPSSPP_ARCH(AMD64)
@@ -405,13 +401,20 @@ bool PSP_InitStart(const CoreParameter &coreParam, std::string *error_string) {
 
 printf("PSP INIT START D\n");
 	Core_NotifyLifecycle(CoreLifecycle::STARTING);
+	printf("PSP INIT START D2\n");
 	GraphicsContext *temp = g_CoreParameter.graphicsContext;
+	printf("PSP INIT START D3\n");
 	g_CoreParameter = coreParam;
+	printf("PSP INIT START D4\n");
 	if (g_CoreParameter.graphicsContext == nullptr) {
+		printf("PSP INIT START D5\n");
 		g_CoreParameter.graphicsContext = temp;
 	}
+	printf("PSP INIT START D6\n");
 	g_CoreParameter.errorString.clear();
+	printf("PSP INIT START D7\n");
 	pspIsIniting = true;
+	printf("PSP INIT START D8\n");
 
 	Path filename = g_CoreParameter.fileToStart;
 	printf("PSP INIT START E\n");
@@ -432,14 +435,6 @@ printf("PSP INIT START D\n");
 	}
 #endif
 
-printf("PSP INIT START G\n");
-	if (g_Config.bAchievementsEnable) {
-		// Need to re-identify after ResolveFileLoaderTarget - although in practice probably not,
-		// but also, re-using the identification would require some plumbing, to be done later.
-		std::string errorString;
-		IdentifiedFileType type = Identify_File(loadedFile, &errorString);
-		Achievements::SetGame(filename, type, loadedFile);
-	}
 
 	printf("PSP INIT START H\n");
 	if (!CPU_Init(&g_CoreParameter.errorString, loadedFile)) {
@@ -470,19 +465,24 @@ printf("PSP INIT START G\n");
 }
 
 bool PSP_InitUpdate(std::string *error_string) {
+
+	printf("RetroRun InitUpdateA\n");
 	if (pspIsInited || !pspIsIniting) {
 		return true;
 	}
 
+	printf("RetroRun InitUpdateB\n");
 	if (!CPU_IsReady()) {
 		return false;
 	}
 
+	printf("RetroRun InitUpdateC\n");
 	bool success = !g_CoreParameter.fileToStart.empty();
 	if (!g_CoreParameter.errorString.empty()) {
 		*error_string = g_CoreParameter.errorString;
 	}
 
+	printf("RetroRun InitUpdateD\n");
 	if (success && gpu == nullptr) {
 		INFO_LOG(Log::System, "Starting graphics...");
 		Draw::DrawContext *draw = g_CoreParameter.graphicsContext ? g_CoreParameter.graphicsContext->GetDrawContext() : nullptr;
@@ -491,12 +491,15 @@ bool PSP_InitUpdate(std::string *error_string) {
 			*error_string = "Unable to initialize rendering engine.";
 		}
 	}
+
+	printf("RetroRun InitUpdateE\n");
 	if (!success) {
 		pspIsRebooting = false;
 		PSP_Shutdown();
 		return true;
 	}
 
+	printf("RetroRun InitUpdateF\n");
 	pspIsInited = GPU_IsReady();
 	pspIsIniting = !pspIsInited;
 	if (pspIsInited) {
@@ -521,7 +524,10 @@ bool PSP_Init(const CoreParameter &coreParam, std::string *error_string) {
 		return false;
 
 	while (!PSP_InitUpdate(error_string))
-		sleep_ms(10, "psp-init-poll");
+	{
+		printf("At Sleep\n");
+		jaffarCommon::dethreader::sleep(10000);
+	}
 	return pspIsInited;
 }
 
@@ -544,8 +550,6 @@ bool PSP_IsQuitting() {
 void PSP_Shutdown() {
 	// Reduce the risk for weird races with the Windows GE debugger.
 	gpuDebug = nullptr;
-
-	Achievements::UnloadGame();
 
 	// Do nothing if we never inited.
 	if (!pspIsInited && !pspIsIniting && !pspIsQuitting) {
