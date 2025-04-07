@@ -562,70 +562,7 @@ bool Delete(const Path &filename) {
 
 // Returns true if successful, or path already exists.
 bool CreateDir(const Path &path) {
-	if (SIMULATE_SLOW_IO) {
-		sleep_ms(100, "slow-io-sim");
-		INFO_LOG(Log::System, "CreateDir %s", path.c_str());
-	}
-	switch (path.Type()) {
-	case PathType::NATIVE:
-		break; // OK
-	case PathType::CONTENT_URI:
-	{
-		// NOTE: The Android storage API will simply create a renamed directory (append a number) if it already exists.
-		// We want to avoid that, so let's just return true if the directory already is there.
-		if (File::Exists(path)) {
-			return true;
-		}
-
-		// Convert it to a "CreateDirIn" call, if possible, since that's
-		// what we can do with the storage API.
-		AndroidContentURI uri(path.ToString());
-		std::string newDirName = uri.GetLastPart();
-		if (uri.NavigateUp()) {
-			INFO_LOG(Log::Common, "Calling Android_CreateDirectory(%s, %s)", uri.ToString().c_str(), newDirName.c_str());
-			return Android_CreateDirectory(uri.ToString(), newDirName) == StorageError::SUCCESS;
-		} else {
-			// Bad path - can't create this directory.
-			WARN_LOG(Log::Common, "CreateDir failed: '%s'", path.c_str());
-			return false;
-		}
-		break;
-	}
-	default:
-		return false;
-	}
-
-	DEBUG_LOG(Log::Common, "CreateDir('%s')", path.c_str());
-#ifdef _WIN32
-#if PPSSPP_PLATFORM(UWP)
-	if (CreateDirectoryFromAppW(path.ToWString().c_str(), NULL))
-		return true;
-#else
-	if (::CreateDirectory(path.ToWString().c_str(), NULL))
-		return true;
-#endif
-
-	DWORD error = GetLastError();
-	if (error == ERROR_ALREADY_EXISTS) {
-		DEBUG_LOG(Log::Common, "CreateDir: CreateDirectory failed on %s: already exists", path.c_str());
-		return true;
-	}
-	ERROR_LOG(Log::Common, "CreateDir: CreateDirectory failed on %s: %08x %s", path.c_str(), (uint32_t)error, GetStringErrorMsg(error).c_str());
 	return false;
-#else
-	if (mkdir(path.ToString().c_str(), 0755) == 0) {
-		return true;
-	}
-
-	int err = errno;
-	if (err == EEXIST) {
-		DEBUG_LOG(Log::Common, "CreateDir: mkdir failed on %s: already exists", path.c_str());
-		return true;
-	}
-
-	ERROR_LOG(Log::Common, "CreateDir: mkdir failed on %s: %s", path.c_str(), strerror(err));
-	return false;
-#endif
 }
 
 // Creates the full path of fullPath returns true on success
