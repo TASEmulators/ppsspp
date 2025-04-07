@@ -238,6 +238,11 @@ void ThreadManager::Init(int numRealCores, int numLogicalCoresPerCpu) {
 }
 
 void ThreadManager::EnqueueTask(Task *task) {
+	// Serialization: run task directly, without invoking a thread
+	task->Run();
+	task->Release();
+	return;
+
 	if (task->Type() == TaskType::DEDICATED_THREAD) {
 		std::thread th([=](Task *task) {
 			SetCurrentThreadName("DedicatedThreadTask");
