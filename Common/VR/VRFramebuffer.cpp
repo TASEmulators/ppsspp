@@ -1,5 +1,7 @@
 #include "VRFramebuffer.h"
 
+#undef XR_USE_GRAPHICS_API_OPENGL
+#undef XR_USE_GRAPHICS_API_OPENGL_ES
 #if XR_USE_GRAPHICS_API_OPENGL || XR_USE_GRAPHICS_API_OPENGL_ES
 
 #include "Common/GPU/OpenGL/GLCommon.h"

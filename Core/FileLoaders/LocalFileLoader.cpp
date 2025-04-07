@@ -40,11 +40,11 @@
 #include <streams/file_stream.h>
 #endif
 
-#if !defined(_WIN32) && !defined(HAVE_LIBRETRO_VFS)
-
 extern std::string _cdImageFilePath;
 extern uint32_t cd_get_size(void);
-extern size_t readSegmentFromCD(void *buf_, const uint64_t address, const size_t size);
+extern size_t readSegmentFromCD(void* buf_, const uint64_t address, const size_t size);
+
+#if !defined(_WIN32) && !defined(HAVE_LIBRETRO_VFS)
 
 void LocalFileLoader::DetectSizeFd() {
 

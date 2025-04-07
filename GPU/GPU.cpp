@@ -48,7 +48,7 @@ bool GPU_IsStarted() {
 }
 
 bool GPU_Init(GraphicsContext *ctx, Draw::DrawContext *draw) {
-	const auto &gpuCore = PSP_CoreParameter().gpuCore;
+	const auto& gpuCore = GPUCore::GPUCORE_SOFTWARE;
 	_assert_(draw || gpuCore == GPUCORE_SOFTWARE);
 #if PPSSPP_PLATFORM(UWP)
 	if (gpuCore == GPUCORE_SOFTWARE) {
@@ -70,17 +70,6 @@ bool GPU_Init(GraphicsContext *ctx, Draw::DrawContext *draw) {
 		SetGPU(new SoftGPU(ctx, draw));
 		break;
 	case GPUCORE_DIRECTX9:
-#if PPSSPP_API(D3D9)
-		SetGPU(new GPU_DX9(ctx, draw));
-		break;
-#else
-		return false;
-#endif
-	case GPUCORE_DIRECTX11:
-#if PPSSPP_API(D3D11)
-		SetGPU(new GPU_D3D11(ctx, draw));
-		break;
-#else
 		return false;
 #endif
 #if !PPSSPP_PLATFORM(SWITCH)
@@ -99,7 +88,6 @@ bool GPU_Init(GraphicsContext *ctx, Draw::DrawContext *draw) {
 		SetGPU<SoftGPU>(nullptr);
 
 	return gpu != nullptr;
-#endif
 }
 #ifdef USE_CRT_DBG
 #define new DBG_NEW

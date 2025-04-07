@@ -187,4 +187,5 @@ void AssertCurrentThreadName(const char *threadName) {
 }
 
 int GetCurrentThreadIdForDebug() {
+	return 0;
 }
