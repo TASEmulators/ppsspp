@@ -17,8 +17,6 @@
 
 #include <algorithm>
 #include <vector>
-#include <thread>
-#include <mutex>
 
 #include "Common/Data/Text/I18n.h"
 #include "Common/Thread/ThreadUtil.h"
@@ -114,21 +112,11 @@ double g_lastSaveTime = -1.0;
 		}
 
 		~StateRingbuffer() {
-			if (compressThread_.joinable()) {
-				compressThread_.join();
-			}
 		}
 
 		CChunkFileReader::Error Save()
 		{
 			rewindLastTime_ = time_now_d();
-
-			// Make sure we're not processing a previous save. That'll cause a hitch though, but at least won't
-			// crash due to contention over buffer_.
-			if (compressThread_.joinable())
-				compressThread_.join();
-
-			std::lock_guard<std::mutex> guard(lock_);
 
 			int n = next_++ % size_;
 			if ((next_ % size_) == first_)
@@ -159,8 +147,6 @@ double g_lastSaveTime = -1.0;
 
 		CChunkFileReader::Error Restore(std::string *errorString)
 		{
-			std::lock_guard<std::mutex> guard(lock_);
-
 			// No valid states left.
 			if (Empty())
 				return CChunkFileReader::ERROR_BAD_FILE;
@@ -178,19 +164,11 @@ double g_lastSaveTime = -1.0;
 
 		void ScheduleCompress(std::vector<u8> *result, const std::vector<u8> *state, const std::vector<u8> *base)
 		{
-			if (compressThread_.joinable())
-				compressThread_.join();
-			compressThread_ = std::thread([=]{
-				SetCurrentThreadName("SaveStateCompress");
-
-				// Should do no I/O, so no JNI thread context needed.
-				Compress(*result, *state, *base);
-			});
+			Compress(*result, *state, *base);
 		}
 
 		void Compress(std::vector<u8> &result, const std::vector<u8> &state, const std::vector<u8> &base)
 		{
-			std::lock_guard<std::mutex> guard(lock_);
 			// Bail if we were cleared before locking.
 			if (first_ == 0 && next_ == 0)
 				return;
@@ -245,11 +223,7 @@ double g_lastSaveTime = -1.0;
 
 		void Clear()
 		{
-			if (compressThread_.joinable())
-				compressThread_.join();
-
 			// This lock is mainly for shutdown.
-			std::lock_guard<std::mutex> guard(lock_);
 			first_ = 0;
 			next_ = 0;
 			for (auto &b : bases_) {
@@ -309,8 +283,6 @@ double g_lastSaveTime = -1.0;
 		std::vector<StateBuffer> states_;
 		StateBuffer bases_[2];
 		std::vector<int> baseMapping_;
-		std::mutex lock_;
-		std::thread compressThread_;
 		std::vector<u8> buffer_;
 
 		int base_ = -1;

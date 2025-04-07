@@ -42,10 +42,6 @@ LibretroHWRenderContext::LibretroHWRenderContext(retro_hw_context_type context_t
 void LibretroHWRenderContext::ContextReset() {
 	INFO_LOG(Log::G3D, "Context reset");
 
-	if (gpu && Libretro::useEmuThread) {
-		Libretro::EmuThreadPause();
-	}
-
 	if (gpu) {
 		gpu->DeviceLost();
 	}
@@ -62,27 +58,16 @@ void LibretroHWRenderContext::ContextReset() {
 		gpu->DeviceRestore(draw_);
 	}
 
-	if (gpu && Libretro::useEmuThread) {
-		Libretro::EmuThreadStart();
-	}
 }
 
 void LibretroHWRenderContext::ContextDestroy() {
 	INFO_LOG(Log::G3D, "Context destroy");
 
-	if (Libretro::useEmuThread) {
-		Libretro::EmuThreadStop();
-	}
-
 	if (gpu) {
 		gpu->DeviceLost();
 	}
 
-	if (!hw_render_.cache_context && Libretro::useEmuThread && draw_ && Libretro::emuThreadState != Libretro::EmuThreadState::PAUSED) {
-		DestroyDrawContext();
-	}
-
-	if (!hw_render_.cache_context && !Libretro::useEmuThread) {
+	if (!hw_render_.cache_context) {
 		Shutdown();
 	}
 }

@@ -1,7 +1,6 @@
 #include "ppsspp_config.h"
 #include <cstring>
 #include <cassert>
-#include <thread>
 #include <atomic>
 #include <vector>
 #include <cstdlib>
@@ -1318,10 +1317,6 @@ unsigned retro_api_version(void) { return RETRO_API_VERSION; }
 
 namespace Libretro
 {
-   bool useEmuThread = false;
-   std::atomic<EmuThreadState> emuThreadState(EmuThreadState::DISABLED);
-
-   static std::thread emuThread;
    static void EmuFrame()
    {
       ctx->SetRenderTarget();
@@ -1342,77 +1337,6 @@ namespace Libretro
          ctx->GetDrawContext()->Present(Draw::PresentMode::FIFO, 1);
       }
    }
-
-   static void EmuThreadFunc()
-   {
-      SetCurrentThreadName("EmuThread");
-
-      for (;;)
-      {
-         switch ((EmuThreadState)emuThreadState)
-         {
-            case EmuThreadState::START_REQUESTED:
-               emuThreadState = EmuThreadState::RUNNING;
-               [[fallthrough]];
-            case EmuThreadState::RUNNING:
-               EmuFrame();
-               break;
-            case EmuThreadState::PAUSE_REQUESTED:
-               emuThreadState = EmuThreadState::PAUSED;
-               [[fallthrough]];
-            case EmuThreadState::PAUSED:
-               sleep_ms(1, "libretro-paused");
-               break;
-            default:
-            case EmuThreadState::QUIT_REQUESTED:
-               emuThreadState = EmuThreadState::STOPPED;
-               ctx->StopThread();
-               return;
-         }
-      }
-   }
-
-   void EmuThreadStart()
-   {
-      bool wasPaused = emuThreadState == EmuThreadState::PAUSED;
-      emuThreadState = EmuThreadState::START_REQUESTED;
-
-      if (!wasPaused)
-      {
-         ctx->ThreadStart();
-         emuThread = std::thread(&EmuThreadFunc);
-      }
-   }
-
-   void EmuThreadStop()
-   {
-      if (emuThreadState != EmuThreadState::RUNNING)
-         return;
-
-      emuThreadState = EmuThreadState::QUIT_REQUESTED;
-
-      // Need to keep eating frames to allow the EmuThread to exit correctly.
-      while (ctx->ThreadFrame())
-         ;
-
-      emuThread.join();
-      emuThread = std::thread();
-      ctx->ThreadEnd();
-   }
-
-   void EmuThreadPause()
-   {
-      if (emuThreadState != EmuThreadState::RUNNING)
-         return;
-
-      emuThreadState = EmuThreadState::PAUSE_REQUESTED;
-
-      ctx->ThreadFrame(); // Eat 1 frame
-
-      while (emuThreadState != EmuThreadState::PAUSED)
-         sleep_ms(1, "libretro-pause-poll");
-   }
-
 } // namespace Libretro
 
 static void retro_check_backend(void)
@@ -1452,8 +1376,6 @@ bool retro_load_game(const struct retro_game_info *game)
 
    Core_SetGraphicsContext(ctx);
    SetGPUBackend((GPUBackend)g_Config.iGPUBackend);
-
-   useEmuThread              = ctx->GetGPUCore() == GPUCORE_GLES;
 
    // default to interpreter to allow startup in platforms w/o JIT capability
    g_Config.iCpuCore         = (int)CPUCore::INTERPRETER;
@@ -1509,9 +1431,6 @@ bool retro_load_game(const struct retro_game_info *game)
 
 void retro_unload_game(void)
 {
-	if (Libretro::useEmuThread)
-		Libretro::EmuThreadStop();
-
 	PSP_Shutdown(true);
 	g_VFS.Clear();
 
@@ -1665,27 +1584,7 @@ void retro_run(void)
 
    retro_input();
 
-   if (useEmuThread)
-   {
-      if (  emuThreadState == EmuThreadState::PAUSED ||
-            emuThreadState == EmuThreadState::PAUSE_REQUESTED)
-      {
-         VsyncSwapIntervalDetect();
-         ctx->SwapBuffers();
-         return;
-      }
-
-      if (emuThreadState != EmuThreadState::RUNNING)
-         EmuThreadStart();
-
-      if (!ctx->ThreadFrame())
-      {
-         VsyncSwapIntervalDetect();
-         return;
-      }
-   }
-   else
-      EmuFrame();
+   EmuFrame();
 
    VsyncSwapIntervalDetect();
    ctx->SwapBuffers();
@@ -1710,9 +1609,6 @@ size_t retro_serialize_size(void)
       return 134217728; // 128MB ought to be enough for anybody.
 
    SaveState::SaveStart state;
-   // TODO: Libretro API extension to use the savestate queue
-   if (useEmuThread)
-      EmuThreadPause();
 
    return (CChunkFileReader::MeasurePtr(state) + 0x800000) & ~0x7FFFFF;
    // We don't unpause intentionally
@@ -1723,20 +1619,10 @@ bool retro_serialize(void *data, size_t size)
    if (!gpu) // The HW renderer isn't ready on first pass.
       return false;
 
-   // TODO: Libretro API extension to use the savestate queue
-   if (useEmuThread)
-      EmuThreadPause(); // Does nothing if already paused
-
    size_t measuredSize;
    SaveState::SaveStart state;
    auto err = CChunkFileReader::MeasureAndSavePtr(state, (u8 **)&data, &measuredSize);
    bool retVal = err == CChunkFileReader::ERROR_NONE;
-
-   if (useEmuThread)
-   {
-      EmuThreadStart();
-      sleep_ms(4, "libretro-serialize");
-   }
 
    return retVal;
 }
@@ -1746,20 +1632,10 @@ bool retro_unserialize(const void *data, size_t size)
    if (!gpu) // The HW renderer isn't ready on first pass.
       return false;
 
-   // TODO: Libretro API extension to use the savestate queue
-   if (useEmuThread)
-      EmuThreadPause(); // Does nothing if already paused
-
    std::string errorString;
    SaveState::SaveStart state;
    bool retVal = CChunkFileReader::LoadPtr((u8 *)data, state, &errorString)
       == CChunkFileReader::ERROR_NONE;
-
-   if (useEmuThread)
-   {
-      EmuThreadStart();
-      sleep_ms(4, "libretro-unserialize");
-   }
 
    return retVal;
 }
