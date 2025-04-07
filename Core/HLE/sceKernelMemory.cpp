@@ -382,7 +382,7 @@ void __KernelMemoryShutdown()
 #endif
 	kernelMemory.Shutdown();
 	tlsplThreadEndChecks.clear();
-	MemBlockInfoShutdown();
+	// MemBlockInfoShutdown();
 }
 
 BlockAllocator *BlockAllocatorFromID(int id) {
