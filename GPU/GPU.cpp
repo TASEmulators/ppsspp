@@ -25,19 +25,7 @@
 #include "GPU/GPU.h"
 #include "GPU/GPUCommon.h"
 
-#if PPSSPP_API(ANY_GL)
-#include "GPU/GLES/GPU_GLES.h"
-#endif
-#include "GPU/Vulkan/GPU_Vulkan.h"
 #include "GPU/Software/SoftGpu.h"
-
-#if PPSSPP_API(D3D9)
-#include "GPU/Directx9/GPU_DX9.h"
-#endif
-
-#if PPSSPP_API(D3D11)
-#include "GPU/D3D11/GPU_D3D11.h"
-#endif
 
 GPUStatistics gpuStats;
 GPUCommon *gpu;
@@ -74,7 +62,6 @@ bool GPU_Init(GraphicsContext *ctx, Draw::DrawContext *draw) {
 	case GPUCORE_GLES:
 		// Disable GLES on ARM Windows (but leave it enabled on other ARM platforms).
 #if PPSSPP_API(ANY_GL)
-		SetGPU(new GPU_GLES(ctx, draw));
 		break;
 #else
 		return false;
@@ -102,7 +89,6 @@ bool GPU_Init(GraphicsContext *ctx, Draw::DrawContext *draw) {
 			ERROR_LOG(Log::G3D, "Unable to init Vulkan GPU backend, no context");
 			break;
 		}
-		SetGPU(new GPU_Vulkan(ctx, draw));
 		break;
 #endif
 	default:

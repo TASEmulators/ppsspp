@@ -515,73 +515,14 @@ int Config::NextValidBackend() {
 	if (failed.count((GPUBackend)iGPUBackend)) {
 		ERROR_LOG(Log::Loader, "Graphics backend failed for %d, trying another", iGPUBackend);
 
-#if !PPSSPP_PLATFORM(UWP)
-		if (!failed.count(GPUBackend::VULKAN) && VulkanMayBeAvailable()) {
-			return (int)GPUBackend::VULKAN;
-		}
-#endif
-#if PPSSPP_PLATFORM(WINDOWS)
-		if (!failed.count(GPUBackend::DIRECT3D11) && IsWin7OrHigher()) {
-			return (int)GPUBackend::DIRECT3D11;
-		}
-#endif
-#if PPSSPP_API(ANY_GL)
-		if (!failed.count(GPUBackend::OPENGL)) {
-			return (int)GPUBackend::OPENGL;
-		}
-#endif
-#if PPSSPP_API(D3D9)
-		if (!failed.count(GPUBackend::DIRECT3D9)) {
-			return (int)GPUBackend::DIRECT3D9;
-		}
-#endif
-
-		// They've all failed.  Let them try the default - or on Android, OpenGL.
-		sFailedGPUBackends += ",ALL";
-		ERROR_LOG(Log::Loader, "All graphics backends failed");
-#if PPSSPP_PLATFORM(ANDROID)
-		return (int)GPUBackend::OPENGL;
-#else
 		return DefaultGPUBackend();
-#endif
 	}
 
 	return iGPUBackend;
 }
 
 bool Config::IsBackendEnabled(GPUBackend backend) {
-	std::vector<std::string> split;
-
-	SplitString(sDisabledGPUBackends, ',', split);
-	for (const auto &str : split) {
-		if (str.empty())
-			continue;
-		auto match = GPUBackendFromString(str);
-		if (match == backend)
-			return false;
-	}
-
-#if PPSSPP_PLATFORM(UWP)
-	if (backend != GPUBackend::DIRECT3D11)
 		return false;
-#elif PPSSPP_PLATFORM(SWITCH)
-	if (backend != GPUBackend::OPENGL)
-		return false;
-#elif PPSSPP_PLATFORM(WINDOWS)
-	if (backend == GPUBackend::DIRECT3D11 && !IsVistaOrHigher())
-		return false;
-#else
-	if (backend == GPUBackend::DIRECT3D11 || backend == GPUBackend::DIRECT3D9)
-		return false;
-#endif
-
-#if !PPSSPP_API(ANY_GL)
-	if (backend == GPUBackend::OPENGL)
-		return false;
-#endif
-	if (backend == GPUBackend::VULKAN && !VulkanMayBeAvailable())
-		return false;
-	return true;
 }
 
 template <typename T, std::string (*FTo)(T), T (*FFrom)(std::string_view)>

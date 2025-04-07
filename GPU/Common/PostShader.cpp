@@ -176,14 +176,6 @@ void LoadPostShaderInfo(Draw::DrawContext *draw, const std::vector<Path> &direct
 						section.Get(StringFromFormat("SettingStep%d", i + 1).c_str(), &setting.step, 0.01f);
 					}
 
-					// Let's ignore shaders we can't support. TODO: Not a very good check
-					if (gl_extensions.IsGLES && !gl_extensions.GLES3) {
-						bool requiresIntegerSupport;
-						section.Get("RequiresIntSupport", &requiresIntegerSupport, false);
-						if (requiresIntegerSupport)
-							continue;
-					}
-
 					if (info.visible) {
 						appendShader(info);
 					} else {

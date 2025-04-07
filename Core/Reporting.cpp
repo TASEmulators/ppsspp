@@ -171,6 +171,8 @@ namespace Reporting
 		crcFilename = gamePath;
 		crcPending = true;
 		crcCancel = false;
+
+		fprintf(stderr, "Unexpected thread creation found in Reporting.cpp\n"); std::abort();
 		crcThread = std::thread(CalculateCRCThread);
 	}
 

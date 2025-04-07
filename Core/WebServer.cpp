@@ -460,6 +460,8 @@ bool StartWebServer(WebServerFlags flags) {
 	case ServerStatus::STOPPED:
 		serverStatus = ServerStatus::STARTING;
 		serverFlags = (int)flags;
+
+		fprintf(stderr, "Unexpected thread creation found in WebServer.cpp\n"); std::abort();
 		serverThread = std::thread(&ExecuteWebServer);
 		return true;
 

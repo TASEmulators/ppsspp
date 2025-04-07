@@ -40,11 +40,6 @@
 
 bool GenerateGeometryShader(const GShaderID &id, char *buffer, const ShaderLanguageDesc &compat, const Draw::Bugs bugs, std::string *errorString) {
 	std::vector<const char*> extensions;
-	if (ShaderLanguageIsOpenGL(compat.shaderLanguage)) {
-		if (gl_extensions.EXT_gpu_shader4) {
-			extensions.push_back("#extension GL_EXT_gpu_shader4 : enable");
-		}
-	}
 	bool vertexRangeCulling = !id.Bit(GS_BIT_CURVE);
 	bool clipClampedDepth = gstate_c.Use(GPU_USE_DEPTH_CLAMP);
 

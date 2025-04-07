@@ -1890,6 +1890,8 @@ int NetAdhocMatching_Start(int matchingId, int evthPri, int evthPartitionId, int
 		//item->matchingThread->Start(matchingId, 0);
 	}
 
+	fprintf(stderr, "Unexpected thread creation found in sceNetAdhocMatching.cpp\n"); std::abort();
+
 	//Create the threads
 	if (!item->eventRunning) {
 		item->eventRunning = true;

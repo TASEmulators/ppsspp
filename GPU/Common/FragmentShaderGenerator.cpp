@@ -58,33 +58,12 @@ bool GenerateFragmentShader(const FShaderID &id, char *buffer, const ShaderLangu
 	bool highpTexcoord = false;
 	bool enableFragmentTestCache = gstate_c.Use(GPU_USE_FRAGMENT_TEST_CACHE);
 
-	if (compat.gles) {
-		// PowerVR needs highp to do the fog in MHU correctly.
-		// Others don't, and some can't handle highp in the fragment shader.
-		highpFog = (gl_extensions.bugs & BUG_PVR_SHADER_PRECISION_BAD) ? true : false;
-		highpTexcoord = highpFog;
-	}
-
 	bool texture3D = id.Bit(FS_BIT_3D_TEXTURE);
 	bool arrayTexture = id.Bit(FS_BIT_SAMPLE_ARRAY_TEXTURE);
 
 	ReplaceAlphaType stencilToAlpha = static_cast<ReplaceAlphaType>(id.Bits(FS_BIT_STENCIL_TO_ALPHA, 2));
 
 	std::vector<const char*> extensions;
-	if (ShaderLanguageIsOpenGL(compat.shaderLanguage)) {
-		if (stencilToAlpha == REPLACE_ALPHA_DUALSOURCE && gl_extensions.EXT_blend_func_extended) {
-			extensions.push_back("#extension GL_EXT_blend_func_extended : require");
-		}
-		if (gl_extensions.EXT_gpu_shader4) {
-			extensions.push_back("#extension GL_EXT_gpu_shader4 : enable");
-		}
-		if (compat.framebufferFetchExtension) {
-			extensions.push_back(compat.framebufferFetchExtension);
-		}
-		if (gl_extensions.OES_texture_3D && texture3D) {
-			extensions.push_back("#extension GL_OES_texture_3D: enable");
-		}
-	} 
 
 	ShaderWriterFlags flags = ShaderWriterFlags::NONE;
 	if (useStereo) {
@@ -361,9 +340,6 @@ bool GenerateFragmentShader(const FShaderID &id, char *buffer, const ShaderLangu
 			WRITE(p, "};\n");
 		}
 	} else if (ShaderLanguageIsOpenGL(compat.shaderLanguage)) {
-		if ((shaderDepalMode != ShaderDepalMode::OFF || colorWriteMask) && gl_extensions.IsGLES) {
-			WRITE(p, "precision highp int;\n");
-		}
 
 		if (doTexture) {
 			if (texture3D) {
@@ -461,9 +437,7 @@ bool GenerateFragmentShader(const FShaderID &id, char *buffer, const ShaderLangu
 			if (enableAlphaTest && !alphaTestAgainstZero) {
 				if (compat.bitwiseOps) {
 					WRITE(p, "int roundAndScaleTo255i(in float x) { return int(floor(x * 255.0 + 0.5)); }\n");
-				} else if (gl_extensions.gpuVendor == GPU_VENDOR_IMGTEC) {
-					WRITE(p, "float roundTo255thf(in mediump float x) { mediump float y = x + (0.5/255.0); return y - fract(y * 255.0) * (1.0 / 255.0); }\n");
-				} else {
+				}  else {
 					WRITE(p, "float roundAndScaleTo255f(in float x) { return floor(x * 255.0 + 0.5); }\n");
 				}
 			}
@@ -471,8 +445,6 @@ bool GenerateFragmentShader(const FShaderID &id, char *buffer, const ShaderLangu
 				if (compat.bitwiseOps) {
 					WRITE(p, "uint roundAndScaleTo8x4(in vec3 x) { uvec3 u = uvec3(floor(x * 255.92)); return u.r | (u.g << 0x8u) | (u.b << 0x10u); }\n");
 					WRITE(p, "uint packFloatsTo8x4(in vec3 x) { uvec3 u = uvec3(x); return u.r | (u.g << 0x8u) | (u.b << 0x10u); }\n");
-				} else if (gl_extensions.gpuVendor == GPU_VENDOR_IMGTEC) {
-					WRITE(p, "vec3 roundTo255thv(in vec3 x) { vec3 y = x + (0.5/255.0); return y - fract(y * 255.0) * (1.0 / 255.0); }\n");
 				} else {
 					WRITE(p, "vec3 roundAndScaleTo255v(in vec3 x) { return floor(x * 255.0 + 0.5); }\n");
 				}
@@ -529,11 +501,6 @@ bool GenerateFragmentShader(const FShaderID &id, char *buffer, const ShaderLangu
 		p.C("uvec3 unpackUVec3(highp uint x) {\n");
 		p.C("  return uvec3(x & 0xFFu, (x >> 0x8u) & 0xFFu, (x >> 0x10u) & 0xFFu);\n");
 		p.C("}\n");
-	}
-
-	// PowerVR needs a custom modulo function. For some reason, this has far higher precision than the builtin one.
-	if ((gl_extensions.bugs & BUG_PVR_SHADER_PRECISION_BAD) && needShaderTexClamp) {
-		WRITE(p, "float mymod(float a, float b) { return a - b * floor(a / b); }\n");
 	}
 
 	if (compat.shaderLanguage == HLSL_D3D11) {
@@ -609,7 +576,7 @@ bool GenerateFragmentShader(const FShaderID &id, char *buffer, const ShaderLangu
 			// TODO: Not sure the right way to do this for projection.
 			// This path destroys resolution on older PowerVR no matter what I do if projection is needed,
 			// so we disable it on SGX 540 and lesser, and live with the consequences.
-			bool terriblePrecision = (gl_extensions.bugs & BUG_PVR_SHADER_PRECISION_TERRIBLE) != 0;
+			bool terriblePrecision = false;
 			bool clampDisabled = doTextureProjection && terriblePrecision;
 			// Also with terrible precision we can't do wrapping without destroying the image. See #9189
 			if (terriblePrecision && (!id.Bit(FS_BIT_CLAMP_S) || !id.Bit(FS_BIT_CLAMP_T))) {
@@ -626,7 +593,7 @@ bool GenerateFragmentShader(const FShaderID &id, char *buffer, const ShaderLangu
 					vcoord = "(v_texcoord.y / v_texcoord.z)";
 				}
 
-				std::string modulo = (gl_extensions.bugs & BUG_PVR_SHADER_PRECISION_BAD) ? "mymod" : "mod";
+				std::string modulo = "mod";
 
 				if (id.Bit(FS_BIT_CLAMP_S)) {
 					ucoord = "clamp(" + ucoord + ", u_texclamp.z, u_texclamp.x - u_texclamp.z)";
@@ -954,12 +921,7 @@ bool GenerateFragmentShader(const FShaderID &id, char *buffer, const ShaderLangu
 				if (alphaTestFuncs[alphaTestFunc][0] != '#') {
 					if (compat.bitwiseOps) {
 						WRITE(p, "  if ((roundAndScaleTo255i(v.a) & int(u_alphacolormask >> 0x18u)) %s int(u_alphacolorref >> 0x18u)) %s\n", alphaTestFuncs[alphaTestFunc], discardStatement);
-					} else if (gl_extensions.gpuVendor == GPU_VENDOR_IMGTEC) {
-						// Work around bad PVR driver problem where equality check + discard just doesn't work.
-						if (alphaTestFunc != GE_COMP_NOTEQUAL) {
-							WRITE(p, "  if (roundTo255thf(v.a) %s u_alphacolorref.a) %s\n", alphaTestFuncs[alphaTestFunc], discardStatement);
-						}
-					} else {
+					}  else {
 						WRITE(p, "  if (roundAndScaleTo255f(v.a) %s u_alphacolorref.a) %s\n", alphaTestFuncs[alphaTestFunc], discardStatement);
 					}
 				} else {
@@ -1021,9 +983,7 @@ bool GenerateFragmentShader(const FShaderID &id, char *buffer, const ShaderLangu
 						WRITE(p, "  uint v_masked = v_uint & u_alphacolormask;\n");
 						WRITE(p, "  uint colorTestRef = (u_alphacolorref & u_alphacolormask) & 0xFFFFFFu;\n");
 						WRITE(p, "  if (v_masked %s colorTestRef) %s\n", test, discardStatement);
-					} else if (gl_extensions.gpuVendor == GPU_VENDOR_IMGTEC) {
-						WRITE(p, "  if (roundTo255thv(v.rgb) %s u_alphacolorref.rgb) %s\n", test, discardStatement);
-					} else {
+					}  else {
 						WRITE(p, "  if (roundAndScaleTo255v(v.rgb) %s u_alphacolorref.rgb) %s\n", test, discardStatement);
 					}
 				} else {

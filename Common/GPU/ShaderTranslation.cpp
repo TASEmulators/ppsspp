@@ -337,19 +337,19 @@ bool TranslateShader(std::string *dest, ShaderLanguage destLang, const ShaderLan
 	}
 	case GLSL_3xx:
 	{
-		spirv_cross::CompilerGLSL glsl(std::move(spirv));
-		// The SPIR-V is now parsed, and we can perform reflection on it.
-		spirv_cross::ShaderResources resources = glsl.get_shader_resources();
-		// Set some options.
-		spirv_cross::CompilerGLSL::Options options;
-		options.es = desc.gles;
-		options.version = gl_extensions.GLSLVersion();
-		// macOS OpenGL 4.1 implementation does not support GL_ARB_shading_language_420pack.
-		// Prevent explicit binding location emission enabled in SPIRV-Cross by default.
-		options.enable_420pack_extension = gl_extensions.ARB_shading_language_420pack;
-		glsl.set_common_options(options);
-		// Compile to GLSL, ready to give to GL driver.
-		*dest = glsl.compile();
+		// spirv_cross::CompilerGLSL glsl(std::move(spirv));
+		// // The SPIR-V is now parsed, and we can perform reflection on it.
+		// spirv_cross::ShaderResources resources = glsl.get_shader_resources();
+		// // Set some options.
+		// spirv_cross::CompilerGLSL::Options options;
+		// options.es = desc.gles;
+		// options.version = gl_extensions.GLSLVersion();
+		// // macOS OpenGL 4.1 implementation does not support GL_ARB_shading_language_420pack.
+		// // Prevent explicit binding location emission enabled in SPIRV-Cross by default.
+		// options.enable_420pack_extension = gl_extensions.ARB_shading_language_420pack;
+		// glsl.set_common_options(options);
+		// // Compile to GLSL, ready to give to GL driver.
+		// *dest = glsl.compile();
 		return true;
 	}
 	default:

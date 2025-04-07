@@ -266,6 +266,8 @@ void CachingFileLoader::StartReadAhead(s64 pos) {
 	aheadThreadRunning_ = true;
 	if (aheadThread_.joinable())
 		aheadThread_.join();
+
+	fprintf(stderr, "Unexpected thread creation found in CachingFileLoader.cpp\n"); std::abort();
 	aheadThread_ = std::thread([this, pos] {
 		SetCurrentThreadName("FileLoaderReadAhead");
 

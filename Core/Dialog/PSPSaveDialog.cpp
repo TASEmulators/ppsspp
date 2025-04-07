@@ -1227,6 +1227,8 @@ void PSPSaveDialog::StartIOThread() {
 	}
 
 	ioThreadStatus = SAVEIO_PENDING;
+
+	fprintf(stderr, "Unexpected thread creation found in PSPSaveDialog.cpp\n"); std::abort();
 	ioThread = new std::thread(&DoExecuteIOAction, this);
 }
 

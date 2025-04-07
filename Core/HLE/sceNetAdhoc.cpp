@@ -1243,6 +1243,7 @@ void __NetAdhocInit() {
 	// Create built-in AdhocServer Thread
 	adhocServerRunning = false;
 	if (g_Config.bEnableWlan && g_Config.bEnableAdhocServer) {
+		fprintf(stderr, "Unexpected thread creation found in sceNetAdhoc.cpp\n"); std::abort();
 		adhocServerThread = std::thread(proAdhocServerThread, SERVER_PORT);
 	}
 }
