@@ -526,27 +526,27 @@ static void check_variables(CoreParameter &coreParam)
          g_Config.iLanguage = PSP_SYSTEMPARAM_LANGUAGE_CHINESE_SIMPLIFIED;
    }
 
-// #ifndef __EMSCRIPTEN__
-//    var.key = "ppsspp_cpu_core";
-//    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
-//    {
-//       if (!strcmp(var.value, "JIT"))
-//          g_Config.iCpuCore = (int)CPUCore::JIT;
-//       else if (!strcmp(var.value, "IR JIT"))
-//          g_Config.iCpuCore = (int)CPUCore::IR_INTERPRETER;
-//       else if (!strcmp(var.value, "Interpreter"))
-//          g_Config.iCpuCore = (int)CPUCore::INTERPRETER;
-//    }
+#ifndef __EMSCRIPTEN__
+   var.key = "ppsspp_cpu_core";
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+   {
+      if (!strcmp(var.value, "JIT"))
+         g_Config.iCpuCore = (int)CPUCore::JIT;
+      else if (!strcmp(var.value, "IR JIT"))
+         g_Config.iCpuCore = (int)CPUCore::IR_INTERPRETER;
+      else if (!strcmp(var.value, "Interpreter"))
+         g_Config.iCpuCore = (int)CPUCore::INTERPRETER;
+   }
 
-//    if (System_GetPropertyBool(SYSPROP_CAN_JIT) == false && g_Config.iCpuCore == (int)CPUCore::JIT) {
-//        // Just gonna force it to the IR interpreter on startup.
-//        // We don't hide the option, but we make sure it's off on bootup. In case someone wants
-//        // to experiment in future iOS versions or something...
-//        g_Config.iCpuCore = (int)CPUCore::IR_INTERPRETER;
-//    }
-// #else
+   if (System_GetPropertyBool(SYSPROP_CAN_JIT) == false && g_Config.iCpuCore == (int)CPUCore::JIT) {
+       // Just gonna force it to the IR interpreter on startup.
+       // We don't hide the option, but we make sure it's off on bootup. In case someone wants
+       // to experiment in future iOS versions or something...
+       g_Config.iCpuCore = (int)CPUCore::IR_INTERPRETER;
+   }
+#else
    g_Config.iCpuCore = (int)CPUCore::INTERPRETER;
-// #endif
+#endif
 
    var.key = "ppsspp_fast_memory";
    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
