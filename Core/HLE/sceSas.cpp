@@ -164,12 +164,12 @@ void __SasInit() {
 
 	sasMixEvent = CoreTiming::RegisterEvent("SasMix", sasMixFinish);
 
-	if (g_Config.bSeparateSASThread) {
-		sasThreadState = SasThreadState::READY;
-		sasThread = new std::thread(__SasThread);
-	} else {
+	// if (g_Config.bSeparateSASThread) {
+	// 	sasThreadState = SasThreadState::READY;
+	// 	sasThread = new std::thread(__SasThread);
+	// } else {
 		sasThreadState = SasThreadState::DISABLED;
-	}
+	// }
 }
 
 void __SasDoState(PointerWrap &p) {

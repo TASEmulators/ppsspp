@@ -525,19 +525,19 @@ int upnpService(const unsigned int timeout)
 }
 
 void __UPnPInit(const unsigned int timeout) {
-	if (!upnpServiceRunning) {
-		upnpServiceRunning = true;
-		upnpServiceThread = std::thread(upnpService, timeout);
-	}
+	// if (!upnpServiceRunning) {
+	// 	upnpServiceRunning = true;
+	// 	upnpServiceThread = std::thread(upnpService, timeout);
+	// }
 }
 
 void __UPnPShutdown() {
-	if (upnpServiceRunning) {
-		upnpServiceRunning = false;
-		if (upnpServiceThread.joinable()) {
-			upnpServiceThread.join();
-		}
-	}
+	// if (upnpServiceRunning) {
+	// 	upnpServiceRunning = false;
+	// 	if (upnpServiceThread.joinable()) {
+	// 		upnpServiceThread.join();
+	// 	}
+	// }
 }
 
 void UPnP_Add(const char* protocol, unsigned short port, unsigned short intport) {

@@ -306,7 +306,7 @@ void __KernelFplEndCallback(SceUID threadID, SceUID prevCallbackId);
 
 void __KernelMemoryInit()
 {
-	MemBlockInfoInit();
+	//MemBlockInfoInit();
 	kernelMemory.Init(PSP_GetKernelMemoryBase(), PSP_GetKernelMemoryEnd() - PSP_GetKernelMemoryBase(), false);
 	userMemory.Init(PSP_GetUserMemoryBase(), PSP_GetUserMemoryEnd() - PSP_GetUserMemoryBase(), false);
 	volatileMemory.Init(PSP_GetVolatileMemoryStart(), PSP_GetVolatileMemoryEnd() - PSP_GetVolatileMemoryStart(), false);
