@@ -42,7 +42,14 @@
 
 #if !defined(_WIN32) && !defined(HAVE_LIBRETRO_VFS)
 
+extern std::string _cdImageFilePath;
+extern uint32_t cd_get_size(void);
+extern size_t readSegmentFromCD(void *buf_, const uint64_t address, const size_t size);
+
 void LocalFileLoader::DetectSizeFd() {
+
+	if (_cdImageFilePath == filename_.c_str()) { filesize_ = cd_get_size(); return; }
+
 #if PPSSPP_PLATFORM(ANDROID) || (defined(_FILE_OFFSET_BITS) && _FILE_OFFSET_BITS < 64)
 	off64_t off = lseek64(fd_, 0, SEEK_END);
 	filesize_ = off;
@@ -57,6 +64,11 @@ void LocalFileLoader::DetectSizeFd() {
 
 LocalFileLoader::LocalFileLoader(const Path &filename)
 	: filesize_(0), filename_(filename) {
+
+    if (_cdImageFilePath == filename_.c_str())
+	{
+		filesize_ = cd_get_size();
+	}
 
 	if (filename.empty()) {
 		ERROR_LOG(Log::FileSystem, "LocalFileLoader can't load empty filenames");
@@ -123,6 +135,8 @@ LocalFileLoader::LocalFileLoader(const Path &filename)
 }
 
 LocalFileLoader::~LocalFileLoader() {
+	if (_cdImageFilePath == filename_.c_str()) return;
+
 #if defined(HAVE_LIBRETRO_VFS)
     filestream_close(handle_);
 #elif !defined(_WIN32)
@@ -137,6 +151,8 @@ LocalFileLoader::~LocalFileLoader() {
 }
 
 bool LocalFileLoader::Exists() {
+	if (_cdImageFilePath == filename_.c_str()) return true;
+
 	// If we opened it for reading, it must exist.  Done.
 #if defined(HAVE_LIBRETRO_VFS)
     return handle_ != 0;
@@ -158,6 +174,8 @@ bool LocalFileLoader::Exists() {
 }
 
 bool LocalFileLoader::IsDirectory() {
+	if (_cdImageFilePath == filename_.c_str()) return false;
+
 	File::FileInfo info;
 	if (File::GetFileInfo(filename_, &info)) {
 		return info.exists && info.isDirectory;
@@ -170,6 +188,9 @@ s64 LocalFileLoader::FileSize() {
 }
 
 size_t LocalFileLoader::ReadAt(s64 absolutePos, size_t bytes, size_t count, void *data, Flags flags) {
+
+	if (_cdImageFilePath == filename_.c_str()) return readSegmentFromCD(data, absolutePos, bytes * count);
+
 	if (bytes == 0)
 		return 0;
 
