@@ -46,7 +46,6 @@
 #include "Common/System/System.h"
 #include "Common/StringUtils.h"
 #include "Common/Thread/ThreadUtil.h"
-#include "Common/GPU/Vulkan/VulkanLoader.h"
 #include "Common/VR/PPSSPPVR.h"
 #include "Common/System/OSD.h"
 #include "Core/Config.h"
