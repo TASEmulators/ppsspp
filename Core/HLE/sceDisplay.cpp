@@ -52,7 +52,6 @@
 #include "Core/HLE/sceKernelInterrupt.h"
 #include "Core/HW/Display.h"
 #include "Core/Util/PPGeDraw.h"
-#include "Core/RetroAchievements.h"
 
 #include "GPU/GPU.h"
 #include "GPU/GPUState.h"
@@ -359,7 +358,7 @@ static int FrameTimingLimit() {
 		return 60;
 	}
 
-	bool challenge = Achievements::HardcoreModeActive();
+	bool challenge = false;
 
 	auto fixRate = [=](int limit) {
 		int minRate = challenge ? 60 : 1;

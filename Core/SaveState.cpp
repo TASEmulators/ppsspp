@@ -46,9 +46,10 @@
 #include "Core/MemMap.h"
 #include "Core/MIPS/MIPS.h"
 #include "Core/MIPS/JitCommon/JitBlockCache.h"
-#include "Core/RetroAchievements.h"
 #include "HW/MemoryStick.h"
 #include "GPU/GPUState.h"
+#include "Common/CommonTypes.h"
+#include "Core/Loaders.h"  // for IdentifiedFileType
 
 #ifndef MOBILE_DEVICE
 #include "Core/AVIDump.h"
@@ -372,31 +373,27 @@ double g_lastSaveTime = -1.0;
 		currentMIPS->DoState(p);
 		HLEDoState(p);
 		__KernelDoState(p);
-		Achievements::DoState(p);
 		// Kernel object destructors might close open files, so do the filesystem last.
 		pspFileSystem.DoState(p);
 	}
 
 	void Enqueue(const SaveState::Operation &op)
 	{
-		if (!NetworkAllowSaveState()) {
-			return;
-		}
-		if (Achievements::HardcoreModeActive()) {
-			if (g_Config.bAchievementsSaveStateInHardcoreMode && ((op.type == SaveState::SAVESTATE_SAVE) || (op.type == SAVESTATE_SAVE_SCREENSHOT))) {
-				// We allow saving in hardcore mode if this setting is on.
-			} else {
-				// Operation not allowed
-				return;
-			}
-		}
+		// if (!NetworkAllowSaveState()) {
+		// 	return;
+		// }
+		//  {
+		// 		// Operation not allowed
+		// 		return;
+		// 	}
+		// }
 
-		std::lock_guard<std::mutex> guard(mutex);
-		pending.push_back(op);
+		// std::lock_guard<std::mutex> guard(mutex);
+		// pending.push_back(op);
 
-		// Don't actually run it until next frame.
-		// It's possible there might be a duplicate but it won't hurt us.
-		needsProcess = true;
+		// // Don't actually run it until next frame.
+		// // It's possible there might be a duplicate but it won't hurt us.
+		// needsProcess = true;
 	}
 
 	void Load(const Path &filename, int slot, Callback callback, void *cbUserData)

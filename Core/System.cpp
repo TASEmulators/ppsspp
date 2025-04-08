@@ -42,7 +42,6 @@
 #include "Common/TimeUtil.h"
 #include "Common/Thread/ThreadUtil.h"
 #include "Common/GraphicsContext.h"
-#include "Core/RetroAchievements.h"
 #include "Core/MemFault.h"
 #include "Core/HDRemaster.h"
 #include "Core/MIPS/MIPS.h"
@@ -554,11 +553,6 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 		}
 	}
 
-	if (g_Config.bAchievementsEnable) {
-		std::string errorString;
-		Achievements::SetGame(filename, type, loadedFile);
-	}
-
 	// TODO: The reason we pass in g_CoreParameter.errorString here is that it's persistent -
 	// it gets written to from the loader thread that gets spawned.
 	if (!CPU_Init(loadedFile, type, &g_CoreParameter.errorString)) {
@@ -646,8 +640,6 @@ BootState PSP_Init(const CoreParameter &coreParam, std::string *error_string) {
 void PSP_Shutdown(bool success) {
 	// Reduce the risk for weird races with the Windows GE debugger.
 	gpuDebug = nullptr;
-
-	Achievements::UnloadGame();
 
 	// Do nothing if we never inited.
 	if (g_bootState == BootState::Off) {

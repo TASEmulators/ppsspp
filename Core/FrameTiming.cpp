@@ -24,7 +24,6 @@
 #include "Common/Log.h"
 #include "Common/TimeUtil.h"
 
-#include "Core/RetroAchievements.h"
 #include "Core/CoreParameter.h"
 #include "Core/Core.h"
 #include "Core/System.h"
