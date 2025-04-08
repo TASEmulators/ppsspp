@@ -341,8 +341,6 @@ static bool CPU_Init(FileLoader *fileLoader, IdentifiedFileType type, std::strin
 	MIPSAnalyst::Reset();
 	Replacement_Init();
 
-	g_lua.Init();
-
 	// Here we have read the PARAM.SFO, let's see if we need any compatibility overrides.
 	// Homebrew usually has an empty discID, and even if they do have a disc id, it's not
 	// likely to collide with any commercial ones.
@@ -474,8 +472,6 @@ void CPU_Shutdown(bool success) {
 	g_CoreParameter.mountIsoLoader = nullptr;
 	delete g_symbolMap;
 	g_symbolMap = nullptr;
-
-	g_lua.Shutdown();
 }
 
 // Used for UMD switching only.

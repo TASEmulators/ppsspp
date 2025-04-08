@@ -34,7 +34,6 @@
 #include "Core/System.h"
 #include "Core/CoreTiming.h"
 #include "Core/HW/Display.h"
-#include "Core/CwCheat.h"
 #include "Core/ELF/ParamSFO.h"
 
 #include "GPU/GPUState.h"
@@ -1655,84 +1654,9 @@ size_t retro_get_memory_size(unsigned id)
 }
 
 void retro_cheat_reset(void) {
-   // Init Cheat Engine
-   CWCheatEngine *cheatEngine = new CWCheatEngine(g_paramSFO.GetDiscID());
-   Path file=cheatEngine->CheatFilename();
-
-   // Output cheats to cheat file
-   std::ofstream outFile;
-   outFile.open(file.c_str());
-   outFile << "_S " << g_paramSFO.GetDiscID() << std::endl;
-   outFile.close();
-
-   g_Config.bReloadCheats = true;
-
-   // Parse and Run the Cheats
-   cheatEngine->ParseCheats();
-   if (cheatEngine->HasCheats()) {
-      cheatEngine->Run();
-   }
-
 }
 
 void retro_cheat_set(unsigned index, bool enabled, const char *code) {
-   // Initialize Cheat Engine
-   CWCheatEngine *cheatEngine = new CWCheatEngine(g_paramSFO.GetDiscID());
-   cheatEngine->CreateCheatFile();
-   Path file=cheatEngine->CheatFilename();
-
-   // Read cheats file
-   std::vector<std::string> cheats;
-   std::ifstream cheat_content(file.c_str());
-   std::stringstream buffer;
-   buffer << cheat_content.rdbuf();
-   std::string existing_cheats=ReplaceAll(buffer.str(), std::string("\n_C"), std::string("|"));
-   SplitString(existing_cheats, '|', cheats);
-
-   // Generate Cheat String
-   std::stringstream cheat("");
-   cheat << (enabled ? "1 " : "0 ") << index << std::endl;
-   std::string code_str(code);
-   std::vector<std::string> codes;
-   code_str=ReplaceAll(code_str, std::string(" "), std::string("+"));
-   SplitString(code_str, '+', codes);
-   int part=0;
-   for (int i=0; i < codes.size(); i++) {
-      if (codes[i].size() <= 2) {
-         // _L _M ..etc
-         // Assume _L
-      } else if (part == 0) {
-         cheat << "_L " << codes[i] << " ";
-         part++;
-      } else {
-         cheat << codes[i] << std::endl;
-         part=0;
-      }
-   }
-
-   // Add or Replace the Cheat
-   if (index + 1 < cheats.size()) {
-      cheats[index + 1]=cheat.str();
-   } else {
-      cheats.push_back(cheat.str());
-   }
-
-   // Output cheats to cheat file
-   std::ofstream outFile;
-   outFile.open(file.c_str());
-   outFile << "_S " << g_paramSFO.GetDiscID() << std::endl;
-   for (int i=1; i < cheats.size(); i++) {
-      outFile << "_C" << cheats[i] << std::endl;
-   }
-   outFile.close();
-
-   g_Config.bReloadCheats = true;
-
-   // Parse and Run the Cheats
-   cheatEngine->ParseCheats();
-   if (cheatEngine->HasCheats()) {
-      cheatEngine->Run();
-   }
 }
 
 int64_t System_GetPropertyInt(SystemProperty prop)

@@ -46,7 +46,6 @@ extern "C" {
 #include "Core/Core.h"
 #include "Core/CoreTiming.h"
 #include "Core/Config.h"
-#include "Core/CwCheat.h"
 #include "Core/Loaders.h"
 #include "Core/SaveState.h"
 #include "Core/System.h"
@@ -526,7 +525,7 @@ namespace Reporting
 	bool IsSupported()
 	{
 		// Disabled when using certain hacks, because they make for poor reports.
-		if (CheatsInEffect() || HLEPlugins::HasEnabled())
+		if (HLEPlugins::HasEnabled())
 			return false;
 		if (GetLockedCPUSpeedMhz() != 0)
 			return false;
