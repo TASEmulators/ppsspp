@@ -17235,22 +17235,10 @@ namespace basist
 		
 		if (m_header.m_supercompression_scheme == KTX2_SS_ZSTANDARD)
 		{
-#if BASISD_SUPPORT_KTX2_ZSTD
-			size_t actualUncompSize = ZSTD_decompress(uncomp_data.data(), (size_t)uncomp_size, pComp_data, (size_t)comp_size);
-			if (ZSTD_isError(actualUncompSize))
-			{
-				BASISU_DEVEL_ERROR("ktx2_transcoder::decompress_level_data: Zstd decompression failed, file is invalid or corrupted\n");
-				return false;
-			}
-			if (actualUncompSize != uncomp_size)
-			{
-				BASISU_DEVEL_ERROR("ktx2_transcoder::decompress_level_data: Zstd decompression returned too few bytes, file is invalid or corrupted\n");
-				return false;
-			}
-#else
+
 			BASISU_DEVEL_ERROR("ktx2_transcoder::decompress_level_data: File uses Zstd supercompression, but Zstd support was not enabled at compile time (BASISD_SUPPORT_KTX2_ZSTD is 0)\n");
 			return false;
-#endif
+
 		}
 
 		return true;

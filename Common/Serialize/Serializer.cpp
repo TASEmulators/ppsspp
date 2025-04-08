@@ -376,12 +376,6 @@ CChunkFileReader::Error CChunkFileReader::LoadFile(const Path &filename, std::st
 		if (SerializeCompressType(header.Compress) == SerializeCompressType::SNAPPY) {
 			auto status = snappy_uncompress((const char *)buffer, sz, (char *)uncomp_buffer, &uncomp_size);
 			success = status == SNAPPY_OK;
-		} else if (SerializeCompressType(header.Compress) == SerializeCompressType::ZSTD) {
-			size_t status = ZSTD_decompress((char *)uncomp_buffer, uncomp_size, (const char *)buffer, sz);
-			success = !ZSTD_isError(status);
-			if (success) {
-				uncomp_size = status;
-			}
 		} else {
 			ERROR_LOG(Log::SaveState, "ChunkReader: Unexpected compression type %d", header.Compress);
 		}
@@ -434,9 +428,6 @@ CChunkFileReader::Error CChunkFileReader::SaveFile(const Path &filename, const s
 	case SerializeCompressType::SNAPPY:
 		write_len = snappy_max_compressed_length(sz);
 		break;
-	case SerializeCompressType::ZSTD:
-		write_len = ZSTD_compressBound(sz);
-		break;
 	}
 	u8 *compressed_buffer = write_len == 0 ? nullptr : (u8 *)malloc(write_len);
 	u8 *write_buffer = buffer;
@@ -454,22 +445,6 @@ CChunkFileReader::Error CChunkFileReader::SaveFile(const Path &filename, const s
 			break;
 		case SerializeCompressType::SNAPPY:
 			success = snappy_compress((const char *)buffer, sz, (char *)compressed_buffer, &write_len) == SNAPPY_OK;
-			break;
-		case SerializeCompressType::ZSTD:
-			{
-				auto ctx = ZSTD_createCCtx();
-				if (!ctx) {
-					success = false;
-				} else {
-					// TODO: If free disk space is low, we could max this out to 22?
-					ZSTD_CCtx_setParameter(ctx, ZSTD_c_compressionLevel, ZSTD_CLEVEL_DEFAULT);
-					ZSTD_CCtx_setParameter(ctx, ZSTD_c_checksumFlag, 1);
-					ZSTD_CCtx_setPledgedSrcSize(ctx, sz);
-					write_len = ZSTD_compress2(ctx, compressed_buffer, write_len, buffer, sz);
-					success = !ZSTD_isError(write_len);
-				}
-				ZSTD_freeCCtx(ctx);
-			}
 			break;
 		}
 
