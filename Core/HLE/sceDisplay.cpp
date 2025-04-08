@@ -361,7 +361,7 @@ static int FrameTimingLimit() {
 	bool challenge = false;
 
 	auto fixRate = [=](int limit) {
-		int minRate = challenge ? 60 : 1;
+		int minRate =  1;
 		if (limit != 0) {
 			return std::max(limit, minRate);
 		} else {
