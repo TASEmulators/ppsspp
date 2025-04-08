@@ -144,18 +144,18 @@ bool TextureReplacer::LoadIni(std::string *error) {
 
 	Path zipPath = basePath_ / ZIP_FILENAME;
 
-	// First, check for textures.zip, which is used to reduce IO.
-	VFSBackend *dir = ZipFileReader::Create(zipPath, "", false);
-	if (!dir) {
-		INFO_LOG(Log::TexReplacement, "%s wasn't a zip file - opening the directory %s instead.", zipPath.c_str(), basePath_.c_str());
-		vfsIsZip_ = false;
-		dir = new DirectoryReader(basePath_);
-	} else {
-		if (!replaceEnabled_ && saveEnabled_) {
-			WARN_LOG(Log::TexReplacement, "Found zip file even though only saving is enabled! This is weird.");
-		}
-		vfsIsZip_ = true;
-	}
+	// // First, check for textures.zip, which is used to reduce IO.
+	VFSBackend *dir = nullptr;
+	// if (!dir) {
+	// 	INFO_LOG(Log::TexReplacement, "%s wasn't a zip file - opening the directory %s instead.", zipPath.c_str(), basePath_.c_str());
+	// 	vfsIsZip_ = false;
+	// 	dir = new DirectoryReader(basePath_);
+	// } else {
+	// 	if (!replaceEnabled_ && saveEnabled_) {
+	// 		WARN_LOG(Log::TexReplacement, "Found zip file even though only saving is enabled! This is weird.");
+	// 	}
+	// 	vfsIsZip_ = true;
+	// }
 
 	IniFile ini;
 	bool iniLoaded = ini.LoadFromVFS(*dir, INI_FILENAME);
