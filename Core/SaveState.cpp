@@ -962,17 +962,6 @@ double g_lastSaveTime = -1.0;
 					if (!slot_prefix.empty())
 						callbackMessage = slot_prefix + callbackMessage;
 
-#ifndef MOBILE_DEVICE
-					if (g_Config.bSaveLoadResetsAVdumping) {
-						if (g_Config.bDumpFrames) {
-							AVIDump::Stop();
-							AVIDump::Start(PSP_CoreParameter().renderWidth, PSP_CoreParameter().renderHeight);
-						}
-						if (g_Config.bDumpAudio) {
-							WAVDump::Reset();
-						}
-					}
-#endif
 					g_lastSaveTime = time_now_d();
 				} else if (result == CChunkFileReader::ERROR_BROKEN_STATE) {
 					HandleLoadFailure(false);
@@ -998,17 +987,6 @@ double g_lastSaveTime = -1.0;
 				if (result == CChunkFileReader::ERROR_NONE) {
 					callbackMessage = slot_prefix + std::string(sc->T("Saved State"));
 					callbackResult = Status::SUCCESS;
-#ifndef MOBILE_DEVICE
-					if (g_Config.bSaveLoadResetsAVdumping) {
-						if (g_Config.bDumpFrames) {
-							AVIDump::Stop();
-							AVIDump::Start(PSP_CoreParameter().renderWidth, PSP_CoreParameter().renderHeight);
-						}
-						if (g_Config.bDumpAudio) {
-							WAVDump::Reset();
-						}
-					}
-#endif
 					g_lastSaveTime = time_now_d();
 				} else if (result == CChunkFileReader::ERROR_BROKEN_STATE) {
 					// TODO: What else might we want to do here? This should be very unusual.
@@ -1059,40 +1037,6 @@ double g_lastSaveTime = -1.0;
 				}
 				break;
 
-			case SAVESTATE_SAVE_SCREENSHOT:
-			{
-				_dbg_assert_(!op.callback);
-
-				int maxResMultiplier = 2;
-				ScreenshotResult tempResult = TakeGameScreenshot(nullptr, op.filename, ScreenshotFormat::JPG, SCREENSHOT_DISPLAY, maxResMultiplier, [](bool success) {
-					if (success) {
-						screenshotFailures = 0;
-					}
-				});
-				
-				switch (tempResult) {
-				case ScreenshotResult::ScreenshotNotPossible:
-					// Try again soon, for a short while.
-					callbackResult = Status::FAILURE;
-					WARN_LOG(Log::SaveState, "Failed to take a screenshot for the savestate! (%s) The savestate will lack an icon.", op.filename.c_str());
-					if (coreState != CORE_STEPPING_CPU && screenshotFailures++ < SCREENSHOT_FAILURE_RETRIES) {
-						// Requeue for next frame (if we were stepping, no point, will just spam errors quickly).
-						SaveScreenshot(op.filename);
-					}
-					break;
-				case ScreenshotResult::DelayedResult:
-				case ScreenshotResult::Success:
-					// We might not know if the file write succeeded yet though.
-					callbackResult = Status::SUCCESS;
-					readbackImage = true;
-					break;
-				case ScreenshotResult::FailedToWriteFile:
-					// Can't reach here when we pass in a callback to TakeGameScreenshot.
-					callbackResult = Status::SUCCESS;
-					break;
-				}
-				break;
-			}
 			default:
 				ERROR_LOG(Log::SaveState, "Savestate failure: unknown operation type %d", op.type);
 				callbackResult = Status::FAILURE;

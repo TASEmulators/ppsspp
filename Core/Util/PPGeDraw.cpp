@@ -1363,56 +1363,8 @@ PPGeImage::~PPGeImage() {
 }
 
 bool PPGeImage::Load() {
-	loadFailed_ = false;
-	Free();
-
-	// In case it fails to load.
-	width_ = 0;
-	height_ = 0;
-
-	unsigned char *textureData;
-	int success;
-	if (filename_.empty()) {
-		_dbg_assert_(size_ < MAX_VALID_IMAGE_SIZE);
-		const u8 *srcPtr = Memory::GetPointerRange(png_, (u32)size_);
-		if (!srcPtr) {
-			ERROR_LOG(Log::sceGe, "Trying to load PPGeImage from invalid range: %08x, %08x bytes", png_, (int)size_);
-			return false;
-		}
-		success = pngLoadPtr(srcPtr, size_, &width_, &height_, &textureData);
-	} else {
-		std::vector<u8> pngData;
-		if (pspFileSystem.ReadEntireFile(filename_, pngData) < 0) {
-			WARN_LOG(Log::sceGe, "PPGeImage cannot load file %s", filename_.c_str());
-			loadFailed_ = true;
-			return false;
-		}
-
-		success = pngLoadPtr((const unsigned char *)&pngData[0], pngData.size(), &width_, &height_, &textureData);
-	}
-	if (!success) {
-		WARN_LOG(Log::sceGe, "Bad PPGeImage - not a valid png");
-		loadFailed_ = true;
-		return false;
-	}
-
-	u32 dataSize = width_ * height_ * 4;
-	u32 texSize = dataSize + width_ * 4;
-	texture_ = __PPGeDoAlloc(texSize, true, "Savedata Icon");
-	if (texture_ == 0) {
-		free(textureData);
-		WARN_LOG(Log::sceGe, "Bad PPGeImage - unable to allocate space for texture");
-		// Don't set loadFailed_ here, we'll try again if there's more memory later.
-		return false;
-	}
-
-	Memory::Memcpy(texture_, textureData, dataSize, "PPGeTex");
-	Memory::Memset(texture_ + dataSize, 0, texSize - dataSize, "PPGeTexClear");
-	free(textureData);
-
-	lastFrame_ = gpuStats.numFlips;
-	loadedTextures_.push_back(this);
-	return true;
+	loadFailed_ = true;
+	return false;
 }
 
 bool PPGeImage::IsValid() {

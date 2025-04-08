@@ -106,21 +106,6 @@ bool TempImage::LoadTextureLevelsFromFileData(const uint8_t *data, size_t size, 
 		fmt = ZimToT3DFormat(zimFlags & ZIM_FORMAT_MASK);
 		break;
 
-	case ImageFileType::PNG:
-		if (1 == pngLoadPtr((const unsigned char *)data, size, &width[0], &height[0], &levels[0])) {
-			numLevels = 1;
-			fmt = Draw::DataFormat::R8G8B8A8_UNORM;
-			if (!levels[0]) {
-				ERROR_LOG(Log::IO, "pngLoadPtr failed (input size = %d)", (int)size);
-				return false;
-			}
-		} else {
-			ERROR_LOG(Log::IO, "PNG load failed");
-			_dbg_assert_(!levels[0]);
-			return false;
-		}
-		break;
-
 	case ImageFileType::JPEG:
 	{
 		int actual_components = 0;

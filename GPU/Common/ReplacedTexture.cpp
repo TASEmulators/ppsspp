@@ -426,19 +426,7 @@ ReplacedTexture::LoadLevelResult ReplacedTexture::LoadLevelData(VFSFileReference
 		level.h = header.h;
 		good = good && (header.flags & ZIM_FORMAT_MASK) == ZIM_RGBA8888;
 		*pixelFormat = Draw::DataFormat::R8G8B8A8_UNORM;
-	} else if (imageType == ReplacedImageType::PNG) {
-		PNGHeaderPeek headerPeek;
-		good = vfs_->Read(openFile, &headerPeek, sizeof(headerPeek)) == sizeof(headerPeek);
-		if (good && headerPeek.IsValidPNGHeader()) {
-			level.w = headerPeek.Width();
-			level.h = headerPeek.Height();
-			good = true;
-		} else {
-			ERROR_LOG(Log::TexReplacement, "Could not get PNG dimensions: %s (zip)", filename.c_str());
-			good = false;
-		}
-		*pixelFormat = Draw::DataFormat::R8G8B8A8_UNORM;
-	} else {
+	}  else {
 		ERROR_LOG(Log::TexReplacement, "Could not load texture replacement info: %s - unsupported format %s", filename.c_str(), magic.c_str());
 	}
 
@@ -651,54 +639,6 @@ ReplacedTexture::LoadLevelResult ReplacedTexture::LoadLevelData(VFSFileReference
 
 		return LoadLevelResult::CONTINUE;
 
-	} else if (imageType == ReplacedImageType::PNG) {
-		png_image png = {};
-		png.version = PNG_IMAGE_VERSION;
-
-		std::string pngdata;
-		pngdata.resize(fileSize);
-		pngdata.resize(vfs_->Read(openFile, &pngdata[0], fileSize));
-		vfs_->CloseFile(openFile);
-		if (!png_image_begin_read_from_memory(&png, &pngdata[0], pngdata.size())) {
-			ERROR_LOG(Log::TexReplacement, "Could not load texture replacement info: %s - %s (zip)", filename.c_str(), png.message);
-			return LoadLevelResult::LOAD_ERROR;
-		}
-		if (png.width > (uint32_t)level.w || png.height > (uint32_t)level.h) {
-			ERROR_LOG(Log::TexReplacement, "Texture replacement changed since header read: %s", filename.c_str());
-			return LoadLevelResult::LOAD_ERROR;
-		}
-
-		bool checkedAlpha = false;
-		if ((png.format & PNG_FORMAT_FLAG_ALPHA) == 0) {
-			// Well, we know for sure it doesn't have alpha.
-			if (mipLevel == 0) {
-				alphaStatus_ = ReplacedTextureAlpha::FULL;
-			}
-			checkedAlpha = true;
-		}
-		png.format = PNG_FORMAT_RGBA;
-
-		std::vector<uint8_t> &out = data_[mipLevel];
-		// TODO: Should probably try to handle out-of-memory gracefully here.
-		out.resize(level.w * level.h * 4);
-		if (!png_image_finish_read(&png, nullptr, &out[0], level.w * 4, nullptr)) {
-			ERROR_LOG(Log::TexReplacement, "Could not load texture replacement: %s - %s", filename.c_str(), png.message);
-			vfs_->CloseFile(openFile);
-			out.resize(0);
-			return LoadLevelResult::LOAD_ERROR;
-		}
-		png_image_free(&png);
-
-		if (!checkedAlpha) {
-			// This will only check the hashed bits.
-			CheckAlphaResult res = CheckAlpha32Rect((u32 *)&out[0], level.w, png.width, png.height, 0xFF000000);
-			if (res == CHECKALPHA_ANY || mipLevel == 0) {
-				alphaStatus_ = ReplacedTextureAlpha(res);
-			}
-		}
-
-		levels_.push_back(level);
-		return LoadLevelResult::CONTINUE;
 	} else {
 		WARN_LOG(Log::TexReplacement, "Don't know how to load this image type! %d", (int)imageType);
 		vfs_->CloseFile(openFile);
