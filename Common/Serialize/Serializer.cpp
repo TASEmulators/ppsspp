@@ -373,10 +373,7 @@ CChunkFileReader::Error CChunkFileReader::LoadFile(const Path &filename, std::st
 		u8 *uncomp_buffer = new u8[header.UncompressedSize];
 		size_t uncomp_size = header.UncompressedSize;
 		bool success = false;
-		if (SerializeCompressType(header.Compress) == SerializeCompressType::SNAPPY) {
-			auto status = snappy_uncompress((const char *)buffer, sz, (char *)uncomp_buffer, &uncomp_size);
-			success = status == SNAPPY_OK;
-		} else {
+		{
 			ERROR_LOG(Log::SaveState, "ChunkReader: Unexpected compression type %d", header.Compress);
 		}
 		if (!success) {
@@ -425,9 +422,6 @@ CChunkFileReader::Error CChunkFileReader::SaveFile(const Path &filename, const s
 	case SerializeCompressType::NONE:
 		write_len = 0;
 		break;
-	case SerializeCompressType::SNAPPY:
-		write_len = snappy_max_compressed_length(sz);
-		break;
 	}
 	u8 *compressed_buffer = write_len == 0 ? nullptr : (u8 *)malloc(write_len);
 	u8 *write_buffer = buffer;
@@ -442,9 +436,6 @@ CChunkFileReader::Error CChunkFileReader::SaveFile(const Path &filename, const s
 		switch (usedType) {
 		case SerializeCompressType::NONE:
 			_assert_(false);
-			break;
-		case SerializeCompressType::SNAPPY:
-			success = snappy_compress((const char *)buffer, sz, (char *)compressed_buffer, &write_len) == SNAPPY_OK;
 			break;
 		}
 
