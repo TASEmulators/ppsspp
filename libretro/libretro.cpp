@@ -1089,13 +1089,6 @@ static void check_variables(CoreParameter &coreParam)
 
    g_Config.bTexHardwareScaling = g_Config.sTextureShaderName != "Off";
 
-   if (gpu && (g_Config.iTexScalingType != iTexScalingType_prev
-         || g_Config.iTexScalingLevel != iTexScalingLevel_prev
-         || g_Config.sTextureShaderName != sTextureShaderName_prev))
-   {
-      gpu->NotifyConfigChanged();
-   }
-
    if (g_Config.iLanguage < 0)
       g_Config.iLanguage = get_language_auto();
 
@@ -1117,36 +1110,6 @@ static void check_variables(CoreParameter &coreParam)
    {
       vsyncSwapInterval = 1;
       updateAvInfo = true;
-   }
-
-   if (g_Config.iInternalResolution != iInternalResolution_prev && backend != RETRO_HW_CONTEXT_NONE)
-   {
-      coreParam.pixelWidth  = coreParam.renderWidth  = g_Config.iInternalResolution * NATIVEWIDTH;
-      coreParam.pixelHeight = coreParam.renderHeight = g_Config.iInternalResolution * NATIVEHEIGHT;
-
-      if (gpu)
-      {
-         retro_system_av_info avInfo;
-         retro_get_system_av_info(&avInfo);
-         environ_cb(RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO, &avInfo);
-         updateAvInfo = false;
-         gpu->NotifyDisplayResized();
-      }
-   }
-
-   if (g_Config.bDisplayCropTo16x9 != bDisplayCropTo16x9_prev && PSP_IsInited())
-   {
-      updateGeometry = true;
-      if (gpu)
-         gpu->NotifyDisplayResized();
-   }
-
-   if (g_Config.iMultiSampleLevel != iMultiSampleLevel_prev && PSP_IsInited())
-   {
-      if (gpu)
-      {
-         gpu->NotifyRenderResized();
-      }
    }
 
    if (updateAvInfo)
@@ -1360,6 +1323,7 @@ static void retro_check_backend(void)
 
 bool retro_load_game(const struct retro_game_info *game)
 {
+   printf("Load Game A\n");
    retro_pixel_format fmt = retro_pixel_format::RETRO_PIXEL_FORMAT_XRGB8888;
    if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
    {
@@ -1367,14 +1331,19 @@ bool retro_load_game(const struct retro_game_info *game)
       return false;
    }
 
+   printf("Load Game B\n");
+
    retro_check_backend();
 
    coreState = CORE_POWERUP;
    ctx       = LibretroGraphicsContext::CreateGraphicsContext();
    INFO_LOG(Log::System, "Using %s backend", ctx->Ident());
 
+   printf("Load Game C\n");
    Core_SetGraphicsContext(ctx);
    SetGPUBackend((GPUBackend)g_Config.iGPUBackend);
+
+   printf("Load Game D\n");
 
    // default to interpreter to allow startup in platforms w/o JIT capability
    g_Config.iCpuCore         = (int)CPUCore::INTERPRETER;
@@ -1386,15 +1355,20 @@ bool retro_load_game(const struct retro_game_info *game)
    coreParam.startBreak      = false;
    coreParam.headLess        = true;
    coreParam.graphicsContext = ctx;
-   coreParam.gpuCore         = ctx->GetGPUCore();
+   coreParam.gpuCore = GPUCORE_SOFTWARE;
    check_variables(coreParam);
+
+   printf("Load Game D2\n");
 
    // TODO: OpenGL goes black when inited with software rendering,
    // therefore start without, set back after init, and reset.
-   softwareRenderInitHack    = ctx->GetGPUCore() == GPUCORE_GLES && g_Config.bSoftwareRendering;
+   softwareRenderInitHack = false;
+   printf("Load Game D3\n");
+
+
    if (softwareRenderInitHack)
       g_Config.bSoftwareRendering = false;
-
+   printf("Load Game D3\n");
    // set cpuCore from libretro setting variable
    coreParam.cpuCore         =  (CPUCore)g_Config.iCpuCore;
 
@@ -1407,6 +1381,8 @@ bool retro_load_game(const struct retro_game_info *game)
       return false;
    }
    struct retro_core_option_display option_display;
+
+   printf("Load Game E\n");
 
    // Show/hide 'MSAA' and 'Texture Shader' options, Vulkan only
    option_display.visible = (g_Config.iGPUBackend == (int)GPUBackend::VULKAN);
@@ -1421,7 +1397,9 @@ bool retro_load_game(const struct retro_game_info *game)
    option_display.key = "ppsspp_inflight_frames";
    environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
 
+   printf("Load Game F\n");
    set_variable_visibility();
+   printf("Load Game G\n");
 
    // NOTE: At this point we haven't really booted yet, but "in-game" we'll just keep polling
    // PSP_InitUpdate until done.

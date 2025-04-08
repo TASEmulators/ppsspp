@@ -503,10 +503,13 @@ void PSP_ForceDebugStats(bool enable) {
 }
 
 bool PSP_InitStart(const CoreParameter &coreParam) {
+	printf("InitStartA\n");
 	if (g_bootState != BootState::Off) {
 		ERROR_LOG(Log::System, "Can't start loader thread - already on.");
 		return false;
 	}
+
+	printf("InitStartB\n");
 
 	coreState = CORE_POWERUP;
 
@@ -521,6 +524,8 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 
 	std::string *error_string = &g_CoreParameter.errorString;
 
+	printf("InitStartC\n");
+
 	INFO_LOG(Log::System, "Starting loader thread...");
 
 	SetCurrentThreadName("ExecLoader");
@@ -528,12 +533,16 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 
 	NOTICE_LOG(Log::Boot, "PPSSPP %s", PPSSPP_GIT_VERSION);
 
+	printf("InitStartD\n");
+
 	Core_NotifyLifecycle(CoreLifecycle::STARTING);
 
 	Path filename = g_CoreParameter.fileToStart;
 	FileLoader *loadedFile = ResolveFileLoaderTarget(ConstructFileLoader(filename));
 	IdentifiedFileType type = Identify_File(loadedFile, &g_CoreParameter.errorString);
 	g_CoreParameter.fileType = type;
+
+	printf("InitStartE\n");
 
 	if (System_GetPropertyBool(SYSPROP_ENOUGH_RAM_FOR_FULL_ISO)) {
 		if (g_Config.bCacheFullIsoInRam) {
@@ -551,6 +560,7 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 
 	// TODO: The reason we pass in g_CoreParameter.errorString here is that it's persistent -
 	// it gets written to from the loader thread that gets spawned.
+	printf("InitStartF\n");
 	if (!CPU_Init(loadedFile, type, &g_CoreParameter.errorString)) {
 		CPU_Shutdown(false);
 		coreState = CORE_BOOT_ERROR;
@@ -563,6 +573,8 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 		return false;
 	}
 
+	printf("InitStartG\n");
+
 	if (PSP_CoreParameter().startBreak) {
 		coreState = CORE_STEPPING_CPU;
 		System_Notify(SystemNotification::DEBUG_MODE_CHANGE);
@@ -572,7 +584,7 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 
 	g_bootState = BootState::Complete;
 
-
+	printf("InitStartH\n");
 	return true;
 }
 
