@@ -1323,7 +1323,6 @@ static void retro_check_backend(void)
 
 bool retro_load_game(const struct retro_game_info *game)
 {
-   printf("Load Game A\n");
    retro_pixel_format fmt = retro_pixel_format::RETRO_PIXEL_FORMAT_XRGB8888;
    if (!environ_cb(RETRO_ENVIRONMENT_SET_PIXEL_FORMAT, &fmt))
    {
@@ -1331,19 +1330,14 @@ bool retro_load_game(const struct retro_game_info *game)
       return false;
    }
 
-   printf("Load Game B\n");
-
    retro_check_backend();
 
    coreState = CORE_POWERUP;
    ctx       = LibretroGraphicsContext::CreateGraphicsContext();
    INFO_LOG(Log::System, "Using %s backend", ctx->Ident());
 
-   printf("Load Game C\n");
    Core_SetGraphicsContext(ctx);
    SetGPUBackend((GPUBackend)g_Config.iGPUBackend);
-
-   printf("Load Game D\n");
 
    // default to interpreter to allow startup in platforms w/o JIT capability
    g_Config.iCpuCore         = (int)CPUCore::INTERPRETER;
@@ -1358,18 +1352,14 @@ bool retro_load_game(const struct retro_game_info *game)
    coreParam.gpuCore = GPUCORE_SOFTWARE;
    check_variables(coreParam);
 
-   printf("Load Game D2\n");
-
    // TODO: OpenGL goes black when inited with software rendering,
    // therefore start without, set back after init, and reset.
    softwareRenderInitHack = false;
-   printf("Load Game D3\n");
-
 
    if (softwareRenderInitHack)
       g_Config.bSoftwareRendering = false;
-   printf("Load Game D3\n");
-   // set cpuCore from libretro setting variable
+   
+      // set cpuCore from libretro setting variable
    coreParam.cpuCore         =  (CPUCore)g_Config.iCpuCore;
 
    g_pendingBoot = true;
@@ -1381,8 +1371,6 @@ bool retro_load_game(const struct retro_game_info *game)
       return false;
    }
    struct retro_core_option_display option_display;
-
-   printf("Load Game E\n");
 
    // Show/hide 'MSAA' and 'Texture Shader' options, Vulkan only
    option_display.visible = (g_Config.iGPUBackend == (int)GPUBackend::VULKAN);
@@ -1397,9 +1385,7 @@ bool retro_load_game(const struct retro_game_info *game)
    option_display.key = "ppsspp_inflight_frames";
    environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
 
-   printf("Load Game F\n");
    set_variable_visibility();
-   printf("Load Game G\n");
 
    // NOTE: At this point we haven't really booted yet, but "in-game" we'll just keep polling
    // PSP_InitUpdate until done.
@@ -1703,9 +1689,8 @@ void System_Notify(SystemNotification notification) {
    }
 }
 bool System_MakeRequest(SystemRequestType type, int requestId, const std::string &param1, const std::string &param2, int64_t param3, int64_t param4) { return false; }
-void System_PostUIMessage(UIMessage message, const std::string &param) {}
+void System_PostUIMessage(UIMessage message, const std::string &param) { printf("UI: %s\n", param.c_str()); }
 void System_RunOnMainThread(std::function<void()>) {}
-void NativeFrame(GraphicsContext *graphicsContext) {}
 void NativeResized() {}
 
 void System_Toast(std::string_view str) {}

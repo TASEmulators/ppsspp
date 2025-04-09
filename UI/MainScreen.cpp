@@ -106,19 +106,6 @@ static bool IsTempPath(const Path &str) {
 	item = ReplaceAll(item, "/", "\\");
 #endif
 
-	std::vector<std::string> tempPaths = System_GetPropertyStringVec(SYSPROP_TEMP_DIRS);
-	for (auto temp : tempPaths) {
-#ifdef _WIN32
-		temp = ReplaceAll(temp, "/", "\\");
-		if (!temp.empty() && temp[temp.size() - 1] != '\\')
-			temp += "\\";
-#else
-		if (!temp.empty() && temp[temp.size() - 1] != '/')
-			temp += "/";
-#endif
-		if (startsWith(item, temp))
-			return true;
-	}
 
 	return false;
 }
@@ -520,11 +507,6 @@ GameBrowser::GameBrowser(int token, const Path &path, BrowseFlags browseFlags, b
 	} else {
 		path_.SetRootAlias("ms:/", memstickRoot);
 	}
-	if (System_GetPropertyBool(SYSPROP_LIMITED_FILE_BROWSING) &&
-		(path.Type() == PathType::NATIVE || path.Type() == PathType::CONTENT_URI)) {
-		// Note: We don't restrict if the path is HTTPS, otherwise remote disc streaming breaks!
-		path_.RestrictToRoot(GetSysDirectory(DIRECTORY_MEMSTICK_ROOT));
-	}
 	path_.SetPath(path);
 	Refresh();
 }
@@ -609,30 +591,14 @@ UI::EventReturn GameBrowser::LayoutChange(UI::EventParams &e) {
 }
 
 UI::EventReturn GameBrowser::LastClick(UI::EventParams &e) {
-	System_LaunchUrl(LaunchUrlType::BROWSER_URL, lastLink_.c_str());
 	return UI::EVENT_DONE;
 }
 
 UI::EventReturn GameBrowser::BrowseClick(UI::EventParams &e) {
-	auto mm = GetI18NCategory(I18NCat::MAINMENU);
-	System_BrowseForFolder(token_, mm->T("Choose folder"), path_.GetPath(), [this](const std::string &filename, int) {
-		this->SetPath(Path(filename));
-	});
 	return UI::EVENT_DONE;
 }
 
 UI::EventReturn GameBrowser::StorageClick(UI::EventParams &e) {
-	std::vector<std::string> storageDirs = System_GetPropertyStringVec(SYSPROP_ADDITIONAL_STORAGE_DIRS);
-	if (storageDirs.empty()) {
-		// Shouldn't happen - this button shouldn't be clickable.
-		return UI::EVENT_DONE;
-	}
-	if (storageDirs.size() == 1) {
-		SetPath(Path(storageDirs[0]));
-	} else {
-		// TODO: We should popup a dialog letting the user choose one.
-		SetPath(Path(storageDirs[0]));
-	}
 	return UI::EVENT_DONE;
 }
 
@@ -641,10 +607,6 @@ UI::EventReturn GameBrowser::OnHomeClick(UI::EventParams &e) {
 		Path rootPath = path_.GetPath().GetRootVolume();
 		if (rootPath != path_.GetPath()) {
 			SetPath(rootPath);
-			return UI::EVENT_DONE;
-		}
-		if (System_GetPropertyBool(SYSPROP_ANDROID_SCOPED_STORAGE)) {
-			// There'll be no sensible home, ignore.
 			return UI::EVENT_DONE;
 		}
 	}
@@ -783,9 +745,6 @@ void GameBrowser::Refresh() {
 			topBar->Add(new Spacer(2.0f));
 			topBar->Add(new TextView(path_.GetFriendlyPath(), ALIGN_VCENTER | FLAG_WRAP_TEXT, true, new LinearLayoutParams(FILL_PARENT, 64.0f, 1.0f)));
 			topBar->Add(new Choice(ImageID("I_HOME"), new LayoutParams(WRAP_CONTENT, 64.0f)))->OnClick.Handle(this, &GameBrowser::OnHomeClick);
-			if (System_GetPropertyBool(SYSPROP_HAS_ADDITIONAL_STORAGE)) {
-				topBar->Add(new Choice(ImageID("I_SDCARD"), new LayoutParams(WRAP_CONTENT, 64.0f)))->OnClick.Handle(this, &GameBrowser::StorageClick);
-			}
 #if PPSSPP_PLATFORM(IOS_APP_STORE)
 			// Don't show a browse button, not meaningful to browse outside the documents folder it seems,
 			// as we can't list things like document folders of another app, as far as I can tell.
@@ -795,20 +754,6 @@ void GameBrowser::Refresh() {
 			// we show just the image, because we don't need to emphasize the button on Darwin
 			topBar->Add(new Choice(ImageID("I_FOLDER_OPEN"), new LayoutParams(WRAP_CONTENT, 64.0f)))->OnClick.Handle(this, &GameBrowser::BrowseClick);
 #else
-			if ((browseFlags_ & BrowseFlags::BROWSE) && System_GetPropertyBool(SYSPROP_HAS_FOLDER_BROWSER)) {
-				// Collapse the button title on very small screens (Retroid Pocket).
-				std::string_view browseTitle = g_display.pixel_xres <= 640 ? "" : mm->T("Browse");
-				topBar->Add(new Choice(browseTitle, ImageID("I_FOLDER_OPEN"), new LayoutParams(WRAP_CONTENT, 64.0f)))->OnClick.Handle(this, &GameBrowser::BrowseClick);
-			}
-			if (System_GetPropertyInt(SYSPROP_DEVICE_TYPE) == DEVICE_TYPE_TV) {
-				topBar->Add(new Choice(mm->T("Enter Path"), new LayoutParams(WRAP_CONTENT, 64.0f)))->OnClick.Add([=](UI::EventParams &) {
-					auto mm = GetI18NCategory(I18NCat::MAINMENU);
-					System_InputBoxGetString(token_, mm->T("Enter Path"), path_.GetPath().ToString(), false, [=](const char *responseString, int responseValue) {
-						this->SetPath(Path(responseString));
-					});
-					return UI::EVENT_DONE;
-				});
-			}
 #endif
 		} else {
 			topBar->Add(new Spacer(new LinearLayoutParams(FILL_PARENT, 64.0f, 1.0f)));
@@ -1079,8 +1024,6 @@ UI::EventReturn GameBrowser::GridSettingsClick(UI::EventParams &e) {
 }
 
 UI::EventReturn GameBrowser::OnRecentClear(UI::EventParams &e) {
-	screenManager_->RecreateAllViews();
-	System_Notify(SystemNotification::UI);
 	return UI::EVENT_DONE;
 }
 
@@ -1115,9 +1058,8 @@ void MainScreen::CreateViews() {
 	tabHolder_->SetClip(true);
 
 	bool showRecent = g_Config.iMaxRecent > 0;
-	bool hasStorageAccess = !System_GetPropertyBool(SYSPROP_SUPPORTS_PERMISSIONS) ||
-		System_GetPermissionStatus(SYSTEM_PERMISSION_STORAGE) == PERMISSION_STATUS_GRANTED;
-	bool storageIsTemporary = IsTempPath(GetSysDirectory(DIRECTORY_SAVEDATA)) && !confirmedTemporary_;
+	bool hasStorageAccess = false;
+	bool storageIsTemporary = false;
 	if (showRecent && !hasStorageAccess) {
 		showRecent = g_recentFiles.HasAny();
 	}
@@ -1274,11 +1216,6 @@ void MainScreen::CreateViews() {
 
 	rightColumnItems->SetSpacing(0.0f);
 	AnchorLayout *logos = new AnchorLayout(new AnchorLayoutParams(FILL_PARENT, 60.0f, false));
-	if (System_GetPropertyBool(SYSPROP_APP_GOLD)) {
-		logos->Add(new ImageView(ImageID("I_ICONGOLD"), "", IS_DEFAULT, new AnchorLayoutParams(64, 64, 0, 0, NONE, NONE, false)));
-	} else {
-		logos->Add(new ImageView(ImageID("I_ICON"), "", IS_DEFAULT, new AnchorLayoutParams(64, 64, 0, 0, NONE, NONE, false)));
-	}
 	logos->Add(new ImageView(ImageID("I_LOGO"), "PPSSPP", IS_DEFAULT, new AnchorLayoutParams(180, 64, 64, -5.0f, NONE, NONE, false)));
 
 #if !defined(MOBILE_DEVICE)
@@ -1295,7 +1232,6 @@ void MainScreen::CreateViews() {
 	ver->SetClip(false);
 	ver->OnClick.Add([](UI::EventParams &e) {
 		auto di = GetI18NCategory(I18NCat::DIALOG);
-		System_CopyStringToClipboard(PPSSPP_GIT_VERSION);
 		g_OSD.Show(OSDType::MESSAGE_INFO, ApplySafeSubstitutions(di->T("Copied to clipboard: %1"), PPSSPP_GIT_VERSION));
 		return UI::EVENT_DONE;
 	});
@@ -1307,20 +1243,11 @@ void MainScreen::CreateViews() {
 		rightColumnScroll->Add(rightColumnChoices);
 		rightColumnItems->Add(rightColumnScroll);
 	}
-
-	if (System_GetPropertyBool(SYSPROP_HAS_FILE_BROWSER)) {
-		rightColumnChoices->Add(new Choice(mm->T("Load", "Load...")))->OnClick.Handle(this, &MainScreen::OnLoadFile);
-	}
 	rightColumnChoices->Add(new Choice(mm->T("Game Settings", "Settings")))->OnClick.Handle(this, &MainScreen::OnGameSettings);
 	rightColumnChoices->Add(new Choice(mm->T("Credits")))->OnClick.Handle(this, &MainScreen::OnCredits);
 
 	if (!vertical) {
 		rightColumnChoices->Add(new Choice(mm->T("www.ppsspp.org")))->OnClick.Handle(this, &MainScreen::OnPPSSPPOrg);
-		if (!System_GetPropertyBool(SYSPROP_APP_GOLD) && (System_GetPropertyInt(SYSPROP_DEVICE_TYPE) != DEVICE_TYPE_VR)) {
-			Choice *gold = rightColumnChoices->Add(new Choice(mm->T("Buy PPSSPP Gold")));
-			gold->OnClick.Handle(this, &MainScreen::OnSupport);
-			gold->SetIcon(ImageID("I_ICONGOLD"), 0.5f);
-		}
 	}
 
 	rightColumnChoices->Add(new Spacer(25.0));
@@ -1378,43 +1305,21 @@ void MainScreen::CreateViews() {
 }
 
 bool MainScreen::key(const KeyInput &touch) {
-	if (touch.flags & KEY_DOWN) {
-		if (touch.keyCode == NKCODE_CTRL_LEFT || touch.keyCode == NKCODE_CTRL_RIGHT)
-			searchKeyModifier_ = true;
-		if (touch.keyCode == NKCODE_F && searchKeyModifier_ && System_GetPropertyBool(SYSPROP_HAS_TEXT_INPUT_DIALOG)) {
-			auto se = GetI18NCategory(I18NCat::SEARCH);
-			System_InputBoxGetString(GetRequesterToken(), se->T("Search term"), searchFilter_, false, [&](const std::string &value, int) {
-				searchFilter_ = StripSpaces(value);
-				searchChanged_ = true;
-			});
-		}
-	} else if (touch.flags & KEY_UP) {
-		if (touch.keyCode == NKCODE_CTRL_LEFT || touch.keyCode == NKCODE_CTRL_RIGHT)
-			searchKeyModifier_ = false;
-	}
 
 	return UIScreenWithBackground::key(touch);
 }
 
 UI::EventReturn MainScreen::OnAllowStorage(UI::EventParams &e) {
-	System_AskForPermission(SYSTEM_PERMISSION_STORAGE);
 	return UI::EVENT_DONE;
 }
 
 UI::EventReturn MainScreen::OnDownloadUpgrade(UI::EventParams &e) {
 #if PPSSPP_PLATFORM(ANDROID)
 	// Go to app store
-	if (System_GetPropertyBool(SYSPROP_APP_GOLD)) {
-		System_LaunchUrl(LaunchUrlType::BROWSER_URL, "market://details?id=org.ppsspp.ppssppgold");
-	} else {
-		System_LaunchUrl(LaunchUrlType::BROWSER_URL, "market://details?id=org.ppsspp.ppsspp");
-	}
 #elif PPSSPP_PLATFORM(WINDOWS)
-	System_LaunchUrl(LaunchUrlType::BROWSER_URL, "https://www.ppsspp.org/download");
 #else
 	// Go directly to ppsspp.org and let the user sort it out
 	// (for details and in case downloads doesn't have their platform.)
-	System_LaunchUrl(LaunchUrlType::BROWSER_URL, "https://www.ppsspp.org/");
 #endif
 	return UI::EVENT_DONE;
 }
@@ -1452,12 +1357,6 @@ void MainScreen::update() {
 }
 
 UI::EventReturn MainScreen::OnLoadFile(UI::EventParams &e) {
-	if (System_GetPropertyBool(SYSPROP_HAS_FILE_BROWSER)) {
-		auto mm = GetI18NCategory(I18NCat::MAINMENU);
-		System_BrowseForFile(GetRequesterToken(), mm->T("Load"), BrowseFileType::BOOTABLE, [](const std::string &value, int) {
-			System_PostUIMessage(UIMessage::REQUEST_GAME_BOOT, value);
-		});
-	}
 	return UI::EVENT_DONE;
 }
 
@@ -1469,7 +1368,6 @@ UI::EventReturn MainScreen::OnFullScreenToggle(UI::EventParams &e) {
 	}
 #if !defined(MOBILE_DEVICE)
 	g_Config.bFullScreen = !g_Config.bFullScreen;
-	System_ToggleFullscreenState("");
 #endif
 	return UI::EVENT_DONE;
 }
@@ -1586,33 +1484,21 @@ UI::EventReturn MainScreen::OnCredits(UI::EventParams &e) {
 
 UI::EventReturn MainScreen::OnSupport(UI::EventParams &e) {
 #if PPSSPP_PLATFORM(IOS_APP_STORE)
-	System_LaunchUrl(LaunchUrlType::BROWSER_URL, "https://apps.apple.com/us/app/ppsspp-gold-psp-emulator/id6502287918");
 #elif PPSSPP_PLATFORM(ANDROID)
-	System_LaunchUrl(LaunchUrlType::BROWSER_URL, "market://details?id=org.ppsspp.ppssppgold");
 #else
-	System_LaunchUrl(LaunchUrlType::BROWSER_URL, "https://www.ppsspp.org/buygold");
 #endif
 	return UI::EVENT_DONE;
 }
 
 UI::EventReturn MainScreen::OnPPSSPPOrg(UI::EventParams &e) {
-	System_LaunchUrl(LaunchUrlType::BROWSER_URL, "https://www.ppsspp.org");
 	return UI::EVENT_DONE;
 }
 
 UI::EventReturn MainScreen::OnForums(UI::EventParams &e) {
-	System_LaunchUrl(LaunchUrlType::BROWSER_URL, "https://forums.ppsspp.org");
 	return UI::EVENT_DONE;
 }
 
 UI::EventReturn MainScreen::OnExit(UI::EventParams &e) {
-	// Let's make sure the config was saved, since it may not have been.
-	if (!g_Config.Save("MainScreen::OnExit")) {
-		System_Toast("Failed to save settings!\nCheck permissions, or try to restart the device.");
-	}
-
-	// Request the framework to exit cleanly.
-	System_ExitApp();
 
 	UpdateUIState(UISTATE_EXIT);
 	return UI::EVENT_DONE;
@@ -1691,17 +1577,6 @@ void UmdReplaceScreen::CreateViews() {
 	tabAllGames->OnChoice.Handle(this, &UmdReplaceScreen::OnGameSelected);
 
 	tabAllGames->OnHoldChoice.Handle(this, &UmdReplaceScreen::OnGameSelected);
-
-	if (System_GetPropertyBool(SYSPROP_HAS_FILE_BROWSER)) {
-		rightColumnItems->Add(new Choice(mm->T("Load", "Load...")))->OnClick.Add([&](UI::EventParams &e) {
-			auto mm = GetI18NCategory(I18NCat::MAINMENU);
-			System_BrowseForFile(GetRequesterToken(), mm->T("Load"), BrowseFileType::BOOTABLE, [this](const std::string &value, int) {
-				__UmdReplace(Path(value));
-				TriggerFinish(DR_OK);
-			});
-			return EVENT_DONE;
-		});
-	}
 
 	rightColumnItems->Add(new Choice(di->T("Cancel")))->OnClick.Handle<UIScreen>(this, &UIScreen::OnCancel);
 	rightColumnItems->Add(new Spacer());

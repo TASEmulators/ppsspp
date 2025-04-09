@@ -163,12 +163,6 @@ bool RemoteISOConnectScreen::FindServer(std::string &resultHost, int &resultPort
 		for (const std::string &item : items) {
 			if (item.empty())
 				continue;
-			if (!RemoteISOFileSupported(item)) {
-				if (item.back() != '/') {
-					// We accept lists of just directories - we kinda have to.
-					continue;
-				}
-			}
 			supported = true;
 			break;
 		}
@@ -263,11 +257,6 @@ static bool LoadGameList(const Path &url, std::vector<Path> &games) {
 	if (scanCancelled) {
 		return false;
 	}
-	for (auto &file : files) {
-		if (file.isDirectory || RemoteISOFileSupported(file.name)) {
-			games.push_back(file.fullName);
-		}
-	}
 
 	return !games.empty();
 }
@@ -290,25 +279,6 @@ void RemoteISOScreen::CreateTabs() {
 
 void RemoteISOScreen::update() {
 	TabbedUIDialogScreenWithGameBackground::update();
-
-	if (!WebServerStopped(WebServerFlags::DISCS)) {
-		auto result = IsServerAllowed(g_Config.iRemoteISOPort);
-		if (result == ServerAllowStatus::NO) {
-			firewallWarning_->SetVisibility(V_VISIBLE);
-		} else if (result == ServerAllowStatus::YES) {
-			firewallWarning_->SetVisibility(V_GONE);
-		}
-	}
-
-	bool nowRunning = !WebServerStopped(WebServerFlags::DISCS);
-	if (serverStopping_ && !nowRunning) {
-		serverStopping_ = false;
-	}
-
-	if (serverRunning_ != nowRunning) {
-		RecreateViews();
-	}
-	serverRunning_ = nowRunning;
 }
 
 void RemoteISOScreen::CreateConnectTab(UI::ViewGroup *tab) {
@@ -341,14 +311,7 @@ void RemoteISOScreen::CreateConnectTab(UI::ViewGroup *tab) {
 
 	rightColumnItems->SetSpacing(0.0f);
 	Choice *browseChoice = new Choice(ri->T("Browse Games"));
-	rightColumnItems->Add(browseChoice)->OnClick.Handle(this, &RemoteISOScreen::HandleBrowse);
-	if (WebServerStopping(WebServerFlags::DISCS)) {
-		rightColumnItems->Add(new Choice(ri->T("Stopping..")))->SetDisabledPtr(&serverStopping_);
-		browseChoice->SetEnabled(false);
-	} else if (!WebServerStopped(WebServerFlags::DISCS)) {
-		rightColumnItems->Add(new Choice(ri->T("Stop Sharing")))->OnClick.Handle(this, &RemoteISOScreen::HandleStopServer);
-		browseChoice->SetEnabled(false);
-	} else {
+	rightColumnItems->Add(browseChoice)->OnClick.Handle(this, &RemoteISOScreen::HandleBrowse);{
 		rightColumnItems->Add(new Choice(ri->T("Share Games (Server)")))->OnClick.Handle(this, &RemoteISOScreen::HandleStartServer);
 		browseChoice->SetEnabled(true);
 	}
@@ -363,8 +326,6 @@ void RemoteISOScreen::CreateConnectTab(UI::ViewGroup *tab) {
 }
 
 void RemoteISOScreen::CreateSettingsTab(UI::ViewGroup *remoteisoSettings) {
-	serverRunning_ = !WebServerStopped(WebServerFlags::DISCS);
-
 	auto ri = GetI18NCategory(I18NCat::REMOTEISO);
 
 	remoteisoSettings->Add(new ItemHeader(ri->T("Remote disc streaming")));
@@ -422,17 +383,11 @@ UI::EventReturn RemoteISOScreen::OnChangeRemoteISOSubdir(UI::EventParams &e) {
 }
 
 UI::EventReturn RemoteISOScreen::HandleStartServer(UI::EventParams &e) {
-	if (!StartWebServer(WebServerFlags::DISCS)) {
-		return EVENT_SKIPPED;
-	}
 
 	return EVENT_DONE;
 }
 
 UI::EventReturn RemoteISOScreen::HandleStopServer(UI::EventParams &e) {
-	if (!StopWebServer(WebServerFlags::DISCS)) {
-		return EVENT_SKIPPED;
-	}
 
 	serverStopping_ = true;
 	RecreateViews();

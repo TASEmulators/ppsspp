@@ -489,10 +489,7 @@ static bool LoadReplacementImage(GameInfo *info, GameInfoTex *tex, const char *f
 	if (ReadLocalFileToString(customIconFilename, &tex->data, &info->lock)) {
 		tex->dataLoaded = true;
 		return true;
-	} else if (ReadSingleFileFromZip(zipFilename, filename, &tex->data, &info->lock)) {
-		tex->dataLoaded = true;
-		return true;
-	} else {
+	}  else {
 		return false;
 	}
 }

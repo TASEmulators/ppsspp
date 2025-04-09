@@ -55,7 +55,6 @@
 #include "UI/GPUDriverTestScreen.h"
 #include "UI/MemStickScreen.h"
 #include "UI/Theme.h"
-#include "UI/RetroAchievementScreens.h"
 #include "UI/OnScreenDisplay.h"
 #include "UI/DiscordIntegration.h"
 #include "UI/BackgroundAudio.h"
@@ -144,18 +143,7 @@ GameSettingsScreen::GameSettingsScreen(const Path &gamePath, std::string gameID,
 // This needs before run CheckGPUFeatures()
 // TODO: Remove this if fix the issue
 bool CheckSupportShaderTessellationGLES() {
-#if PPSSPP_PLATFORM(UWP)
-	return true;
-#else
-	// TODO: Make work with non-GL backends
-	int maxVertexTextureImageUnits = gl_extensions.maxVertexTextureUnits;
-	bool vertexTexture = maxVertexTextureImageUnits >= 3; // At least 3 for hardware tessellation
-
-	bool textureFloat = gl_extensions.ARB_texture_float || gl_extensions.OES_texture_float;
-	bool hasTexelFetch = gl_extensions.GLES3 || (!gl_extensions.IsGLES && gl_extensions.VersionGEThan(3, 3, 0)) || gl_extensions.EXT_gpu_shader4;
-
-	return vertexTexture && textureFloat && hasTexelFetch;
-#endif
+	return false;
 }
 
 bool DoesBackendSupportHWTess() {
@@ -559,10 +547,6 @@ void GameSettingsScreen::CreateGraphicsSettings(UI::ViewGroup *graphicsSettings)
 	});
 	PopupMultiChoice *texScalingChoice = graphicsSettings->Add(new PopupMultiChoice(&g_Config.iTexScalingLevel, gr->T("Upscale Level"), texScaleLevels, 1, ARRAY_SIZE(texScaleLevels), I18NCat::GRAPHICS, screenManager()));
 	// TODO: Better check?  When it won't work, it scales down anyway.
-	if (!gl_extensions.OES_texture_npot && GetGPUBackend() == GPUBackend::OPENGL) {
-		texScalingChoice->HideChoice(3); // 3x
-		texScalingChoice->HideChoice(5); // 5x
-	}
 	texScalingChoice->OnChoice.Add([=](EventParams &e) {
 		if (g_Config.iTexScalingLevel != 1 && !UsingHardwareTextureScaling()) {
 			settingInfo_->Show(gr->T("UpscaleLevel Tip", "CPU heavy - some scaling may be delayed to avoid stutter"), e.v);
@@ -1062,16 +1046,6 @@ void GameSettingsScreen::CreateToolsSettings(UI::ViewGroup *tools) {
 	tools->Add(new ItemHeader(ms->T("Tools")));
 
 	const bool showRetroAchievements = System_GetPropertyInt(SYSPROP_DEVICE_TYPE) != DEVICE_TYPE_VR;
-	if (showRetroAchievements) {
-		auto retro = tools->Add(new Choice(sy->T("RetroAchievements")));
-		retro->OnClick.Add([=](UI::EventParams &) -> UI::EventReturn {
-			screenManager()->push(new RetroAchievementsSettingsScreen(gamePath_));
-			return UI::EVENT_DONE;
-		});
-		retro->SetIcon(ImageID("I_RETROACHIEVEMENTS_LOGO"));
-	}
-
-	// These were moved here so use the wrong translation objects, to avoid having to change all inis... This isn't a sustainable situation :P
 	tools->Add(new Choice(sa->T("Savedata Manager")))->OnClick.Add([=](UI::EventParams &) {
 		screenManager()->push(new SavedataScreen(gamePath_));
 		return UI::EVENT_DONE;
@@ -1442,7 +1416,6 @@ UI::EventReturn GameSettingsScreen::OnScreenRotation(UI::EventParams &e) {
 UI::EventReturn GameSettingsScreen::OnAdhocGuides(UI::EventParams &e) {
 	auto n = GetI18NCategory(I18NCat::NETWORKING);
 	std::string url(n->T("MultiplayerHowToURL", "https://github.com/hrydgard/ppsspp/wiki/How-to-play-multiplayer-games-with-PPSSPP"));
-	System_LaunchUrl(LaunchUrlType::BROWSER_URL, url.c_str());
 	return UI::EVENT_DONE;
 }
 
@@ -1910,7 +1883,6 @@ void DeveloperToolsScreen::CreateViews() {
 	Choice *cpuTests = new Choice(dev->T("Run CPU Tests"));
 	list->Add(cpuTests)->OnClick.Handle(this, &DeveloperToolsScreen::OnRunCPUTests);
 
-	cpuTests->SetEnabled(TestsAvailable());
 #endif
 
 	list->Add(new CheckBox(&g_Config.bUseOldAtrac, dev->T("Use the old sceAtrac implementation")));
@@ -1950,8 +1922,6 @@ void DeveloperToolsScreen::CreateViews() {
 	list->Add(new Choice(dev->T("Touchscreen Test")))->OnClick.Handle(this, &DeveloperToolsScreen::OnTouchscreenTest);
 	// list->Add(new Choice(dev->T("Memstick Test")))->OnClick.Handle(this, &DeveloperToolsScreen::OnMemstickTest);
 
-	allowDebugger_ = !WebServerStopped(WebServerFlags::DEBUGGER);
-	canAllowDebugger_ = !WebServerStopping(WebServerFlags::DEBUGGER);
 	CheckBox *allowDebugger = new CheckBox(&allowDebugger_, dev->T("Allow remote debugger"));
 	list->Add(allowDebugger)->OnClick.Handle(this, &DeveloperToolsScreen::OnRemoteDebugger);
 	allowDebugger->SetEnabledPtr(&canAllowDebugger_);
@@ -2071,20 +2041,10 @@ void DeveloperToolsScreen::CreateViews() {
 		// If the above if fails, the checkbox is redundant since it'll be force disabled anyway.
 		list->Add(new CheckBox(&g_Config.bUberShaderVertex, dev->T("Vertex")));
 	}
-#if !PPSSPP_PLATFORM(UWP)
-	if (g_Config.iGPUBackend != (int)GPUBackend::OPENGL || gl_extensions.GLES3) {
-#else
 	{
-#endif
 		list->Add(new CheckBox(&g_Config.bUberShaderFragment, dev->T("Fragment")));
 	}
 
-	// Experimental, allow some VR features without OpenXR
-	if (GetGPUBackend() == GPUBackend::OPENGL) {
-		auto vr = GetI18NCategory(I18NCat::VR);
-		list->Add(new ItemHeader(vr->T("Virtual reality")));
-		list->Add(new CheckBox(&g_Config.bForceVR, vr->T("VR camera")));
-	}
 
 	// Experimental, will move to main graphics settings later.
 	bool multiViewSupported = draw->GetDeviceCaps().multiViewSupported;
@@ -2172,9 +2132,6 @@ UI::EventReturn DeveloperToolsScreen::OnLoggingChanged(UI::EventParams &e) {
 
 UI::EventReturn DeveloperToolsScreen::OnRunCPUTests(UI::EventParams &e) {
 	// TODO: If game is loaded, don't do anything.
-#if !PPSSPP_PLATFORM(UWP)
-	RunTests();
-#endif
 	return UI::EVENT_DONE;
 }
 
@@ -2244,11 +2201,6 @@ UI::EventReturn DeveloperToolsScreen::OnCopyStatesToRoot(UI::EventParams &e) {
 }
 
 UI::EventReturn DeveloperToolsScreen::OnRemoteDebugger(UI::EventParams &e) {
-	if (allowDebugger_) {
-		StartWebServer(WebServerFlags::DEBUGGER);
-	} else {
-		StopWebServer(WebServerFlags::DEBUGGER);
-	}
 	// Persist the setting.  Maybe should separate?
 	g_Config.bRemoteDebuggerOnStartup = allowDebugger_;
 	return UI::EVENT_DONE;
@@ -2300,8 +2252,6 @@ UI::EventReturn DeveloperToolsScreen::OnMIPSTracerClearTracer(UI::EventParams &e
 
 void DeveloperToolsScreen::update() {
 	UIDialogScreenWithBackground::update();
-	allowDebugger_ = !WebServerStopped(WebServerFlags::DEBUGGER);
-	canAllowDebugger_ = !WebServerStopping(WebServerFlags::DEBUGGER);
 }
 
 static bool RunMemstickTest(std::string *error) {

@@ -71,7 +71,6 @@ using namespace std::placeholders;
 #include "Core/HLE/sceNet.h"
 #include "Core/HLE/sceNetAdhoc.h"
 #include "Core/Debugger/SymbolMap.h"
-#include "Core/RetroAchievements.h"
 #include "Core/SaveState.h"
 #include "UI/ImDebugger/ImDebugger.h"
 #include "Core/HLE/__sceAudio.h"
@@ -123,7 +122,6 @@ static void AssertCancelCallback(const char *message, void *userdata) {
 	g_Config.bShowImDebugger = true;
 
 	EmuScreen *emuScreen = (EmuScreen *)userdata;
-	emuScreen->SendImDebuggerCommand(ImCommand{ ImCmd::SHOW_IN_CPU_DISASM, currentMIPS->pc });
 }
 
 static void __EmuScreenVblank()
@@ -138,17 +136,14 @@ static void __EmuScreenVblank()
 #ifndef MOBILE_DEVICE
 	if (g_Config.bDumpFrames && !startDumping)
 	{
-		avi.Start(PSP_CoreParameter().renderWidth, PSP_CoreParameter().renderHeight);
 		g_OSD.Show(OSDType::MESSAGE_INFO, sy->T("AVI Dump started."), 1.0f);
 		startDumping = true;
 	}
 	if (g_Config.bDumpFrames && startDumping)
 	{
-		avi.AddFrame();
 	}
 	else if (!g_Config.bDumpFrames && startDumping)
 	{
-		avi.Stop();
 		g_OSD.Show(OSDType::MESSAGE_INFO, sy->T("AVI Dump stopped."), 1.0f);
 		startDumping = false;
 	}
@@ -222,34 +217,10 @@ bool EmuScreen::bootAllowStorage(const Path &filename) {
 	if (!System_GetPropertyBool(SYSPROP_SUPPORTS_PERMISSIONS))
 		return true;
 
-	PermissionStatus status = System_GetPermissionStatus(SYSTEM_PERMISSION_STORAGE);
-	switch (status) {
-	case PERMISSION_STATUS_UNKNOWN:
-		System_AskForPermission(SYSTEM_PERMISSION_STORAGE);
-		return false;
-
-	case PERMISSION_STATUS_DENIED:
-		screenManager()->switchScreen(new MainScreen());
-		return false;
-
-	case PERMISSION_STATUS_PENDING:
-		// Keep waiting.
-		return false;
-
-	case PERMISSION_STATUS_GRANTED:
-		return true;
-	}
-
-	_assert_(false);
 	return false;
 }
 
 void EmuScreen::bootGame(const Path &filename) {
-	if (Achievements::IsBlockingExecution()) {
-		// Keep waiting.
-		return;
-	}
-
 	std::string error_string = "(unknown error)";
 	BootState state = PSP_InitUpdate(&error_string);
 
@@ -373,10 +344,6 @@ void EmuScreen::bootComplete() {
 	System_Notify(SystemNotification::DISASSEMBLY);
 
 	NOTICE_LOG(Log::Boot, "Booted %s...", PSP_CoreParameter().fileToStart.c_str());
-	if (!Achievements::HardcoreModeActive()) {
-		// Don't auto-load savestates in hardcore mode.
-		autoLoad();
-	}
 
 #ifndef MOBILE_DEVICE
 	if (g_Config.bFirstRun) {
@@ -385,18 +352,6 @@ void EmuScreen::bootComplete() {
 #endif
 
 #if !PPSSPP_PLATFORM(UWP)
-	if (GetGPUBackend() == GPUBackend::OPENGL) {
-		const char *renderer = gl_extensions.model;
-		if (strstr(renderer, "Chainfire3D") != 0) {
-			g_OSD.Show(OSDType::MESSAGE_WARNING, sc->T("Chainfire3DWarning", "WARNING: Chainfire3D detected, may cause problems"), 10.0f);
-		} else if (strstr(renderer, "GLTools") != 0) {
-			g_OSD.Show(OSDType::MESSAGE_WARNING, sc->T("GLToolsWarning", "WARNING: GLTools detected, may cause problems"), 10.0f);
-		}
-
-		if (g_Config.bGfxDebugOutput) {
-			g_OSD.Show(OSDType::MESSAGE_WARNING, "WARNING: GfxDebugOutput is enabled via ppsspp.ini. Things may be slow.", 10.0f);
-		}
-	}
 #endif
 
 	if (Core_GetPowerSaving()) {
@@ -426,10 +381,6 @@ void EmuScreen::bootComplete() {
 }
 
 EmuScreen::~EmuScreen() {
-	if (imguiInited_) {
-		ImGui_ImplThin3d_Shutdown();
-		ImGui::DestroyContext(ctx_);
-	}
 
 	std::string gameID = g_paramSFO.GetValueString("DISC_ID");
 	g_Config.TimeTracker().Stop(gameID);
@@ -448,7 +399,6 @@ EmuScreen::~EmuScreen() {
 #ifndef MOBILE_DEVICE
 	if (g_Config.bDumpFrames && startDumping)
 	{
-		avi.Stop();
 		g_OSD.Show(OSDType::MESSAGE_INFO, "AVI Dump stopped.", 2.0f);
 		startDumping = false;
 	}
@@ -777,8 +727,6 @@ void EmuScreen::onVKey(VirtKey virtualKeyCode, bool down) {
 				// This hotkey should always toggle both audio and video together.
 				// So let's make sure that's the only outcome even if video OR audio was already being dumped.
 				if (g_Config.bDumpFrames) {
-					AVIDump::Stop();
-					AVIDump::Start(PSP_CoreParameter().renderWidth, PSP_CoreParameter().renderHeight);
 					g_Config.bDumpAudio = true;
 				} else {
 					WAVDump::Reset();
@@ -789,37 +737,6 @@ void EmuScreen::onVKey(VirtKey virtualKeyCode, bool down) {
 		break;
 #endif
 
-	case VIRTKEY_REWIND:
-		if (down && !Achievements::WarnUserIfHardcoreModeActive(false) && !NetworkWarnUserIfOnlineAndCantSavestate()) {
-			if (SaveState::CanRewind()) {
-				SaveState::Rewind(&AfterSaveStateAction);
-			} else {
-				g_OSD.Show(OSDType::MESSAGE_WARNING, sc->T("norewind", "No rewind save states available"), 2.0);
-			}
-		}
-		break;
-	case VIRTKEY_SAVE_STATE:
-		if (down && !Achievements::WarnUserIfHardcoreModeActive(true) && !NetworkWarnUserIfOnlineAndCantSavestate()) {
-			SaveState::SaveSlot(gamePath_, g_Config.iCurrentStateSlot, &AfterSaveStateAction);
-		}
-		break;
-	case VIRTKEY_LOAD_STATE:
-		if (down && !Achievements::WarnUserIfHardcoreModeActive(false) && !NetworkWarnUserIfOnlineAndCantSavestate()) {
-			SaveState::LoadSlot(gamePath_, g_Config.iCurrentStateSlot, &AfterSaveStateAction);
-		}
-		break;
-	case VIRTKEY_PREVIOUS_SLOT:
-		if (down && !Achievements::WarnUserIfHardcoreModeActive(true) && !NetworkWarnUserIfOnlineAndCantSavestate()) {
-			SaveState::PrevSlot();
-			System_PostUIMessage(UIMessage::SAVESTATE_DISPLAY_SLOT);
-		}
-		break;
-	case VIRTKEY_NEXT_SLOT:
-		if (down && !Achievements::WarnUserIfHardcoreModeActive(true) && !NetworkWarnUserIfOnlineAndCantSavestate()) {
-			SaveState::NextSlot();
-			System_PostUIMessage(UIMessage::SAVESTATE_DISPLAY_SLOT);
-		}
-		break;
 	case VIRTKEY_SCREENSHOT:
 		if (down)
 			g_TakeScreenshot = true;
@@ -1581,93 +1498,32 @@ ScreenRenderFlags EmuScreen::render(ScreenRenderMode mode) {
 
 	PSP_UpdateDebugStats((DebugOverlay)g_Config.iDebugOverlay == DebugOverlay::DEBUG_STATS || g_Config.bLogFrameDrops);
 
-	if (doFrameAdvance_.exchange(false)) {
-		if (!Achievements::WarnUserIfHardcoreModeActive(false)) {
-			// If game is running, pause emulation immediately. Otherwise, advance a single frame.
-			if (Core_IsStepping()) {
-				frameStep_ = true;
-				Core_Resume();
-			} else if (!frameStep_) {
-				lastNumFlips = gpuStats.numFlips;
-				Core_Break(BreakReason::FrameAdvance, 0);
-			}
-		}
-	}
+	// if (doFrameAdvance_.exchange(false)) {
+	// 	if (!Achievements::WarnUserIfHardcoreModeActive(false)) {
+	// 		// If game is running, pause emulation immediately. Otherwise, advance a single frame.
+	// 		if (Core_IsStepping()) {
+	// 			frameStep_ = true;
+	// 			Core_Resume();
+	// 		} else if (!frameStep_) {
+	// 			lastNumFlips = gpuStats.numFlips;
+	// 			Core_Break(BreakReason::FrameAdvance, 0);
+	// 		}
+	// 	}
+	// }
 
 	// Running it early allows things like direct readbacks of buffers, things we can't do
 	// when we have started the final render pass. Well, technically we probably could with some manipulation
 	// of pass order in the render managers..
-	runImDebugger();
-
-	bool blockedExecution = Achievements::IsBlockingExecution();
-	uint32_t clearColor = 0;
-	if (!blockedExecution) {
-		PSP_BeginHostFrame();
-		if (SaveState::Process()) {
-			// We might have lost the framebuffer bind if we had one, due to a readback.
-			if (framebufferBound) {
-				draw->BindFramebufferAsRenderTarget(nullptr, { RPAction::CLEAR, RPAction::CLEAR, RPAction::CLEAR, clearColor }, "EmuScreen_SavestateRebind");
-			}
-		}
-		PSP_RunLoopWhileState();
-
-		// Hopefully, after running, coreState is now CORE_NEXTFRAME
-		switch (coreState) {
-		case CORE_NEXTFRAME:
-			// Reached the end of the frame while running at full blast, all good. Set back to running for the next frame
-			coreState = CORE_RUNNING_CPU;
-			flags |= ScreenRenderFlags::HANDLED_THROTTLING;
-			break;
-		case CORE_STEPPING_CPU:
-		case CORE_STEPPING_GE:
-		case CORE_RUNTIME_ERROR:
-		{
-			// If there's an exception, display information.
-			const MIPSExceptionInfo &info = Core_GetExceptionInfo();
-			if (info.type != MIPSExceptionType::NONE) {
-				// Clear to blue background screen
-				bool dangerousSettings = !Reporting::IsSupported();
-				clearColor = dangerousSettings ? 0xFF900050 : 0xFF900000;
-				draw->BindFramebufferAsRenderTarget(nullptr, { RPAction::CLEAR, RPAction::CLEAR, RPAction::CLEAR, clearColor }, "EmuScreen_RuntimeError");
-				framebufferBound = true;
-				// The info is drawn later in renderUI
-			} else {
-				// If we're stepping, it's convenient not to clear the screen entirely, so we copy display to output.
-				// This won't work in non-buffered, but that's fine.
-				if (!framebufferBound && PSP_IsInited()) {
-					// draw->BindFramebufferAsRenderTarget(nullptr, { RPAction::CLEAR, RPAction::CLEAR, RPAction::CLEAR, clearColor }, "EmuScreen_Stepping");
-					gpu->CopyDisplayToOutput(true);
-					framebufferBound = true;
-				}
-			}
-			break;
-		}
-		default:
-			// Didn't actually reach the end of the frame, ran out of the blockTicks cycles.
-			// In this case we need to bind and wipe the backbuffer, at least.
-			// It's possible we never ended up outputted anything - make sure we have the backbuffer cleared
-			// So, we don't set framebufferBound here.
-
-			// However, let's not cause a UI sleep in the mainloop.
-			flags |= ScreenRenderFlags::HANDLED_THROTTLING;
-			break;
-		}
-
-		PSP_EndHostFrame();
-
-		// This place rougly matches how libretro handles it (after retro_frame).
-		Achievements::FrameUpdate();
-	}
 
 	if (gpu && gpu->PresentedThisFrame()) {
 		framebufferBound = true;
 	}
 
-	if (!framebufferBound) {
-		draw->BindFramebufferAsRenderTarget(nullptr, { RPAction::CLEAR, RPAction::CLEAR, RPAction::CLEAR, clearColor }, "EmuScreen_NoFrame");
-		draw->SetViewport(viewport);
-		draw->SetScissorRect(0, 0, g_display.pixel_xres, g_display.pixel_yres);
-	}
+	// if (!framebufferBound) {
+	// 	draw->BindFramebufferAsRenderTarget(nullptr, { RPAction::CLEAR, RPAction::CLEAR, RPAction::CLEAR, clearColor }, "EmuScreen_NoFrame");
+	// 	draw->SetViewport(viewport);
+	// 	draw->SetScissorRect(0, 0, g_display.pixel_xres, g_display.pixel_yres);
+	// }
 
 	Draw::BackendState state = draw->GetCurrentBackendState();
 
@@ -1683,7 +1539,6 @@ ScreenRenderFlags EmuScreen::render(ScreenRenderMode mode) {
 	screenManager()->getUIContext()->BeginFrame();
 
 	if (!(mode & ScreenRenderMode::TOP)) {
-		renderImDebugger();
 		// We're in run-behind mode, but we don't want to draw chat, debug UI and stuff. We do draw the imdebugger though.
 		// So, darken and bail here.
 		// Reset viewport/scissor to be sure.
@@ -1694,9 +1549,9 @@ ScreenRenderFlags EmuScreen::render(ScreenRenderMode mode) {
 	}
 
 	// NOTE: We don't check for powerdown if we're not the top screen.
-	if (checkPowerDown()) {
-		draw->BindFramebufferAsRenderTarget(nullptr, { RPAction::CLEAR, RPAction::CLEAR, RPAction::CLEAR, clearColor }, "EmuScreen_PowerDown");
-	}
+	// if (checkPowerDown()) {
+	// 	draw->BindFramebufferAsRenderTarget(nullptr, { RPAction::CLEAR, RPAction::CLEAR, RPAction::CLEAR, clearColor }, "EmuScreen_PowerDown");
+	// }
 
 	if (hasVisibleUI()) {
 		draw->SetViewport(viewport);
@@ -1711,93 +1566,7 @@ ScreenRenderFlags EmuScreen::render(ScreenRenderMode mode) {
 		SetVRAppMode(screenManager()->topScreen() == this ? VRAppMode::VR_GAME_MODE : VRAppMode::VR_DIALOG_MODE);
 	}
 
-	renderImDebugger();
 	return flags;
-}
-
-void EmuScreen::runImDebugger() {
-	if (!lastImguiEnabled_ && g_Config.bShowImDebugger) {
-		System_NotifyUIEvent(UIEventNotification::TEXT_GOTFOCUS);
-		VERBOSE_LOG(Log::System, "activating keyboard");
-	} else if (lastImguiEnabled_ && !g_Config.bShowImDebugger) {
-		System_NotifyUIEvent(UIEventNotification::TEXT_LOSTFOCUS);
-		VERBOSE_LOG(Log::System, "deactivating keyboard");
-	}
-	lastImguiEnabled_ = g_Config.bShowImDebugger;
-	if (g_Config.bShowImDebugger) {
-		Draw::DrawContext *draw = screenManager()->getDrawContext();
-		if (!imguiInited_) {
-			imguiInited_ = true;
-
-			// TODO: Do this only on demand.
-			IMGUI_CHECKVERSION();
-			ctx_ = ImGui::CreateContext();
-
-			ImGui_ImplPlatform_Init(GetSysDirectory(DIRECTORY_SYSTEM) / "imgui.ini");
-			imDebugger_ = std::make_unique<ImDebugger>();
-
-			// Read the TTF font
-			size_t size = 0;
-			uint8_t *fontData = g_VFS.ReadFile("Roboto-Condensed.ttf", &size);
-			// This call works even if fontData is nullptr, in which case the font just won't get loaded.
-			// This takes ownership of the font array.
-			ImGui_ImplThin3d_Init(draw, fontData, size);
-		}
-
-		if (PSP_IsInited()) {
-			_dbg_assert_(imDebugger_);
-
-			ImGui_ImplPlatform_NewFrame();
-			ImGui_ImplThin3d_NewFrame(draw, ui_draw2d.GetDrawMatrix());
-
-			ImGui::NewFrame();
-
-			if (imCmd_.cmd != ImCmd::NONE) {
-				imDebugger_->PostCmd(imCmd_);
-				imCmd_.cmd = ImCmd::NONE;
-			}
-
-			// Update keyboard modifiers.
-			auto &io = ImGui::GetIO();
-			io.AddKeyEvent(ImGuiMod_Ctrl, keyCtrlLeft_ || keyCtrlRight_);
-			io.AddKeyEvent(ImGuiMod_Shift, keyShiftLeft_ || keyShiftRight_);
-			io.AddKeyEvent(ImGuiMod_Alt, keyAltLeft_ || keyAltRight_);
-			// io.AddKeyEvent(ImGuiMod_Super, e.key.super);
-
-			ImGuiID dockID = ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode | ImGuiDockNodeFlags_NoDockingOverCentralNode);
-			ImGuiDockNode* node = ImGui::DockBuilderGetCentralNode(dockID);
-
-			// Not elegant! But don't know how else to pass through the bounds, without making a mess.
-			Bounds centralNode(node->Pos.x, node->Pos.y, node->Size.x, node->Size.y);
-			SetOverrideScreenFrame(&centralNode);
-
-			if (!io.WantCaptureKeyboard) {
-				// Draw a focus rectangle to indicate inputs will be passed through.
-				ImGui::GetBackgroundDrawList()->AddRect
-				(
-					node->Pos,
-					{ node->Pos.x + node->Size.x, node->Pos.y + node->Size.y },
-					IM_COL32(255, 255, 255, 90),
-					0.f,
-					ImDrawFlags_None,
-					1.f
-				);
-			}
-			imDebugger_->Frame(currentDebugMIPS, gpuDebug, draw);
-
-			// Convert to drawlists.
-			ImGui::Render();
-		}
-	}
-}
-
-void EmuScreen::renderImDebugger() {
-	if (g_Config.bShowImDebugger) {
-		Draw::DrawContext *draw = screenManager()->getDrawContext();
-		if (PSP_IsInited() && imDebugger_) {
-			ImGui_ImplThin3d_RenderDrawData(ImGui::GetDrawData(), draw);
-		}
-	}
 }
 
 bool EmuScreen::hasVisibleUI() {

@@ -497,7 +497,6 @@ ScreenRenderFlags GameScreen::render(ScreenRenderMode mode) {
 }
 
 UI::EventReturn GameScreen::OnCwCheat(UI::EventParams &e) {
-	screenManager()->push(new CwCheatScreen(gamePath_));
 	return UI::EVENT_DONE;
 }
 

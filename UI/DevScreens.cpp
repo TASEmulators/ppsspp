@@ -625,23 +625,6 @@ void SystemInfoScreen::CreateDeviceInfoTab(UI::LinearLayout *deviceSpecs) {
 	}
 #endif
 #endif
-	if (GetGPUBackend() == GPUBackend::OPENGL) {
-		gpuInfo->Add(new InfoItem(si->T("Core Context"), gl_extensions.IsCoreContext ? di->T("Active") : di->T("Inactive")));
-		int highp_int_min = gl_extensions.range[1][5][0];
-		int highp_int_max = gl_extensions.range[1][5][1];
-		int highp_float_min = gl_extensions.range[1][2][0];
-		int highp_float_max = gl_extensions.range[1][2][1];
-		if (highp_int_max != 0) {
-			char temp[128];
-			snprintf(temp, sizeof(temp), "%d-%d", highp_int_min, highp_int_max);
-			gpuInfo->Add(new InfoItem(si->T("High precision int range"), temp));
-		}
-		if (highp_float_max != 0) {
-			char temp[128];
-			snprintf(temp, sizeof(temp), "%d-%d", highp_int_min, highp_int_max);
-			gpuInfo->Add(new InfoItem(si->T("High precision float range"), temp));
-		}
-	}
 	gpuInfo->Add(new InfoItem(si->T("Depth buffer format"), DataFormatToString(draw->GetDeviceCaps().preferredDepthBufferFormat)));
 
 	std::string texCompressionFormats;
@@ -716,14 +699,7 @@ void SystemInfoScreen::CreateDeviceInfoTab(UI::LinearLayout *deviceSpecs) {
 
 	CollapsibleSection *versionInfo = deviceSpecs->Add(new CollapsibleSection(si->T("Version Information")));
 	std::string apiVersion;
-	if (GetGPUBackend() == GPUBackend::OPENGL) {
-		if (gl_extensions.IsGLES) {
-			apiVersion = StringFromFormat("v%d.%d.%d ES", gl_extensions.ver[0], gl_extensions.ver[1], gl_extensions.ver[2]);
-		} else {
-			apiVersion = StringFromFormat("v%d.%d.%d", gl_extensions.ver[0], gl_extensions.ver[1], gl_extensions.ver[2]);
-		}
-		versionInfo->Add(new InfoItem(si->T("API Version"), apiVersion));
-	} else {
+    {
 		apiVersion = draw->GetInfoString(InfoField::APIVERSION);
 		if (apiVersion.size() > 30)
 			apiVersion.resize(30);
@@ -853,34 +829,6 @@ void SystemInfoScreen::CreateDriverBugsTab(UI::LinearLayout *driverBugs) {
 
 void SystemInfoScreen::CreateOpenGLExtsTab(UI::LinearLayout *gpuExtensions) {
 	using namespace UI;
-
-	auto si = GetI18NCategory(I18NCat::SYSINFO);
-	Draw::DrawContext *draw = screenManager()->getDrawContext();
-
-	if (!gl_extensions.IsGLES) {
-		gpuExtensions->Add(new ItemHeader(si->T("OpenGL Extensions")));
-	} else if (gl_extensions.GLES3) {
-		gpuExtensions->Add(new ItemHeader(si->T("OpenGL ES 3.0 Extensions")));
-	} else {
-		gpuExtensions->Add(new ItemHeader(si->T("OpenGL ES 2.0 Extensions")));
-	}
-
-	std::vector<std::string> exts;
-	SplitString(g_all_gl_extensions, ' ', exts);
-	std::sort(exts.begin(), exts.end());
-	for (auto &extension : exts) {
-		gpuExtensions->Add(new TextView(extension, new LayoutParams(FILL_PARENT, WRAP_CONTENT)))->SetFocusable(true);
-	}
-
-	exts.clear();
-	SplitString(g_all_egl_extensions, ' ', exts);
-	std::sort(exts.begin(), exts.end());
-
-	// If there aren't any EGL extensions, no need to show the tab.
-	gpuExtensions->Add(new ItemHeader(si->T("EGL Extensions")));
-	for (auto &extension : exts) {
-		gpuExtensions->Add(new TextView(extension, new LayoutParams(FILL_PARENT, WRAP_CONTENT)))->SetFocusable(true);
-	}
 }
 
 void SystemInfoScreen::CreateVulkanExtsTab(UI::LinearLayout *gpuExtensions) {
@@ -975,7 +923,6 @@ void SystemInfoScreen::CreateInternalsTab(UI::ViewGroup *internals) {
 		g_OSD.Show(OSDType::MESSAGE_SUCCESS, "Success", 0.0f, "clickable");
 		g_OSD.SetClickCallback("clickable", [](bool clicked, void *) {
 			if (clicked) {
-				System_LaunchUrl(LaunchUrlType::BROWSER_URL, "https://www.google.com/");
 			}
 		}, nullptr);
 		return UI::EVENT_DONE;

@@ -40,7 +40,6 @@
 #include "Core/System.h"
 #include "Core/Core.h"
 #include "Core/Config.h"
-#include "Core/RetroAchievements.h"
 #include "Core/ELF/ParamSFO.h"
 #include "Core/HLE/sceDisplay.h"
 #include "Core/HLE/sceUmd.h"
@@ -61,7 +60,6 @@
 #include "UI/OnScreenDisplay.h"
 #include "UI/GameInfoCache.h"
 #include "UI/DisplayLayoutScreen.h"
-#include "UI/RetroAchievementScreens.h"
 #include "UI/BackgroundAudio.h"
 
 static void AfterSaveStateAction(SaveState::Status status, std::string_view message, void *) {
@@ -216,11 +214,6 @@ SaveSlotView::SaveSlotView(const Path &gameFilename, int slot, bool vertical, UI
 	fv->OnClick.Handle(this, &SaveSlotView::OnScreenshotClick);
 
 	if (SaveState::HasSaveInSlot(gamePath_, slot)) {
-		if (!Achievements::HardcoreModeActive()) {
-			loadStateButton_ = buttons->Add(new Button(pa->T("Load State"), new LinearLayoutParams(0.0, G_VCENTER)));
-			loadStateButton_->OnClick.Handle(this, &SaveSlotView::OnLoadState);
-		}
-
 		std::string dateStr = SaveState::GetSlotDateAsString(gamePath_, slot_);
 		if (!dateStr.empty()) {
 			TextView *dateView = new TextView(dateStr, new LinearLayoutParams(0.0, G_VCENTER));
@@ -343,7 +336,7 @@ void GamePauseScreen::CreateSavestateControls(UI::LinearLayout *leftColumnItems,
 	leftColumnItems->Add(new Spacer(0.0));
 
 	LinearLayout *buttonRow = leftColumnItems->Add(new LinearLayout(ORIENT_HORIZONTAL));
-	if (g_Config.bEnableStateUndo && !Achievements::HardcoreModeActive() && NetworkAllowSaveState()) {
+	if (g_Config.bEnableStateUndo && NetworkAllowSaveState()) {
 		UI::Choice *loadUndoButton = buttonRow->Add(new Choice(pa->T("Undo last load")));
 		loadUndoButton->SetEnabled(SaveState::HasUndoLoad(gamePath_));
 		loadUndoButton->OnClick.Handle(this, &GamePauseScreen::OnLoadUndo);
@@ -353,7 +346,7 @@ void GamePauseScreen::CreateSavestateControls(UI::LinearLayout *leftColumnItems,
 		saveUndoButton->OnClick.Handle(this, &GamePauseScreen::OnLastSaveUndo);
 	}
 
-	if (g_Config.iRewindSnapshotInterval > 0 && !Achievements::HardcoreModeActive() && NetworkAllowSaveState()) {
+	if (g_Config.iRewindSnapshotInterval > 0 && NetworkAllowSaveState()) {
 		UI::Choice *rewindButton = buttonRow->Add(new Choice(pa->T("Rewind")));
 		rewindButton->SetEnabled(SaveState::CanRewind());
 		rewindButton->OnClick.Handle(this, &GamePauseScreen::OnRewind);
@@ -381,15 +374,6 @@ void GamePauseScreen::CreateViews() {
 	leftColumn->Add(leftColumnItems);
 
 	leftColumnItems->SetSpacing(5.0f);
-	if (Achievements::IsActive()) {
-		leftColumnItems->Add(new GameAchievementSummaryView());
-
-		char buf[512];
-		size_t sz = Achievements::GetRichPresenceMessage(buf, sizeof(buf));
-		if (sz != (size_t)-1) {
-			leftColumnItems->Add(new TextView(std::string_view(buf, sz), new UI::LinearLayoutParams(Margins(5, 5))))->SetSmall(true);
-		}
-	}
 
 	if (IsNetworkConnected()) {
 		leftColumnItems->Add(new NoticeView(NoticeLevel::INFO, nw->T("Network connected"), ""));
@@ -416,7 +400,6 @@ void GamePauseScreen::CreateViews() {
 				if (!g_infraDNSConfig.revivalTeamURL.empty()) {
 					leftColumnItems->Add(new Button(g_infraDNSConfig.revivalTeamURL))->OnClick.Add([](UI::EventParams &e) {
 						if (!g_infraDNSConfig.revivalTeamURL.empty()) {
-							System_LaunchUrl(LaunchUrlType::BROWSER_URL, g_infraDNSConfig.revivalTeamURL.c_str());
 						}
 						return UI::EVENT_DONE;
 					});
@@ -430,7 +413,7 @@ void GamePauseScreen::CreateViews() {
 		}
 	}
 
-	bool achievementsAllowSavestates = !Achievements::HardcoreModeActive() || g_Config.bAchievementsSaveStateInHardcoreMode;
+	bool achievementsAllowSavestates =  g_Config.bAchievementsSaveStateInHardcoreMode;
 	bool showSavestateControls = achievementsAllowSavestates;
 	if (IsNetworkConnected() && !g_Config.bAllowSavestateWhileConnected) {
 		showSavestateControls = false;
@@ -438,23 +421,6 @@ void GamePauseScreen::CreateViews() {
 
 	if (showSavestateControls) {
 		CreateSavestateControls(leftColumnItems, vertical);
-	} else {
-		// Let's show the active challenges.
-		std::set<uint32_t> ids = Achievements::GetActiveChallengeIDs();
-		if (!ids.empty()) {
-			leftColumnItems->Add(new ItemHeader(ac->T("Active Challenges")));
-			for (auto id : ids) {
-				const rc_client_achievement_t *achievement = rc_client_get_achievement_info(Achievements::GetClient(), id);
-				if (!achievement)
-					continue;
-				leftColumnItems->Add(new AchievementView(achievement));
-			}
-		}
-
-		// And tack on an explanation for why savestate options are not available.
-		if (!achievementsAllowSavestates) {
-			leftColumnItems->Add(new NoticeView(NoticeLevel::INFO, ac->T("Save states not available in Hardcore Mode"), ""));
-		}
 	}
 
 	LinearLayout *middleColumn = new LinearLayout(ORIENT_VERTICAL, new LinearLayoutParams(64, FILL_PARENT, Margins(0, 10, 0, 15)));
@@ -495,18 +461,6 @@ void GamePauseScreen::CreateViews() {
 		screenManager()->push(new DisplayLayoutScreen(gamePath_));
 		return UI::EVENT_DONE;
 	});
-	if (g_Config.bEnableCheats) {
-		rightColumnItems->Add(new Choice(pa->T("Cheats")))->OnClick.Add([&](UI::EventParams &e) {
-			screenManager()->push(new CwCheatScreen(gamePath_));
-			return UI::EVENT_DONE;
-		});
-	}
-	if (g_Config.bAchievementsEnable && Achievements::HasAchievementsOrLeaderboards()) {
-		rightColumnItems->Add(new Choice(ac->T("Achievements")))->OnClick.Add([&](UI::EventParams &e) {
-			screenManager()->push(new RetroAchievementsListScreen(gamePath_));
-			return UI::EVENT_DONE;
-		});
-	}
 
 	// TODO, also might be nice to show overall compat rating here?
 	// Based on their platform or even cpu/gpu/config.  Would add an API for it.
@@ -626,13 +580,6 @@ std::string GetConfirmExitMessage() {
 	std::string confirmMessage;
 
 	int unsavedSeconds = GetUnsavedProgressSeconds();
-
-	// If RAIntegration has dirty info, ask for confirmation.
-	if (Achievements::RAIntegrationDirty()) {
-		auto ac = GetI18NCategory(I18NCat::ACHIEVEMENTS);
-		confirmMessage = ac->T("You have unsaved RAIntegration changes.");
-		confirmMessage += '\n';
-	}
 
 	if (IsNetworkConnected()) {
 		auto nw = GetI18NCategory(I18NCat::NETWORKING);
