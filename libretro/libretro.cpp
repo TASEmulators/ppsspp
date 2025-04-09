@@ -1387,6 +1387,9 @@ bool retro_load_game(const struct retro_game_info *game)
 
    set_variable_visibility();
 
+   // Advancing until gpu is initialized
+   while (!gpu) retro_run();
+
    // NOTE: At this point we haven't really booted yet, but "in-game" we'll just keep polling
    // PSP_InitUpdate until done.
    return true;
@@ -1579,8 +1582,10 @@ size_t retro_serialize_size(void)
 
 bool retro_serialize(void *data, size_t size)
 {
+   printf("Serialize A\n");
    if (!gpu) // The HW renderer isn't ready on first pass.
       return false;
+   printf("Serialize B\n");
 
    size_t measuredSize;
    SaveState::SaveStart state;
