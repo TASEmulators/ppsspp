@@ -164,6 +164,10 @@ void DriverManagerScreen::CreateDriverTab(UI::ViewGroup *drivers) {
 
 	drivers->Add(new ItemHeader(gr->T("AdrenoTools driver manager")));
 	auto customDriverInstallChoice = drivers->Add(new Choice(gr->T("Install custom driver...")));
+	drivers->Add(new Choice(di->T("More information...")))->OnClick.Add([=](UI::EventParams &e) {
+		System_LaunchUrl(LaunchUrlType::BROWSER_URL, "https://www.ppsspp.org/docs/reference/custom-drivers/");
+		return UI::EVENT_DONE;
+	});
 
 	customDriverInstallChoice->OnClick.Handle(this, &DriverManagerScreen::OnCustomDriverInstall);
 
@@ -210,5 +214,66 @@ UI::EventReturn DriverManagerScreen::OnCustomDriverUninstall(UI::EventParams &e)
 }
 
 UI::EventReturn DriverManagerScreen::OnCustomDriverInstall(UI::EventParams &e) {
+	auto gr = GetI18NCategory(I18NCat::GRAPHICS);
+
+	System_BrowseForFile(GetRequesterToken(), gr->T("Install custom driver..."), BrowseFileType::ZIP, [this](const std::string &value, int) {
+		if (value.empty()) {
+			return;
+		}
+
+		auto gr = GetI18NCategory(I18NCat::GRAPHICS);
+
+		Path zipPath = Path(value);
+
+		// Don't bother checking the file extension. Can't always do that with files from Download (they have paths like content://com.android.providers.downloads.documents/document/msf%3A1000001095).
+		// Though, it may be possible to get it in other ways.
+
+		std::unique_ptr<ZipFileReader> zipFileReader = std::unique_ptr<ZipFileReader>(ZipFileReader::Create(zipPath, "", true));
+		if (!zipFileReader) {
+			g_OSD.Show(OSDType::MESSAGE_ERROR, gr->T("The chosen ZIP file doesn't contain a valid driver", "couldn't open zip"));
+			ERROR_LOG(Log::System, "Failed to open file '%s' as zip", zipPath.c_str());
+			return;
+		}
+
+		size_t metaDataSize;
+		uint8_t *metaData = zipFileReader->ReadFile("meta.json", &metaDataSize);
+		if (!metaData) {
+			g_OSD.Show(OSDType::MESSAGE_ERROR, gr->T("The chosen ZIP file doesn't contain a valid driver"), "meta.json missing");
+			return;
+		}
+
+		DriverMeta meta;
+		std::string errorStr;
+		if (!meta.Read(std::string_view((const char *)metaData, metaDataSize), &errorStr)) {
+			delete[] metaData;
+			g_OSD.Show(OSDType::MESSAGE_ERROR, gr->T("The chosen ZIP file doesn't contain a valid driver"), errorStr);
+			return;
+		}
+		delete[] metaData;
+
+		const Path newCustomDriver = GetDriverPath() / meta.name;
+		NOTICE_LOG(Log::G3D, "Installing driver into '%s'", newCustomDriver.c_str());
+		File::CreateFullPath(newCustomDriver);
+
+		std::vector<File::FileInfo> zipListing;
+		zipFileReader->GetFileListing("", &zipListing, nullptr);
+
+		for (auto file : zipListing) {
+			File::CreateEmptyFile(newCustomDriver / file.name);
+
+			size_t size;
+			uint8_t *data = zipFileReader->ReadFile(file.name.c_str(), &size);
+			if (!data) {
+				g_OSD.Show(OSDType::MESSAGE_ERROR, gr->T("The chosen ZIP file doesn't contain a valid driver"), file.name.c_str());
+				return;
+			}
+			File::WriteDataToFile(false, data, size, newCustomDriver / file.name);
+			delete[] data;
+		}
+
+		auto iz = GetI18NCategory(I18NCat::INSTALLZIP);
+		g_OSD.Show(OSDType::MESSAGE_SUCCESS, iz->T("Installed!"));
+		RecreateViews();
+	});
 	return UI::EVENT_DONE;
 }

@@ -44,7 +44,7 @@
 #include "Common/UI/ViewGroup.h"
 #include "Common/UI/UI.h"
 #include "Common/UI/IconCache.h"
-#include "Common/Data/Text/Parsers.h"
+#include "Common/Render/Text/draw_text.h"
 #include "Common/Profiler/Profiler.h"
 
 #include "Common/Log/LogManager.h"
@@ -70,7 +70,7 @@
 #include "UI/DevScreens.h"
 #include "UI/MainScreen.h"
 #include "UI/ControlMappingScreen.h"
-#include "UI/GameSettingsScreen.h"
+#include "UI/DeveloperToolsScreen.h"
 #include "UI/JitCompareScreen.h"
 
 #ifdef _WIN32
@@ -122,14 +122,23 @@ void DevMenuScreen::CreatePopupContents(UI::ViewGroup *parent) {
 	ScrollView *scroll = new ScrollView(ORIENT_VERTICAL, new LinearLayoutParams(FILL_PARENT, WRAP_CONTENT, 1.0f));
 	LinearLayout *items = new LinearLayout(ORIENT_VERTICAL);
 
-#if !defined(MOBILE_DEVICE)
-	items->Add(new Choice(dev->T("Log View")))->OnClick.Handle(this, &DevMenuScreen::OnLogView);
-#endif
-	items->Add(new Choice(dev->T("Logging Channels")))->OnClick.Handle(this, &DevMenuScreen::OnLogConfig);
+	items->Add(new Choice(dev->T("Log View")))->OnClick.Add([this](UI::EventParams & e) {
+		UpdateUIState(UISTATE_PAUSEMENU);
+		screenManager()->push(new LogViewScreen());
+		return UI::EVENT_DONE;
+	});
+
+	items->Add(new Choice(dev->T("Logging Channels")))->OnClick.Add([this](UI::EventParams & e) {
+		UpdateUIState(UISTATE_PAUSEMENU);
+		screenManager()->push(new LogConfigScreen());
+		return UI::EVENT_DONE;
+	});
+
 	items->Add(new Choice(dev->T("Debugger")))->OnClick.Add([](UI::EventParams &e) {
 		g_Config.bShowImDebugger = !g_Config.bShowImDebugger;
 		return UI::EVENT_DONE;
 	});
+
 	items->Add(new Choice(sy->T("Developer Tools")))->OnClick.Handle(this, &DevMenuScreen::OnDeveloperTools);
 
 	// Debug overlay
@@ -187,18 +196,6 @@ UI::EventReturn DevMenuScreen::OnResetLimitedLogging(UI::EventParams &e) {
 	return UI::EVENT_DONE;
 }
 
-UI::EventReturn DevMenuScreen::OnLogView(UI::EventParams &e) {
-	UpdateUIState(UISTATE_PAUSEMENU);
-	screenManager()->push(new LogScreen());
-	return UI::EVENT_DONE;
-}
-
-UI::EventReturn DevMenuScreen::OnLogConfig(UI::EventParams &e) {
-	UpdateUIState(UISTATE_PAUSEMENU);
-	screenManager()->push(new LogConfigScreen());
-	return UI::EVENT_DONE;
-}
-
 UI::EventReturn DevMenuScreen::OnDeveloperTools(UI::EventParams &e) {
 	UpdateUIState(UISTATE_PAUSEMENU);
 	screenManager()->push(new DeveloperToolsScreen(gamePath_));
@@ -235,14 +232,16 @@ void GPIGPOScreen::CreatePopupContents(UI::ViewGroup *parent) {
 	}
 }
 
-void LogScreen::UpdateLog() {
+void LogViewScreen::UpdateLog() {
 	using namespace UI;
 	const RingbufferLog *ring = g_logManager.GetRingbuffer();
 	if (!ring)
 		return;
 	vert_->Clear();
+
+	// TODO: Direct rendering without TextViews.
 	for (int i = ring->GetCount() - 1; i >= 0; i--) {
-		TextView *v = vert_->Add(new TextView(ring->TextAt(i), FLAG_DYNAMIC_ASCII, false));
+		TextView *v = vert_->Add(new TextView(StripSpaces(ring->TextAt(i)), FLAG_DYNAMIC_ASCII, true));
 		uint32_t color = 0xFFFFFF;
 		switch (ring->LevelAt(i)) {
 		case LogLevel::LDEBUG: color = 0xE0E0E0; break;
@@ -257,7 +256,7 @@ void LogScreen::UpdateLog() {
 	toBottom_ = true;
 }
 
-void LogScreen::update() {
+void LogViewScreen::update() {
 	UIDialogScreenWithBackground::update();
 	if (toBottom_) {
 		toBottom_ = false;
@@ -265,7 +264,7 @@ void LogScreen::update() {
 	}
 }
 
-void LogScreen::CreateViews() {
+void LogViewScreen::CreateViews() {
 	using namespace UI;
 	auto di = GetI18NCategory(I18NCat::DIALOG);
 
@@ -275,27 +274,11 @@ void LogScreen::CreateViews() {
 	scroll_ = outer->Add(new ScrollView(ORIENT_VERTICAL, new LinearLayoutParams(1.0)));
 	LinearLayout *bottom = outer->Add(new LinearLayout(ORIENT_HORIZONTAL, new LayoutParams(FILL_PARENT, WRAP_CONTENT)));
 	bottom->Add(new Button(di->T("Back")))->OnClick.Handle<UIScreen>(this, &UIScreen::OnBack);
-	cmdLine_ = bottom->Add(new TextEdit("", "Command", "Command Line", new LinearLayoutParams(1.0)));
-	cmdLine_->OnEnter.Handle(this, &LogScreen::OnSubmit);
-	bottom->Add(new Button(di->T("Submit")))->OnClick.Handle(this, &LogScreen::OnSubmit);
 
 	vert_ = scroll_->Add(new LinearLayout(ORIENT_VERTICAL, new LinearLayoutParams(FILL_PARENT, WRAP_CONTENT)));
 	vert_->SetSpacing(0);
 
 	UpdateLog();
-}
-
-UI::EventReturn LogScreen::OnSubmit(UI::EventParams &e) {
-	std::string cmd = cmdLine_->GetText();
-
-	// TODO: Can add all sorts of fun stuff here that we can't be bothered writing proper UI for, like various memdumps etc.
-
-	NOTICE_LOG(Log::System, "Submitted: %s", cmd.c_str());
-
-	UpdateLog();
-	cmdLine_->SetText("");
-	cmdLine_->SetFocus();
-	return UI::EVENT_DONE;
 }
 
 void LogConfigScreen::CreateViews() {
@@ -518,10 +501,7 @@ void SystemInfoScreen::CreateTabs() {
 	using namespace Draw;
 	using namespace UI;
 
-	auto di = GetI18NCategory(I18NCat::DIALOG);
 	auto si = GetI18NCategory(I18NCat::SYSINFO);
-	auto sy = GetI18NCategory(I18NCat::SYSTEM);
-	auto gr = GetI18NCategory(I18NCat::GRAPHICS);
 
 	AddTab("Device Info", si->T("Device Info"), [this](UI::LinearLayout *parent) {
 		CreateDeviceInfoTab(parent);
@@ -625,6 +605,23 @@ void SystemInfoScreen::CreateDeviceInfoTab(UI::LinearLayout *deviceSpecs) {
 	}
 #endif
 #endif
+	if (GetGPUBackend() == GPUBackend::OPENGL) {
+		gpuInfo->Add(new InfoItem(si->T("Core Context"), gl_extensions.IsCoreContext ? di->T("Active") : di->T("Inactive")));
+		int highp_int_min = gl_extensions.range[1][5][0];
+		int highp_int_max = gl_extensions.range[1][5][1];
+		int highp_float_min = gl_extensions.range[1][2][0];
+		int highp_float_max = gl_extensions.range[1][2][1];
+		if (highp_int_max != 0) {
+			char temp[128];
+			snprintf(temp, sizeof(temp), "%d-%d", highp_int_min, highp_int_max);
+			gpuInfo->Add(new InfoItem(si->T("High precision int range"), temp));
+		}
+		if (highp_float_max != 0) {
+			char temp[128];
+			snprintf(temp, sizeof(temp), "%d-%d", highp_int_min, highp_int_max);
+			gpuInfo->Add(new InfoItem(si->T("High precision float range"), temp));
+		}
+	}
 	gpuInfo->Add(new InfoItem(si->T("Depth buffer format"), DataFormatToString(draw->GetDeviceCaps().preferredDepthBufferFormat)));
 
 	std::string texCompressionFormats;
@@ -699,7 +696,14 @@ void SystemInfoScreen::CreateDeviceInfoTab(UI::LinearLayout *deviceSpecs) {
 
 	CollapsibleSection *versionInfo = deviceSpecs->Add(new CollapsibleSection(si->T("Version Information")));
 	std::string apiVersion;
-    {
+	if (GetGPUBackend() == GPUBackend::OPENGL) {
+		if (gl_extensions.IsGLES) {
+			apiVersion = StringFromFormat("v%d.%d.%d ES", gl_extensions.ver[0], gl_extensions.ver[1], gl_extensions.ver[2]);
+		} else {
+			apiVersion = StringFromFormat("v%d.%d.%d", gl_extensions.ver[0], gl_extensions.ver[1], gl_extensions.ver[2]);
+		}
+		versionInfo->Add(new InfoItem(si->T("API Version"), apiVersion));
+	} else {
 		apiVersion = draw->GetInfoString(InfoField::APIVERSION);
 		if (apiVersion.size() > 30)
 			apiVersion.resize(30);
@@ -829,6 +833,34 @@ void SystemInfoScreen::CreateDriverBugsTab(UI::LinearLayout *driverBugs) {
 
 void SystemInfoScreen::CreateOpenGLExtsTab(UI::LinearLayout *gpuExtensions) {
 	using namespace UI;
+
+	auto si = GetI18NCategory(I18NCat::SYSINFO);
+	Draw::DrawContext *draw = screenManager()->getDrawContext();
+
+	if (!gl_extensions.IsGLES) {
+		gpuExtensions->Add(new ItemHeader(si->T("OpenGL Extensions")));
+	} else if (gl_extensions.GLES3) {
+		gpuExtensions->Add(new ItemHeader(si->T("OpenGL ES 3.0 Extensions")));
+	} else {
+		gpuExtensions->Add(new ItemHeader(si->T("OpenGL ES 2.0 Extensions")));
+	}
+
+	std::vector<std::string> exts;
+	SplitString(g_all_gl_extensions, ' ', exts);
+	std::sort(exts.begin(), exts.end());
+	for (auto &extension : exts) {
+		gpuExtensions->Add(new TextView(extension, new LayoutParams(FILL_PARENT, WRAP_CONTENT)))->SetFocusable(true);
+	}
+
+	exts.clear();
+	SplitString(g_all_egl_extensions, ' ', exts);
+	std::sort(exts.begin(), exts.end());
+
+	// If there aren't any EGL extensions, no need to show the tab.
+	gpuExtensions->Add(new ItemHeader(si->T("EGL Extensions")));
+	for (auto &extension : exts) {
+		gpuExtensions->Add(new TextView(extension, new LayoutParams(FILL_PARENT, WRAP_CONTENT)))->SetFocusable(true);
+	}
 }
 
 void SystemInfoScreen::CreateVulkanExtsTab(UI::LinearLayout *gpuExtensions) {
@@ -904,6 +936,11 @@ void SystemInfoScreen::CreateInternalsTab(UI::ViewGroup *internals) {
 		return UI::EVENT_DONE;
 	});
 
+	internals->Add(new ItemHeader(si->T("Font cache")));
+	const TextDrawer *text = screenManager()->getUIContext()->Text();
+	internals->Add(new InfoItem(si->T("Texture count"), StringFromFormat("%d", text->GetStringCacheSize())));
+	internals->Add(new InfoItem(si->T("Data size"), NiceSizeFormat(text->GetCacheDataSize())));
+
 	internals->Add(new ItemHeader(si->T("Notification tests")));
 	internals->Add(new Choice(si->T("Error")))->OnClick.Add([&](UI::EventParams &) {
 		std::string str = "Error " + CodepointToUTF8(0x1F41B) + CodepointToUTF8(0x1F41C) + CodepointToUTF8(0x1F914);
@@ -923,6 +960,7 @@ void SystemInfoScreen::CreateInternalsTab(UI::ViewGroup *internals) {
 		g_OSD.Show(OSDType::MESSAGE_SUCCESS, "Success", 0.0f, "clickable");
 		g_OSD.SetClickCallback("clickable", [](bool clicked, void *) {
 			if (clicked) {
+				System_LaunchUrl(LaunchUrlType::BROWSER_URL, "https://www.google.com/");
 			}
 		}, nullptr);
 		return UI::EVENT_DONE;

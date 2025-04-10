@@ -192,6 +192,14 @@ bool PSPButton::Touch(const TouchInput &input) {
 	bool lastDown = pointerDownMask_ != 0;
 	bool retval = MultiTouchButton::Touch(input);
 	bool down = pointerDownMask_ != 0;
+	if (down && !lastDown) {
+		if (g_Config.bHapticFeedback) {
+			System_Vibrate(HAPTIC_VIRTUAL_KEY);
+		}
+		__CtrlUpdateButtons(pspButtonBit_, 0);
+	} else if (lastDown && !down) {
+		__CtrlUpdateButtons(0, pspButtonBit_);
+	}
 	return retval;
 }
 
@@ -215,6 +223,8 @@ bool CustomButton::Touch(const TouchInput &input) {
 	bool down = pointerDownMask_ != 0;
 
 	if (down && !lastDown) {
+		if (g_Config.bHapticFeedback)
+			System_Vibrate(HAPTIC_VIRTUAL_KEY);
 
 		if (!repeat_) {
 			for (int i = 0; i < ARRAY_SIZE(customKeyList); i++) {
@@ -370,6 +380,9 @@ void PSPDpad::ProcessTouch(float x, float y, bool down) {
 		if (released & dir[i]) {
 			__CtrlUpdateButtons(0, dir[i]);
 		}
+	}
+	if (vibrate && g_Config.bHapticFeedback) {
+		System_Vibrate(HAPTIC_VIRTUAL_KEY);
 	}
 }
 

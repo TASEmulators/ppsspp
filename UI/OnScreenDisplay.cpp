@@ -10,6 +10,7 @@
 #include "Common/Math/math_util.h"
 #include "Common/UI/IconCache.h"
 #include "Common/StringUtils.h"
+#include "UI/RetroAchievementScreens.h"
 #include "UI/DebugOverlay.h"
 
 #include "Common/UI/Context.h"
@@ -107,7 +108,14 @@ static void MeasureNotice(const UIContext &dc, NoticeLevel level, const std::str
 
 // Align only matters here for the ASCII-only flag.
 static void MeasureOSDEntry(const UIContext &dc, const OnScreenDisplay::Entry &entry, int align, float *width, float *height, float *height1) {
+	if (entry.type == OSDType::ACHIEVEMENT_UNLOCKED) {
+		const rc_client_achievement_t *achievement = rc_client_get_achievement_info(Achievements::GetClient(), entry.numericID);
+		MeasureAchievement(dc, achievement, AchievementRenderStyle::UNLOCKED, width, height);
+		*width = 550.0f;
+		*height1 = *height;
+	} else {
 		MeasureNotice(dc, GetNoticeLevel(entry.type), entry.text, entry.text2, entry.iconName, align, width, height, height1);
+	}
 }
 
 static void RenderNotice(UIContext &dc, Bounds bounds, float height1, NoticeLevel level, const std::string &text, const std::string &details, const std::string &iconName, int align, float alpha, bool transparent) {
@@ -171,8 +179,16 @@ static void RenderNotice(UIContext &dc, Bounds bounds, float height1, NoticeLeve
 }
 
 static void RenderOSDEntry(UIContext &dc, const OnScreenDisplay::Entry &entry, Bounds bounds, float height1, int align, float alpha) {
+	if (entry.type == OSDType::ACHIEVEMENT_UNLOCKED) {
+		const rc_client_achievement_t * achievement = rc_client_get_achievement_info(Achievements::GetClient(), entry.numericID);
+		if (achievement) {
+			RenderAchievement(dc, achievement, AchievementRenderStyle::UNLOCKED, bounds, alpha, entry.startTime, time_now_d(), false);
+		}
+		return;
+	} else {
 		bool transparent = entry.type == OSDType::TRANSPARENT_STATUS;
 		RenderNotice(dc, bounds, height1, GetNoticeLevel(entry.type), entry.text, entry.text2, entry.iconName, align, alpha, transparent);
+	}
 }
 
 static void MeasureOSDProgressBar(const UIContext &dc, const OnScreenDisplay::Entry &bar, float *width, float *height) {
@@ -263,6 +279,7 @@ void OnScreenMessagesView::Draw(UIContext &dc) {
 		float alpha;
 		int align;
 		int align2;
+		AchievementRenderStyle style;
 	};
 
 	// Grab all the entries. Makes a copy so we can release the lock ASAP.
@@ -322,6 +339,40 @@ void OnScreenMessagesView::Draw(UIContext &dc) {
 		}
 
 		switch (entry.type) {
+		case OSDType::ACHIEVEMENT_PROGRESS:
+		{
+			const rc_client_achievement_t *achievement = rc_client_get_achievement_info(Achievements::GetClient(), entry.numericID);
+			if (!achievement)
+				continue;
+			measuredEntry.style = AchievementRenderStyle::PROGRESS_INDICATOR;
+			MeasureAchievement(dc, achievement, measuredEntry.style, &measuredEntry.w, &measuredEntry.h);
+			break;
+		}
+		case OSDType::ACHIEVEMENT_CHALLENGE_INDICATOR:
+		{
+			const rc_client_achievement_t *achievement = rc_client_get_achievement_info(Achievements::GetClient(), entry.numericID);
+			if (!achievement)
+				continue;
+			measuredEntry.style = AchievementRenderStyle::CHALLENGE_INDICATOR;
+			MeasureAchievement(dc, achievement, measuredEntry.style, &measuredEntry.w, &measuredEntry.h);
+			break;
+		}
+		case OSDType::LEADERBOARD_TRACKER:
+		{
+			MeasureLeaderboardTracker(dc, entry.text, &measuredEntry.w, &measuredEntry.h);
+			break;
+		}
+		case OSDType::ACHIEVEMENT_UNLOCKED:
+		{
+			const rc_client_achievement_t *achievement = rc_client_get_achievement_info(Achievements::GetClient(), entry.numericID);
+			if (!achievement)
+				continue;
+			measuredEntry.style = AchievementRenderStyle::UNLOCKED;
+			MeasureAchievement(dc, achievement, AchievementRenderStyle::UNLOCKED, &measuredEntry.w, &measuredEntry.h);
+			measuredEntry.h1 = measuredEntry.h;
+			measuredEntry.w = 550.0f;
+			break;
+		}
 		case OSDType::PROGRESS_BAR:
 			MeasureOSDProgressBar(dc, entry, &measuredEntry.w, &measuredEntry.h);
 			break;
@@ -392,6 +443,13 @@ void OnScreenMessagesView::Draw(UIContext &dc) {
 			}
 
 			switch (entry.type) {
+			case OSDType::ACHIEVEMENT_PROGRESS:
+			case OSDType::ACHIEVEMENT_CHALLENGE_INDICATOR:
+			{
+				const rc_client_achievement_t *achievement = rc_client_get_achievement_info(Achievements::GetClient(), entry.numericID);
+				RenderAchievement(dc, achievement, measuredEntry.style, b, alpha, entry.startTime, now, false);
+				break;
+			}
 			case OSDType::LEADERBOARD_TRACKER:
 				RenderLeaderboardTracker(dc, b, entry.text, alpha);
 				break;

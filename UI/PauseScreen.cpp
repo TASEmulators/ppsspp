@@ -40,6 +40,7 @@
 #include "Core/System.h"
 #include "Core/Core.h"
 #include "Core/Config.h"
+#include "Core/RetroAchievements.h"
 #include "Core/ELF/ParamSFO.h"
 #include "Core/HLE/sceDisplay.h"
 #include "Core/HLE/sceUmd.h"
@@ -60,6 +61,7 @@
 #include "UI/OnScreenDisplay.h"
 #include "UI/GameInfoCache.h"
 #include "UI/DisplayLayoutScreen.h"
+#include "UI/RetroAchievementScreens.h"
 #include "UI/BackgroundAudio.h"
 
 static void AfterSaveStateAction(SaveState::Status status, std::string_view message, void *) {
@@ -214,6 +216,11 @@ SaveSlotView::SaveSlotView(const Path &gameFilename, int slot, bool vertical, UI
 	fv->OnClick.Handle(this, &SaveSlotView::OnScreenshotClick);
 
 	if (SaveState::HasSaveInSlot(gamePath_, slot)) {
+		if (!Achievements::HardcoreModeActive()) {
+			loadStateButton_ = buttons->Add(new Button(pa->T("Load State"), new LinearLayoutParams(0.0, G_VCENTER)));
+			loadStateButton_->OnClick.Handle(this, &SaveSlotView::OnLoadState);
+		}
+
 		std::string dateStr = SaveState::GetSlotDateAsString(gamePath_, slot_);
 		if (!dateStr.empty()) {
 			TextView *dateView = new TextView(dateStr, new LinearLayoutParams(0.0, G_VCENTER));
@@ -274,14 +281,15 @@ void GamePauseScreen::update() {
 	}
 
 	const bool networkConnected = IsNetworkConnected();
-	if (g_netInited != lastNetInited_ || netInetInited != lastNetInetInited_ || lastAdhocServerConnected_ != g_adhocServerConnected || lastOnline_ != networkConnected || lastDNSConfigLoaded_ != g_infraDNSConfig.loaded) {
-		INFO_LOG(Log::sceNet, "Network status changed, recreating views");
+	const InfraDNSConfig &dnsConfig = GetInfraDNSConfig();
+	if (g_netInited != lastNetInited_ || netInetInited != lastNetInetInited_ || lastAdhocServerConnected_ != g_adhocServerConnected || lastOnline_ != networkConnected || lastDNSConfigLoaded_ != dnsConfig.loaded) {
+		INFO_LOG(Log::sceNet, "Network status changed (or pause dialog just popped up), recreating views");
 		RecreateViews();
 		lastNetInetInited_ = netInetInited;
 		lastNetInited_ = g_netInited;
 		lastAdhocServerConnected_ = g_adhocServerConnected;
 		lastOnline_ = networkConnected;
-		lastDNSConfigLoaded_ = g_infraDNSConfig.loaded;
+		lastDNSConfigLoaded_ = dnsConfig.loaded;
 	}
 
 	const bool mustRunBehind = MustRunBehind();
@@ -336,7 +344,7 @@ void GamePauseScreen::CreateSavestateControls(UI::LinearLayout *leftColumnItems,
 	leftColumnItems->Add(new Spacer(0.0));
 
 	LinearLayout *buttonRow = leftColumnItems->Add(new LinearLayout(ORIENT_HORIZONTAL));
-	if (g_Config.bEnableStateUndo && NetworkAllowSaveState()) {
+	if (g_Config.bEnableStateUndo && !Achievements::HardcoreModeActive() && NetworkAllowSaveState()) {
 		UI::Choice *loadUndoButton = buttonRow->Add(new Choice(pa->T("Undo last load")));
 		loadUndoButton->SetEnabled(SaveState::HasUndoLoad(gamePath_));
 		loadUndoButton->OnClick.Handle(this, &GamePauseScreen::OnLoadUndo);
@@ -346,7 +354,7 @@ void GamePauseScreen::CreateSavestateControls(UI::LinearLayout *leftColumnItems,
 		saveUndoButton->OnClick.Handle(this, &GamePauseScreen::OnLastSaveUndo);
 	}
 
-	if (g_Config.iRewindSnapshotInterval > 0 && NetworkAllowSaveState()) {
+	if (g_Config.iRewindSnapshotInterval > 0 && !Achievements::HardcoreModeActive() && NetworkAllowSaveState()) {
 		UI::Choice *rewindButton = buttonRow->Add(new Choice(pa->T("Rewind")));
 		rewindButton->SetEnabled(SaveState::CanRewind());
 		rewindButton->OnClick.Handle(this, &GamePauseScreen::OnRewind);
@@ -374,32 +382,43 @@ void GamePauseScreen::CreateViews() {
 	leftColumn->Add(leftColumnItems);
 
 	leftColumnItems->SetSpacing(5.0f);
+	if (Achievements::IsActive()) {
+		leftColumnItems->Add(new GameAchievementSummaryView());
+
+		char buf[512];
+		size_t sz = Achievements::GetRichPresenceMessage(buf, sizeof(buf));
+		if (sz != (size_t)-1) {
+			leftColumnItems->Add(new TextView(std::string_view(buf, sz), FLAG_WRAP_TEXT, true, new UI::LinearLayoutParams(Margins(5, 5))));
+		}
+	}
 
 	if (IsNetworkConnected()) {
 		leftColumnItems->Add(new NoticeView(NoticeLevel::INFO, nw->T("Network connected"), ""));
 
-		if (g_infraDNSConfig.loaded && __NetApctlConnected()) {
+		const InfraDNSConfig &dnsConfig = GetInfraDNSConfig();
+		if (dnsConfig.loaded && __NetApctlConnected()) {
 			leftColumnItems->Add(new NoticeView(NoticeLevel::INFO, nw->T("Infrastructure"), ""));
 
-			if (g_infraDNSConfig.state == InfraGameState::NotWorking) {
+			if (dnsConfig.state == InfraGameState::NotWorking) {
 				leftColumnItems->Add(new NoticeView(NoticeLevel::WARN, nw->T("Some network functionality in this game is not working"), ""));
-				if (!g_infraDNSConfig.workingIDs.empty()) {
+				if (!dnsConfig.workingIDs.empty()) {
 					std::string str(nw->T("Other versions of this game that should work:"));
-					for (auto &id : g_infraDNSConfig.workingIDs) {
+					for (auto &id : dnsConfig.workingIDs) {
 						str.append("\n - ");
 						str += id;
 					}
 					leftColumnItems->Add(new TextView(str));
 				}
-			} else if (g_infraDNSConfig.state == InfraGameState::Unknown) {
+			} else if (dnsConfig.state == InfraGameState::Unknown) {
 				leftColumnItems->Add(new NoticeView(NoticeLevel::WARN, nw->T("Network functionality in this game is not guaranteed"), ""));
 			}
-			if (!g_infraDNSConfig.revivalTeam.empty()) {
+			if (!dnsConfig.revivalTeam.empty()) {
 				leftColumnItems->Add(new TextView(std::string(nw->T("Infrastructure server provided by:"))));
-				leftColumnItems->Add(new TextView(g_infraDNSConfig.revivalTeam));
-				if (!g_infraDNSConfig.revivalTeamURL.empty()) {
-					leftColumnItems->Add(new Button(g_infraDNSConfig.revivalTeamURL))->OnClick.Add([](UI::EventParams &e) {
-						if (!g_infraDNSConfig.revivalTeamURL.empty()) {
+				leftColumnItems->Add(new TextView(dnsConfig.revivalTeam));
+				if (!dnsConfig.revivalTeamURL.empty()) {
+					leftColumnItems->Add(new Button(dnsConfig.revivalTeamURL))->OnClick.Add([&dnsConfig](UI::EventParams &e) {
+						if (!dnsConfig.revivalTeamURL.empty()) {
+							System_LaunchUrl(LaunchUrlType::BROWSER_URL, dnsConfig.revivalTeamURL.c_str());
 						}
 						return UI::EVENT_DONE;
 					});
@@ -413,7 +432,7 @@ void GamePauseScreen::CreateViews() {
 		}
 	}
 
-	bool achievementsAllowSavestates =  g_Config.bAchievementsSaveStateInHardcoreMode;
+	bool achievementsAllowSavestates = !Achievements::HardcoreModeActive() || g_Config.bAchievementsSaveStateInHardcoreMode;
 	bool showSavestateControls = achievementsAllowSavestates;
 	if (IsNetworkConnected() && !g_Config.bAllowSavestateWhileConnected) {
 		showSavestateControls = false;
@@ -421,6 +440,23 @@ void GamePauseScreen::CreateViews() {
 
 	if (showSavestateControls) {
 		CreateSavestateControls(leftColumnItems, vertical);
+	} else {
+		// Let's show the active challenges.
+		std::set<uint32_t> ids = Achievements::GetActiveChallengeIDs();
+		if (!ids.empty()) {
+			leftColumnItems->Add(new ItemHeader(ac->T("Active Challenges")));
+			for (auto id : ids) {
+				const rc_client_achievement_t *achievement = rc_client_get_achievement_info(Achievements::GetClient(), id);
+				if (!achievement)
+					continue;
+				leftColumnItems->Add(new AchievementView(achievement));
+			}
+		}
+
+		// And tack on an explanation for why savestate options are not available.
+		if (!achievementsAllowSavestates) {
+			leftColumnItems->Add(new NoticeView(NoticeLevel::INFO, ac->T("Save states not available in Hardcore Mode"), ""));
+		}
 	}
 
 	LinearLayout *middleColumn = new LinearLayout(ORIENT_VERTICAL, new LinearLayoutParams(64, FILL_PARENT, Margins(0, 10, 0, 15)));
@@ -461,6 +497,18 @@ void GamePauseScreen::CreateViews() {
 		screenManager()->push(new DisplayLayoutScreen(gamePath_));
 		return UI::EVENT_DONE;
 	});
+	if (g_Config.bEnableCheats) {
+		rightColumnItems->Add(new Choice(pa->T("Cheats")))->OnClick.Add([&](UI::EventParams &e) {
+			screenManager()->push(new CwCheatScreen(gamePath_));
+			return UI::EVENT_DONE;
+		});
+	}
+	if (g_Config.bAchievementsEnable && Achievements::HasAchievementsOrLeaderboards()) {
+		rightColumnItems->Add(new Choice(ac->T("Achievements")))->OnClick.Add([&](UI::EventParams &e) {
+			screenManager()->push(new RetroAchievementsListScreen(gamePath_));
+			return UI::EVENT_DONE;
+		});
+	}
 
 	// TODO, also might be nice to show overall compat rating here?
 	// Based on their platform or even cpu/gpu/config.  Would add an API for it.
@@ -580,6 +628,13 @@ std::string GetConfirmExitMessage() {
 	std::string confirmMessage;
 
 	int unsavedSeconds = GetUnsavedProgressSeconds();
+
+	// If RAIntegration has dirty info, ask for confirmation.
+	if (Achievements::RAIntegrationDirty()) {
+		auto ac = GetI18NCategory(I18NCat::ACHIEVEMENTS);
+		confirmMessage = ac->T("You have unsaved RAIntegration changes.");
+		confirmMessage += '\n';
+	}
 
 	if (IsNetworkConnected()) {
 		auto nw = GetI18NCategory(I18NCat::NETWORKING);

@@ -96,6 +96,7 @@
 #include "Core/FrameTiming.h"
 #include "Core/KeyMap.h"
 #include "Core/Reporting.h"
+#include "Core/RetroAchievements.h"
 #include "Core/SaveState.h"
 #include "Core/Screenshot.h"
 #include "Core/System.h"
@@ -122,6 +123,7 @@
 #include "UI/EmuScreen.h"
 #include "UI/GameInfoCache.h"
 #include "UI/GameSettingsScreen.h"
+#include "UI/DeveloperToolsScreen.h"
 #include "UI/GPUDriverTestScreen.h"
 #include "UI/MiscScreens.h"
 #include "UI/MemStickScreen.h"
@@ -337,6 +339,11 @@ static void ClearFailedGPUBackends() {
 
 void NativeInit(int argc, const char *argv[], const char *savegame_dir, const char *external_dir, const char *cache_dir) {
 	net::Init();  // This needs to happen before we load the config. So on Windows we also run it in Main. It's fine to call multiple times.
+
+	// Probably an excessive timeout. it only causes delays on shutdown, though.
+	__UPnPInit(2000);
+
+	ShaderTranslationInit();
 
 	g_threadManager.Init(cpu_info.num_cores, cpu_info.logical_cpu_count);
 
@@ -596,6 +603,19 @@ void NativeInit(int argc, const char *argv[], const char *savegame_dir, const ch
 
 				bool okToLoad = true;
 				bool okToCheck = true;
+				if (System_GetPropertyBool(SYSPROP_SUPPORTS_PERMISSIONS)) {
+					PermissionStatus status = System_GetPermissionStatus(SYSTEM_PERMISSION_STORAGE);
+					if (status == PERMISSION_STATUS_DENIED) {
+						ERROR_LOG(Log::IO, "Storage permission denied. Launching without argument.");
+						okToLoad = false;
+						okToCheck = false;
+					} else if (status != PERMISSION_STATUS_GRANTED) {
+						ERROR_LOG(Log::IO, "Storage permission not granted. Launching without argument check.");
+						okToCheck = false;
+					} else {
+						INFO_LOG(Log::IO, "Storage permission granted.");
+					}
+				}
 				if (okToLoad) {
 					std::string str = std::string(argv[i]);
 					// Handle file:/// URIs, since you get those when creating shortcuts on some Android systems.
@@ -650,6 +670,12 @@ void NativeInit(int argc, const char *argv[], const char *savegame_dir, const ch
 	// TODO: Why not use stdio?
 	g_logManager.EnableOutput(LogOutput::Printf);
 #endif
+
+	if (System_GetPropertyBool(SYSPROP_SUPPORTS_PERMISSIONS)) {
+		if (System_GetPermissionStatus(SYSTEM_PERMISSION_STORAGE) != PERMISSION_STATUS_GRANTED) {
+			System_AskForPermission(SYSTEM_PERMISSION_STORAGE);
+		}
+	}
 
 	auto des = GetI18NCategory(I18NCat::DESKTOPUI);
 	// Note to translators: do not translate this/add this to PPSSPP-lang's files.
@@ -739,6 +765,7 @@ void NativeInit(int argc, const char *argv[], const char *savegame_dir, const ch
 		flags |= WebServerFlags::DEBUGGER;
 	}
 	if (flags != WebServerFlags::NONE) {
+		StartWebServer(WebServerFlags::ALL);
 	}
 
 	std::string sysName = System_GetProperty(SYSPROP_NAME);
@@ -748,6 +775,9 @@ void NativeInit(int argc, const char *argv[], const char *savegame_dir, const ch
 	CheckFailedGPUBackends();
 	SetGPUBackend((GPUBackend)g_Config.iGPUBackend);
 	renderCounter = 0;
+
+	// Initialize retro achievements runtime.
+	Achievements::Initialize();
 
 	// Must be done restarting by now.
 	restarting = false;
@@ -966,6 +996,25 @@ static void TakeScreenshot(Draw::DrawContext *draw) {
 
 	const ScreenshotType type = g_Config.iScreenshotMode == (int)ScreenshotMode::GameImage ? SCREENSHOT_DISPLAY : SCREENSHOT_OUTPUT;
 
+	const ScreenshotResult result = TakeGameScreenshot(draw, filename, g_Config.bScreenshotsAsPNG ? ScreenshotFormat::PNG : ScreenshotFormat::JPG, type, -1, [filename](bool success) {
+		if (success) {
+			g_OSD.Show(OSDType::MESSAGE_FILE_LINK, filename.ToVisualString(), 0.0f, "screenshot_link");
+			if (System_GetPropertyBool(SYSPROP_CAN_SHOW_FILE)) {
+				g_OSD.SetClickCallback("screenshot_link", [](bool clicked, void *data) -> void {
+					Path *path = reinterpret_cast<Path *>(data);
+					if (clicked) {
+						System_ShowFileInFolder(*path);
+					} else {
+						delete path;
+					}
+				}, new Path(filename));
+			}
+		} else {
+			auto err = GetI18NCategory(I18NCat::ERRORS);
+			g_OSD.Show(OSDType::MESSAGE_ERROR, err->T("Could not save screenshot file"));
+			WARN_LOG(Log::System, "Failed to take screenshot.");
+		}
+	});
 }
 
 void CallbackPostRender(UIContext *dc, void *userdata) {
@@ -1005,6 +1054,9 @@ void NativeFrame(GraphicsContext *graphicsContext) {
 	ProcessWheelRelease(NKCODE_EXT_MOUSEWHEEL_DOWN, startTime, false);
 
 	SetOverrideScreenFrame(nullptr);
+
+	// it's ok to call this redundantly with DoFrame from EmuScreen
+	Achievements::Idle();
 
 	g_DownloadManager.Update();
 
@@ -1403,6 +1455,11 @@ void System_PostUIMessage(UIMessage message, const std::string &value) {
 	pendingMessages.push_back(pendingMessage);
 }
 
+void System_RunOnMainThread(std::function<void()> func) {
+	std::lock_guard<std::mutex> lock(g_pendingMutex);
+	g_pendingClosures.push_back(std::move(func));
+}
+
 void NativeResized() {
 	// NativeResized can come from any thread so we just set a flag, then process it later.
 	VERBOSE_LOG(Log::G3D, "NativeResized - setting flag");
@@ -1418,6 +1475,8 @@ bool NativeIsRestarting() {
 }
 
 void NativeShutdown() {
+	Achievements::Shutdown();
+
 	if (g_Config.bAchievementsEnable) {
 		FILE *iconCacheFile = File::OpenCFile(GetSysDirectory(DIRECTORY_CACHE) / "icon.cache", "wb");
 		if (iconCacheFile) {
@@ -1438,15 +1497,21 @@ void NativeShutdown() {
 
 	g_i18nrepo.LogMissingKeys();
 
+	ShutdownWebServer();
+
 #if PPSSPP_PLATFORM(ANDROID)
 	System_ExitApp();
 #endif
+
+	__UPnPShutdown();
 
 	g_PortManager.Shutdown();
 
 	net::Shutdown();
 
 	g_Discord.Shutdown();
+
+	ShaderTranslationShutdown();
 
 	// Avoid shutting this down when restarting core.
 	if (!restarting)

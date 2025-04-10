@@ -239,14 +239,18 @@ void DrawDebugOverlay(UIContext *ctx, const Bounds &bounds, DebugOverlay overlay
 #if !PPSSPP_PLATFORM(UWP) && !PPSSPP_PLATFORM(SWITCH)
 	case DebugOverlay::GPU_PROFILE:
 		if (g_Config.iGPUBackend == (int)GPUBackend::VULKAN || g_Config.iGPUBackend == (int)GPUBackend::OPENGL) {
+			DrawGPUProfilerVis(ctx, gpu);
 		}
 		break;
 	case DebugOverlay::GPU_ALLOCATOR:
 		if (g_Config.iGPUBackend == (int)GPUBackend::VULKAN || g_Config.iGPUBackend == (int)GPUBackend::OPENGL) {
+			DrawGPUMemoryVis(ctx, gpu);
 		}
 		break;
 #endif
 	case DebugOverlay::FRAMEBUFFER_LIST:
+		if (inGame)
+			DrawFramebufferList(ctx, gpu, bounds);
 		break;
 	default:
 		break;
@@ -405,6 +409,9 @@ Invalid / Unknown (%d)
 	// Should try to be in sync with Reporting::IsSupported().
 
 	std::string tips;
+	if (CheatsInEffect()) {
+		tips += "* Turn off cheats.\n";
+	}
 	if (HLEPlugins::HasEnabled()) {
 		tips += "* Turn off plugins.\n";
 	}
@@ -430,9 +437,11 @@ Invalid / Unknown (%d)
 	y = 85;
 	snprintf(statbuf, sizeof(statbuf),
 		"CPU Core: %s (flags: %08x)\n"
-		"Locked CPU freq: %d MHz\n",
+		"Locked CPU freq: %d MHz\n"
+		"Cheats: %s, Plugins: %s\n%s\n\n%s",
 		CPUCoreAsString(g_Config.iCpuCore), g_Config.uJitDisableFlags,
-		GetLockedCPUSpeedMhz());
+		GetLockedCPUSpeedMhz(),
+		CheatsInEffect() ? "Y" : "N", HLEPlugins::HasEnabled() ? "Y" : "N", activeFlags.c_str(), tips.c_str());
 
 	ctx->Draw()->DrawTextShadow(ubuntu24, statbuf, x, y, 0xFFFFFFFF);
 	ctx->Flush();

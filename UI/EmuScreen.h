@@ -29,6 +29,8 @@
 #include "Core/KeyMap.h"
 #include "Core/ControlMapper.h"
 
+#include "UI/ImDebugger/ImDebugger.h"
+
 struct AxisInput;
 
 class AsyncImageFileView;
@@ -61,6 +63,10 @@ public:
 	void deviceLost() override;
 	void deviceRestored(Draw::DrawContext *draw) override;
 
+	void SendImDebuggerCommand(const ImCommand &command) {
+		imCmd_ = command;
+	}
+
 protected:
 	void darken();
 	void focusChanged(ScreenFocusChange focusChange) override;
@@ -72,16 +78,18 @@ private:
 	UI::EventReturn OnChat(UI::EventParams &params);
 	UI::EventReturn OnResume(UI::EventParams &params);
 
-	void bootGame(const Path &filename);
+	void ProcessGameBoot(const Path &filename);
 	bool bootAllowStorage(const Path &filename);
 	void bootComplete();
 	bool hasVisibleUI();
 	void renderUI();
+	void runImDebugger();
+	void renderImDebugger();
 
 	void onVKey(VirtKey virtualKeyCode, bool down);
 	void onVKeyAnalog(VirtKey virtualKeyCode, float value);
 
-	void autoLoad();
+	void AutoLoadSaveState();
 	bool checkPowerDown();
 
 	void ProcessQueuedVKeys();
@@ -128,6 +136,9 @@ private:
 
 	ControlMapper controlMapper_;
 
+	std::unique_ptr<ImDebugger> imDebugger_ = nullptr;
+	ImCommand imCmd_{};  // needed to buffer commands in case imgui wasn't created yet.
+
 	bool imguiInited_ = false;
 	// For ImGui modifier tracking
 	bool keyCtrlLeft_ = false;
@@ -141,6 +152,7 @@ private:
 
 	std::vector<VirtKey> queuedVirtKeys_;
 
+	ImGuiContext *ctx_ = nullptr;
 };
 
 bool MustRunBehind();
