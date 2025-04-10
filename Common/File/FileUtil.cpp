@@ -113,6 +113,8 @@ namespace File {
 
 FILE *OpenCFile(const Path &path, const char *mode) {
 	printf("Trying to load file %s\n", path.c_str());
+	if (std::string(path.c_str()).find("ppge_atlas.zim") != std::string::npos) std::abort();
+	
 	if (LOG_IO) {
 		INFO_LOG(Log::System, "OpenCFile %s, %s", path.c_str(), mode);
 	}
