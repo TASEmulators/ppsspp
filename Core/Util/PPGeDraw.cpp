@@ -242,6 +242,7 @@ void __PPGeSetupListArgs()
 	}
 }
 
+extern std::string _atlasFontMetadataFileData;
 void __PPGeInit() {
 	// PPGe isn't really important for headless, and LoadZIM takes a long time.
 	bool skipZIM = System_GetPropertyBool(SYSPROP_SKIP_UI);
@@ -261,7 +262,9 @@ void __PPGeInit() {
 	if (loadedZIM) {
 		size_t atlas_data_size;
 		if (!g_ppge_atlas.IsMetadataLoaded()) {
-			uint8_t *atlas_data = g_VFS.ReadFile("ppge_atlas.meta", &atlas_data_size);
+			// uint8_t *atlas_data = g_VFS.ReadFile("ppge_atlas.meta", &atlas_data_size);
+			uint8_t *atlas_data = (uint8_t*)_atlasFontMetadataFileData.data();
+
 			if (atlas_data)
 				g_ppge_atlas.Load(atlas_data, atlas_data_size);
 			delete[] atlas_data;
