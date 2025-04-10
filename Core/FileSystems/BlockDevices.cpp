@@ -26,7 +26,6 @@
 #include "Common/File/DirListing.h"
 #include "Core/Loaders.h"
 #include "Core/FileSystems/BlockDevices.h"
-#include "libchdr/chd.h"
 
 extern "C"
 {

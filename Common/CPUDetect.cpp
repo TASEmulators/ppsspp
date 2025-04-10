@@ -19,8 +19,6 @@
 #include "ppsspp_config.h"
 #if (PPSSPP_ARCH(X86) || PPSSPP_ARCH(AMD64)) && !defined(__EMSCRIPTEN__)
 
-#include "ext/cpu_features/include/cpuinfo_x86.h"
-
 #if defined(CPU_FEATURES_OS_FREEBSD) || defined(CPU_FEATURES_OS_LINUX) || defined(CPU_FEATURES_OS_ANDROID) || defined(CPU_FEATURES_OS_MACOS) || defined(CPU_FEATURES_OS_WINDOWS)
 #define USE_CPU_FEATURES 1
 #endif
