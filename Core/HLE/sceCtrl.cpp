@@ -268,6 +268,7 @@ static int __CtrlReadSingleBuffer(PSPPointer<CtrlData> data, bool negative)
 	return 0;
 }
 
+extern bool _readInputs;
 static int __CtrlReadBuffer(u32 ctrlDataPtr, u32 nBufs, bool negative, bool peek)
 {
 	if (nBufs > NUM_CTRL_BUFFERS)
@@ -299,6 +300,9 @@ static int __CtrlReadBuffer(u32 ctrlDataPtr, u32 nBufs, bool negative, bool peek
 
 	if (peek)
 		ctrlBufRead = resetRead;
+
+    // Now the controls have been read
+    _readInputs = true;
 
 	return done;
 }
