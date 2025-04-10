@@ -99,6 +99,10 @@ BootState PSP_GetBootState() {
 	return g_bootState;
 }
 
+FileLoader *PSP_LoadedFile() {
+	return g_loadedFile;
+}
+
 void ResetUIState() {
 	globalUIState = UISTATE_MENU;
 }
@@ -274,6 +278,7 @@ static bool CPU_Init(FileLoader *fileLoader, IdentifiedFileType type, std::strin
 	case IdentifiedFileType::PSP_ISO:
 	case IdentifiedFileType::PSP_ISO_NP:
 	case IdentifiedFileType::PSP_DISC_DIRECTORY:
+		// Doesn't seem to take ownership of fileLoader?
 		if (!MountGameISO(fileLoader)) {
 			*errorString = "Failed to mount ISO file - invalid format?";
 			return false;
@@ -432,7 +437,6 @@ static bool CPU_Init(FileLoader *fileLoader, IdentifiedFileType type, std::strin
 
 	default:
 		GetBootError(type, errorString);
-		coreState = CORE_BOOT_ERROR;
 		g_CoreParameter.fileToStart.clear();
 		return false;
 	}
@@ -505,13 +509,9 @@ void PSP_ForceDebugStats(bool enable) {
 bool PSP_InitStart(const CoreParameter &coreParam) {
 	printf("InitStartA\n");
 	if (g_bootState != BootState::Off) {
-		ERROR_LOG(Log::System, "Can't start loader thread - already on.");
+		ERROR_LOG(Log::Loader, "Can't start loader thread - already on.");
 		return false;
 	}
-
-	printf("InitStartB\n");
-
-	coreState = CORE_POWERUP;
 
 	g_bootState = BootState::Booting;
 
@@ -524,9 +524,7 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 
 	std::string *error_string = &g_CoreParameter.errorString;
 
-	printf("InitStartC\n");
-
-	INFO_LOG(Log::System, "Starting loader thread...");
+	INFO_LOG(Log::Loader, "Starting loader thread...");
 
 	SetCurrentThreadName("ExecLoader");
 	AndroidJNIThreadContext jniContext;
@@ -552,7 +550,7 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 				loadedFile = new RamCachingFileLoader(loadedFile);
 				break;
 			default:
-				INFO_LOG(Log::System, "RAM caching is on, but file is not an ISO, so ignoring");
+				INFO_LOG(Log::Loader, "RAM caching is on, but file is not an ISO, so ignoring");
 				break;
 			}
 		}
@@ -563,7 +561,6 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 	printf("InitStartF\n");
 	if (!CPU_Init(loadedFile, type, &g_CoreParameter.errorString)) {
 		CPU_Shutdown(false);
-		coreState = CORE_BOOT_ERROR;
 		g_CoreParameter.fileToStart.clear();
 		*error_string = g_CoreParameter.errorString;
 		if (error_string->empty()) {
@@ -575,13 +572,6 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 
 	printf("InitStartG\n");
 
-	if (PSP_CoreParameter().startBreak) {
-		coreState = CORE_STEPPING_CPU;
-		System_Notify(SystemNotification::DEBUG_MODE_CHANGE);
-	} else {
-		coreState = CORE_RUNNING_CPU;
-	}
-
 	g_bootState = BootState::Complete;
 
 	printf("InitStartH\n");
@@ -590,7 +580,7 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 
 BootState PSP_InitUpdate(std::string *error_string) {
 	if (g_bootState == BootState::Booting || g_bootState == BootState::Off) {
-		// We're done already.
+		// Nothing to do right now.
 		return g_bootState;
 	}
 
@@ -604,9 +594,8 @@ BootState PSP_InitUpdate(std::string *error_string) {
 	}
 
 	// Ok, async boot completed, let's finish up things on the main thread.
-
 	if (!gpu) {  // should be!
-		INFO_LOG(Log::System, "Starting graphics...");
+		INFO_LOG(Log::Loader, "Starting graphics...");
 		Draw::DrawContext *draw = g_CoreParameter.graphicsContext ? g_CoreParameter.graphicsContext->GetDrawContext() : nullptr;
 		// This set the `gpu` global.
 		bool success = GPU_Init(g_CoreParameter.graphicsContext, draw);
@@ -654,8 +643,7 @@ void PSP_Shutdown(bool success) {
 		return;
 	}
 
-	if (coreState == CORE_RUNNING_CPU)
-		Core_Stop();
+	Core_Stop();
 
 	if (g_Config.bFuncHashMap) {
 		MIPSAnalyst::StoreHashMap();
@@ -826,21 +814,6 @@ bool CreateSysDirectories() {
 	return true;
 }
 
-const char *CoreStateToString(CoreState state) {
-	switch (state) {
-	case CORE_RUNNING_CPU: return "RUNNING_CPU";
-	case CORE_NEXTFRAME: return "NEXTFRAME";
-	case CORE_STEPPING_CPU: return "STEPPING_CPU";
-	case CORE_POWERUP: return "POWERUP";
-	case CORE_POWERDOWN: return "POWERDOWN";
-	case CORE_BOOT_ERROR: return "BOOT_ERROR";
-	case CORE_RUNTIME_ERROR: return "RUNTIME_ERROR";
-	case CORE_STEPPING_GE: return "STEPPING_GE";
-	case CORE_RUNNING_GE: return "RUNNING_GE";
-	default: return "N/A";
-	}
-}
-
 const char *DumpFileTypeToString(DumpFileType type) {
 	switch (type) {
 	case DumpFileType::EBOOT: return "EBOOT";
@@ -864,11 +837,11 @@ void DumpFileIfEnabled(const u8 *dataPtr, const u32 length, std::string_view nam
 		return;
 	}
 	if (!dataPtr) {
-		ERROR_LOG(Log::System, "Error dumping %s: invalid pointer", DumpFileTypeToString(DumpFileType::EBOOT));
+		ERROR_LOG(Log::Loader, "Error dumping %s: invalid pointer", DumpFileTypeToString(DumpFileType::EBOOT));
 		return;
 	}
 	if (length == 0) {
-		ERROR_LOG(Log::System, "Error dumping %s: invalid length", DumpFileTypeToString(DumpFileType::EBOOT));
+		ERROR_LOG(Log::Loader, "Error dumping %s: invalid length", DumpFileTypeToString(DumpFileType::EBOOT));
 		return;
 	}
 

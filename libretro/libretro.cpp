@@ -481,11 +481,6 @@ static void check_variables(CoreParameter &coreParam)
 
    bool updated = false;
 
-   if (     coreState != CoreState::CORE_POWERUP
-         && environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated)
-         && !updated)
-      return;
-
    struct retro_variable var = {0};
    std::string sTextureShaderName_prev;
    int iInternalResolution_prev;
@@ -1332,7 +1327,6 @@ bool retro_load_game(const struct retro_game_info *game)
 
    retro_check_backend();
 
-   coreState = CORE_POWERUP;
    ctx       = LibretroGraphicsContext::CreateGraphicsContext();
    INFO_LOG(Log::System, "Using %s backend", ctx->Ident());
 
