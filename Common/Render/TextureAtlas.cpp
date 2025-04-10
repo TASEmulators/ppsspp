@@ -32,7 +32,16 @@ public:
 			_dbg_assert_(offset_ + sizeof(T) * count <= size_);
 			memcpy(t, data_ + offset_, sizeof(T) * count);
 			offset_ += sizeof(T) * count;
-		} 
+		} else {
+			_dbg_assert_(offset_ + sizeof(uint32_t) <= size_);
+			uint32_t compressed_size = 0;
+			memcpy(&compressed_size, data_ + offset_, sizeof(uint32_t));
+			offset_ += sizeof(uint32_t);
+
+			_dbg_assert_(offset_ + compressed_size <= size_);
+			ZSTD_decompress(t, sizeof(T) * count, data_ + offset_, compressed_size);
+			offset_ += compressed_size;
+		}
 		return t;
 	}
 
