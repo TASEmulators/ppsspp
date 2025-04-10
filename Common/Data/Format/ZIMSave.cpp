@@ -202,7 +202,17 @@ void SaveZIM(FILE *f, int width, int height, int pitch, int flags, const uint8_t
 				ERROR_LOG(Log::IO, "Zlib compression failed.\n");
 			}
 			delete [] dest;
-		}  else {
+		} else if (flags & ZIM_ZSTD_COMPRESSED) {
+			size_t dest_len = ZSTD_compressBound(data_size);
+			uint8_t *dest = new uint8_t[dest_len];
+			dest_len = ZSTD_compress(dest, dest_len, data, data_size, compressLevel == 0 ? 22 : compressLevel);
+			if (!ZSTD_isError(dest_len)) {
+				fwrite(dest, 1, dest_len, f);
+			} else {
+				ERROR_LOG(Log::IO, "Zlib compression failed.\n");
+			}
+			delete [] dest;
+		} else {
 			fwrite(data, 1, data_size, f);
 		}
 		delete [] data;
