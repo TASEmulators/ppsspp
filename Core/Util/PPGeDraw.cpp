@@ -260,11 +260,9 @@ void __PPGeInit() {
 	}
 
 	if (loadedZIM) {
-		size_t atlas_data_size;
 		if (!g_ppge_atlas.IsMetadataLoaded()) {
-			// uint8_t *atlas_data = g_VFS.ReadFile("ppge_atlas.meta", &atlas_data_size);
 			uint8_t *atlas_data = (uint8_t*)_atlasFontMetadataFileData.data();
-
+			size_t atlas_data_size = _atlasFontMetadataFileData.size();
 			if (atlas_data)
 				g_ppge_atlas.Load(atlas_data, atlas_data_size);
 			delete[] atlas_data;
