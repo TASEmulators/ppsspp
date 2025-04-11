@@ -124,6 +124,35 @@ const char *GetCurrentThreadName() {
 }
 
 void SetCurrentThreadName(const char *threadName) {
+#if PPSSPP_PLATFORM(WINDOWS) && !PPSSPP_PLATFORM(UWP)
+	InitializeSetThreadDescription();
+	if (g_pSetThreadDescription) {
+		// Use the modern API
+		wchar_t buffer[256];
+		ConvertUTF8ToWString(buffer, ARRAY_SIZE(buffer), threadName);
+		g_pSetThreadDescription(GetCurrentThread(), buffer);
+	} else {
+		// Use the old exception hack.
+		SetCurrentThreadNameThroughException(threadName);
+	}
+#elif PPSSPP_PLATFORM(WINDOWS)
+	wchar_t buffer[256];
+	ConvertUTF8ToWString(buffer, ARRAY_SIZE(buffer), threadName);
+	SetThreadDescription(GetCurrentThread(), buffer);
+#elif PPSSPP_PLATFORM(ANDROID) || PPSSPP_PLATFORM(LINUX)
+	pthread_setname_np(pthread_self(), threadName);
+#elif defined(__APPLE__)
+	pthread_setname_np(threadName);
+#elif defined(__DragonFly__) || defined(__FreeBSD__) || defined(__OpenBSD__)
+	pthread_set_name_np(pthread_self(), threadName);
+#elif defined(__NetBSD__)
+	pthread_setname_np(pthread_self(), "%s", (void*)threadName);
+#endif
+
+	// Set the locally known threadname using a thread local variable.
+#ifdef TLS_SUPPORTED
+	curThreadName = threadName;
+#endif
 }
 
 #if PPSSPP_PLATFORM(WINDOWS)
@@ -187,5 +216,27 @@ void AssertCurrentThreadName(const char *threadName) {
 }
 
 int GetCurrentThreadIdForDebug() {
-	return 0;
+#if __LIBRETRO__
+	// Not sure why gettid() would not be available, but it isn't.
+	// The return value of this function is only used in unit tests anyway...
+	return 1;
+#elif PPSSPP_PLATFORM(WINDOWS)
+	return (int)GetCurrentThreadId();
+#elif PPSSPP_PLATFORM(MAC) || PPSSPP_PLATFORM(IOS)
+	uint64_t tid = 0;
+	pthread_threadid_np(NULL, &tid);
+	return (int)tid;
+#elif PPSSPP_PLATFORM(ANDROID) || PPSSPP_PLATFORM(LINUX)
+	// See issue 14545
+	return (int)syscall(__NR_gettid);
+	// return (int)gettid();
+#elif defined(__DragonFly__) || defined(__FreeBSD__)
+	return pthread_getthreadid_np();
+#elif defined(__NetBSD__)
+	return _lwp_self();
+#elif defined(__OpenBSD__)
+	return getthrid();
+#else
+	return 1;
+#endif
 }

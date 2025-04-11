@@ -271,6 +271,87 @@ bool TranslateShader(std::string *dest, ShaderLanguage destLang, const ShaderLan
 	// Alright, step 1 done. Now let's take this SPIR-V shader and output in our desired format.
 
 	switch (destLang) {
+#ifdef _WIN32
+	case HLSL_D3D9:
+	{
+		spirv_cross::CompilerHLSL hlsl(spirv);
+		spirv_cross::CompilerHLSL::Options options{};
+		options.shader_model = 30;
+		spirv_cross::CompilerGLSL::Options options_common{};
+		options_common.vertex.fixup_clipspace = true;
+		hlsl.set_hlsl_options(options);
+		hlsl.set_common_options(options_common);
+		std::string raw = hlsl.compile();
+		*dest = Postprocess(raw, destLang, stage);
+		return true;
+	}
+	case HLSL_D3D11:
+	{
+		spirv_cross::CompilerHLSL hlsl(spirv);
+		spirv_cross::ShaderResources resources = hlsl.get_shader_resources();
+
+		int i = 0;
+		for (auto &resource : resources.sampled_images) {
+			const std::string &name = hlsl.get_name(resource.id);
+			int num;
+			if (sscanf(name.c_str(), "sampler%d", &num) != 1)
+				num = i;
+			hlsl.set_decoration(resource.id, spv::DecorationBinding, num);
+			i++;
+		}
+		spirv_cross::CompilerHLSL::Options options{};
+		options.shader_model = 50;
+		spirv_cross::CompilerGLSL::Options options_common{};
+		options_common.vertex.fixup_clipspace = true;
+		hlsl.set_hlsl_options(options);
+		hlsl.set_common_options(options_common);
+		std::string raw = hlsl.compile();
+		*dest = Postprocess(raw, destLang, stage);
+		return true;
+	}
+#endif
+	case GLSL_1xx:
+	{
+		spirv_cross::CompilerGLSL glsl(std::move(spirv));
+		// The SPIR-V is now parsed, and we can perform reflection on it.
+		spirv_cross::ShaderResources resources = glsl.get_shader_resources();
+		// Get all sampled images in the shader.
+		for (auto &resource : resources.sampled_images) {
+			unsigned set = glsl.get_decoration(resource.id, spv::DecorationDescriptorSet);
+			unsigned binding = glsl.get_decoration(resource.id, spv::DecorationBinding);
+			printf("Image %s at set = %u, binding = %u\n", resource.name.c_str(), set, binding);
+			// Modify the decoration to prepare it for GLSL.
+			glsl.unset_decoration(resource.id, spv::DecorationDescriptorSet);
+			// Some arbitrary remapping if we want.
+			glsl.set_decoration(resource.id, spv::DecorationBinding, set * 16 + binding);
+		}
+		// Set some options.
+		spirv_cross::CompilerGLSL::Options options;
+		options.version = 140;
+		options.es = true;
+		glsl.set_common_options(options);
+
+		// Compile to GLSL, ready to give to GL driver.
+		*dest = glsl.compile();
+		return true;
+	}
+	case GLSL_3xx:
+	{
+		spirv_cross::CompilerGLSL glsl(std::move(spirv));
+		// The SPIR-V is now parsed, and we can perform reflection on it.
+		spirv_cross::ShaderResources resources = glsl.get_shader_resources();
+		// Set some options.
+		spirv_cross::CompilerGLSL::Options options;
+		options.es = desc.gles;
+		options.version = gl_extensions.GLSLVersion();
+		// macOS OpenGL 4.1 implementation does not support GL_ARB_shading_language_420pack.
+		// Prevent explicit binding location emission enabled in SPIRV-Cross by default.
+		options.enable_420pack_extension = gl_extensions.ARB_shading_language_420pack;
+		glsl.set_common_options(options);
+		// Compile to GLSL, ready to give to GL driver.
+		*dest = glsl.compile();
+		return true;
+	}
 	default:
 		*errorMessage = StringFromFormat("Unsupported destination language: %s", ShaderLanguageAsString(destLang));
 		return false;

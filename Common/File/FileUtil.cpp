@@ -112,9 +112,6 @@ constexpr bool LOG_IO = false;
 namespace File {
 
 FILE *OpenCFile(const Path &path, const char *mode) {
-	printf("Trying to load file %s\n", path.c_str());
-	if (std::string(path.c_str()).find("ppge_atlas.zim") != std::string::npos) std::abort();
-	
 	if (LOG_IO) {
 		INFO_LOG(Log::IO, "OpenCFile %s, %s", path.c_str(), mode);
 	}
@@ -564,7 +561,6 @@ bool Delete(const Path &filename) {
 
 // Returns true if successful, or path already exists.
 bool CreateDir(const Path &path) {
-	return false;
 	if (SIMULATE_SLOW_IO) {
 		sleep_ms(100, "slow-io-sim");
 		INFO_LOG(Log::IO, "CreateDir %s", path.c_str());

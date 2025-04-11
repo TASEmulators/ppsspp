@@ -220,12 +220,121 @@ static struct sigaction old_sa_segv;
 static struct sigaction old_sa_bus;
 
 static void sigsegv_handler(int sig, siginfo_t* info, void* raw_context) {
+	if (sig != SIGSEGV && sig != SIGBUS) {
+		// We are not interested in other signals - handle it as usual.
+		return;
+	}
+	ucontext_t* context = (ucontext_t*)raw_context;
+	int sicode = info->si_code;
+	if (sicode != SEGV_MAPERR && sicode != SEGV_ACCERR) {
+		// Huh? Return.
+		return;
+	}
+	uintptr_t bad_address = (uintptr_t)info->si_addr;
+
+	// Get all the information we can out of the context.
+#ifdef __OpenBSD__
+	ucontext_t* ctx = context;
+#else
+	mcontext_t* ctx = &context->uc_mcontext;
+#endif
+	// assume it's not a write
+	if (!g_badAccessHandler(bad_address,
+#ifdef __APPLE__
+		*ctx
+#else
+		ctx
+#endif
+	)) {
+		// retry and crash
+		// According to the sigaction man page, if sa_flags "SA_SIGINFO" is set to the sigaction
+		// function pointer, otherwise sa_handler contains one of:
+		// SIG_DEF: The 'default' action is performed
+		// SIG_IGN: The signal is ignored
+		// Any other value is a function pointer to a signal handler
+
+		struct sigaction* old_sa;
+		if (sig == SIGSEGV) {
+			old_sa = &old_sa_segv;
+		} else {
+			old_sa = &old_sa_bus;
+		}
+
+		if (old_sa->sa_flags & SA_SIGINFO) {
+			old_sa->sa_sigaction(sig, info, raw_context);
+			return;
+		}
+		if (old_sa->sa_handler == SIG_DFL) {
+			signal(sig, SIG_DFL);
+			return;
+		}
+		if (old_sa->sa_handler == SIG_IGN) {
+			// Ignore signal
+			return;
+		}
+		old_sa->sa_handler(sig);
+	}
 }
 
 void InstallExceptionHandler(BadAccessHandler badAccessHandler) {
+	if (!badAccessHandler) {
+		return;
+	}
+	if (g_badAccessHandler) {
+		g_badAccessHandler = badAccessHandler;
+		return;
+	}
+	
+	size_t altStackSize = SIGSTKSZ;
+
+	// Add some extra room.
+	altStackSize += 65536;
+
+	INFO_LOG(Log::System, "Installed exception handler. stack size: %d", (int)altStackSize);
+	g_badAccessHandler = badAccessHandler;
+
+	stack_t signal_stack{};
+	altStack = malloc(altStackSize);
+#ifdef __FreeBSD__
+	signal_stack.ss_sp = (char*)altStack;
+#else
+	signal_stack.ss_sp = altStack;
+#endif
+	signal_stack.ss_size = altStackSize;
+	signal_stack.ss_flags = 0;
+	if (sigaltstack(&signal_stack, nullptr)) {
+		_assert_msg_(false, "sigaltstack failed");
+	}
+	struct sigaction sa{};
+	sa.sa_handler = nullptr;
+	sa.sa_sigaction = &sigsegv_handler;
+	sa.sa_flags = SA_SIGINFO | SA_ONSTACK;
+	sigemptyset(&sa.sa_mask);
+	sigaction(SIGSEGV, &sa, &old_sa_segv);
+#ifdef __APPLE__
+	sigaction(SIGBUS, &sa, &old_sa_bus);
+#endif
 }
 
 void UninstallExceptionHandler() {
+	if (!g_badAccessHandler) {
+		return;
+	}
+	stack_t signal_stack{};
+	signal_stack.ss_flags = SS_DISABLE;
+	if (0 != sigaltstack(&signal_stack, nullptr)) {
+		ERROR_LOG(Log::System, "Could not remove signal altstack");
+	}
+	if (altStack) {
+		free(altStack);
+		altStack = nullptr;
+	}
+	sigaction(SIGSEGV, &old_sa_segv, nullptr);
+#ifdef __APPLE__
+	sigaction(SIGBUS, &old_sa_bus, nullptr);
+#endif
+	INFO_LOG(Log::System, "Uninstalled exception handler");
+	g_badAccessHandler = nullptr;
 }
 
 #endif
