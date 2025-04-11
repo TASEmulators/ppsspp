@@ -135,7 +135,7 @@ struct GLExtensions {
 	int GLSLVersion();
 };
 
-extern GLExtensions gl_extensions;
+static GLExtensions gl_extensions;
 
 // Call this after filling out vendor etc to lookup the bugs etc.
 // Only needs to be called once. Currently called by CheckGLExtensions().

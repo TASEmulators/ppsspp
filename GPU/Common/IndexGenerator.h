@@ -33,7 +33,9 @@ public:
 	}
 
 	static bool PrimCompatible(int prim1, int prim2) {
-		return false;
+		if (prim1 == GE_PRIM_INVALID || prim2 == GE_PRIM_KEEP_PREVIOUS)
+			return true;
+		return indexedPrimitiveType[prim1] == indexedPrimitiveType[prim2];
 	}
 
 	static GEPrimitiveType GeneralPrim(GEPrimitiveType prim) {

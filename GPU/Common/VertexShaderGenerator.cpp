@@ -133,6 +133,21 @@ bool GenerateVertexShader(const VShaderID &id, char *buffer, const ShaderLanguag
 
 	std::vector<const char*> extensions;
 	extensions.reserve(6);
+	if (ShaderLanguageIsOpenGL(compat.shaderLanguage)) {
+		if (gl_extensions.EXT_gpu_shader4) {
+			extensions.push_back("#extension GL_EXT_gpu_shader4 : enable");
+		}
+		bool useClamp = gstate_c.Use(GPU_USE_DEPTH_CLAMP) && !id.Bit(VS_BIT_IS_THROUGH);
+		if (gl_extensions.EXT_clip_cull_distance && (id.Bit(VS_BIT_VERTEX_RANGE_CULLING) || useClamp)) {
+			extensions.push_back("#extension GL_EXT_clip_cull_distance : enable");
+		}
+		if (gl_extensions.APPLE_clip_distance && (id.Bit(VS_BIT_VERTEX_RANGE_CULLING) || useClamp)) {
+			extensions.push_back("#extension GL_APPLE_clip_distance : enable");
+		}
+		if (gl_extensions.ARB_cull_distance && id.Bit(VS_BIT_VERTEX_RANGE_CULLING)) {
+			extensions.push_back("#extension GL_ARB_cull_distance : enable");
+		}
+	}
 
 	bool useSimpleStereo = id.Bit(VS_BIT_SIMPLE_STEREO);
 

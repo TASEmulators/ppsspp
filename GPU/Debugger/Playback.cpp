@@ -818,7 +818,25 @@ ReplayResult DumpExecute::Run() {
 }
 
 static bool ReadCompressed(u32 fp, void *dest, size_t sz, uint32_t version) {
-	return false;
+	u32 compressed_size = 0;
+	if (pspFileSystem.ReadFile(fp, (u8 *)&compressed_size, sizeof(compressed_size)) != sizeof(compressed_size)) {
+		return false;
+	}
+
+	u8 *compressed = new u8[compressed_size];
+	if (pspFileSystem.ReadFile(fp, compressed, compressed_size) != compressed_size) {
+		delete[] compressed;
+		return false;
+	}
+
+	size_t real_size = sz;
+	if (version < 5)
+		snappy_uncompress((const char *)compressed, compressed_size, (char *)dest, &real_size);
+	else
+		real_size = ZSTD_decompress(dest, real_size, compressed, compressed_size);
+	delete[] compressed;
+
+	return real_size == sz;
 }
 
 static u32 LoadReplay(const std::string &filename) {

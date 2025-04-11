@@ -804,6 +804,26 @@ int DrawEngineCommon::DecodeInds() {
 
 	int i = decodeIndsCounter_;
 	for (; i < numDrawInds_; i++) {
+		const DeferredInds &di = drawInds_[i];
+
+		int indexOffset = drawVertexOffsets_[di.vertDecodeIndex] + di.offset;
+		bool clockwise = di.clockwise;
+		// We've already collapsed subsequent draws with the same vertex pointer, so no tricky logic here anymore.
+		// 2. Loop through the drawcalls, translating indices as we go.
+		switch (di.indexType) {
+		case GE_VTYPE_IDX_NONE >> GE_VTYPE_IDX_SHIFT:
+			indexGen.AddPrim(di.prim, di.vertexCount, indexOffset, clockwise);
+			break;
+		case GE_VTYPE_IDX_8BIT >> GE_VTYPE_IDX_SHIFT:
+			indexGen.TranslatePrim(di.prim, di.vertexCount, (const u8 *)di.inds, indexOffset, clockwise);
+			break;
+		case GE_VTYPE_IDX_16BIT >> GE_VTYPE_IDX_SHIFT:
+			indexGen.TranslatePrim(di.prim, di.vertexCount, (const u16_le *)di.inds, indexOffset, clockwise);
+			break;
+		case GE_VTYPE_IDX_32BIT >> GE_VTYPE_IDX_SHIFT:
+			indexGen.TranslatePrim(di.prim, di.vertexCount, (const u32_le *)di.inds, indexOffset, clockwise);
+			break;
+		}
 	}
 	decodeIndsCounter_ = i;
 

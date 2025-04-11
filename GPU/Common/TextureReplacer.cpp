@@ -144,18 +144,18 @@ bool TextureReplacer::LoadIni(std::string *error) {
 
 	Path zipPath = basePath_ / ZIP_FILENAME;
 
-	// // First, check for textures.zip, which is used to reduce IO.
-	VFSBackend *dir = nullptr;
-	// if (!dir) {
-	// 	INFO_LOG(Log::TexReplacement, "%s wasn't a zip file - opening the directory %s instead.", zipPath.c_str(), basePath_.c_str());
-	// 	vfsIsZip_ = false;
-	// 	dir = new DirectoryReader(basePath_);
-	// } else {
-	// 	if (!replaceEnabled_ && saveEnabled_) {
-	// 		WARN_LOG(Log::TexReplacement, "Found zip file even though only saving is enabled! This is weird.");
-	// 	}
-	// 	vfsIsZip_ = true;
-	// }
+	// First, check for textures.zip, which is used to reduce IO.
+	VFSBackend *dir = ZipFileReader::Create(zipPath, "", false);
+	if (!dir) {
+		INFO_LOG(Log::TexReplacement, "%s wasn't a zip file - opening the directory %s instead.", zipPath.c_str(), basePath_.c_str());
+		vfsIsZip_ = false;
+		dir = new DirectoryReader(basePath_);
+	} else {
+		if (!replaceEnabled_ && saveEnabled_) {
+			WARN_LOG(Log::TexReplacement, "Found zip file even though only saving is enabled! This is weird.");
+		}
+		vfsIsZip_ = true;
+	}
 
 	IniFile ini;
 	bool iniLoaded = ini.LoadFromVFS(*dir, INI_FILENAME);
@@ -689,7 +689,22 @@ ReplacedTexture *TextureReplacer::FindReplacement(u64 cachekey, u32 hash, int w,
 }
 
 static bool WriteTextureToPNG(png_imagep image, const Path &filename, int convert_to_8bit, const void *buffer, png_int_32 row_stride, const void *colormap) {
+	FILE *fp = File::OpenCFile(filename, "wb");
+	if (!fp) {
+		ERROR_LOG(Log::TexReplacement, "Save texture: Unable to open texture file '%s' for writing.", filename.c_str());
 		return false;
+	}
+
+	if (png_image_write_to_stdio(image, fp, convert_to_8bit, buffer, row_stride, colormap)) {
+		fclose(fp);
+		return true;
+	} else {
+		// This shouldn't really happen.
+		ERROR_LOG(Log::TexReplacement, "Texture PNG encode failed.");
+		fclose(fp);
+		remove(filename.c_str());
+		return false;
+	}
 }
 
 // We save textures on threadpool tasks since it's a fire-and-forget task, and both I/O and png compression
@@ -737,6 +752,24 @@ public:
 			File::CreateFullPath(saveDirectory);
 		}
 
+		// Now that we've passed the checks, we change the file extension of the path we're actually
+		// going to write to to .png.
+		saveFilename = saveFilename.WithReplacedExtension(".png");
+
+		png_image png{};
+		png.version = PNG_IMAGE_VERSION;
+		png.format = PNG_FORMAT_RGBA;
+		png.width = w;
+		png.height = h;
+		bool success = WriteTextureToPNG(&png, saveFilename, 0, rgbaData, w * 4, nullptr);
+		png_image_free(&png);
+		if (png.warning_or_error >= 2) {
+			ERROR_LOG(Log::TexReplacement, "Saving texture to PNG produced errors.");
+		} else if (success) {
+			NOTICE_LOG(Log::TexReplacement, "Saving texture for replacement: %08x / %dx%d in '%s'", replacedInfoHash, w, h, saveFilename.ToVisualString().c_str());
+		} else {
+			ERROR_LOG(Log::TexReplacement, "Failed to write '%s'", saveFilename.c_str());
+		}
 	}
 };
 

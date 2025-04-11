@@ -161,6 +161,15 @@ bool Recorder::BeginRecording() {
 }
 
 static void WriteCompressed(FILE *fp, const void *p, size_t sz) {
+	size_t compressed_size = ZSTD_compressBound(sz);
+	u8 *compressed = new u8[compressed_size];
+	compressed_size = ZSTD_compress(compressed, compressed_size, p, sz, 6);
+
+	u32 write_size = (u32)compressed_size;
+	fwrite(&write_size, sizeof(write_size), 1, fp);
+	fwrite(compressed, compressed_size, 1, fp);
+
+	delete[] compressed;
 }
 
 Path Recorder::WriteRecording() {

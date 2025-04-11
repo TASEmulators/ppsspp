@@ -588,6 +588,14 @@ void PresentationCommon::DestroyStereoShader() {
 
 Draw::ShaderModule *PresentationCommon::CompileShaderModule(ShaderStage stage, ShaderLanguage lang, const std::string &src, std::string *errorString) const {
 	std::string translated = src;
+	if (lang != lang_) {
+		// Gonna have to upconvert the shader.
+		// Avoid dependency on glslang
+		// if (!TranslateShader(&translated, lang_, draw_->GetShaderLanguageDesc(), nullptr, src, lang, stage, errorString)) {
+		// 	ERROR_LOG(Log::FrameBuf, "Failed to translate post-shader. Error string: '%s'\nSource code:\n%s\n", errorString->c_str(), src.c_str());
+		// 	return nullptr;
+		// }
+	}
 	Draw::ShaderModule *shader = draw_->CreateShaderModule(stage, lang_, (const uint8_t *)translated.c_str(), translated.size(), "postshader");
 	return shader;
 }
