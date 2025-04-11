@@ -84,6 +84,7 @@ CoreParameter g_CoreParameter;
 static FileLoader *g_loadedFile;
 // For background loading thread.
 static std::mutex loadingLock;
+static std::thread g_loadingThread;
 
 bool coreCollectDebugStats = false;
 static int coreCollectDebugStatsCounter = 0;
@@ -346,6 +347,8 @@ static bool CPU_Init(FileLoader *fileLoader, IdentifiedFileType type, std::strin
 	MIPSAnalyst::Reset();
 	Replacement_Init();
 
+	g_lua.Init();
+
 	// Here we have read the PARAM.SFO, let's see if we need any compatibility overrides.
 	// Homebrew usually has an empty discID, and even if they do have a disc id, it's not
 	// likely to collide with any commercial ones.
@@ -476,6 +479,8 @@ void CPU_Shutdown(bool success) {
 	g_CoreParameter.mountIsoLoader = nullptr;
 	delete g_symbolMap;
 	g_symbolMap = nullptr;
+
+	g_lua.Shutdown();
 }
 
 // Used for UMD switching only.
@@ -507,7 +512,6 @@ void PSP_ForceDebugStats(bool enable) {
 }
 
 bool PSP_InitStart(const CoreParameter &coreParam) {
-	printf("InitStartA\n");
 	if (g_bootState != BootState::Off) {
 		ERROR_LOG(Log::Loader, "Can't start loader thread - already on.");
 		return false;
@@ -526,55 +530,52 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 
 	INFO_LOG(Log::Loader, "Starting loader thread...");
 
-	SetCurrentThreadName("ExecLoader");
-	AndroidJNIThreadContext jniContext;
+	// _dbg_assert_(!g_loadingThread.joinable());
 
-	NOTICE_LOG(Log::Boot, "PPSSPP %s", PPSSPP_GIT_VERSION);
+	//g_loadingThread = std::thread([error_string]() {
+		SetCurrentThreadName("ExecLoader");
 
-	printf("InitStartD\n");
+		AndroidJNIThreadContext jniContext;
 
-	Core_NotifyLifecycle(CoreLifecycle::STARTING);
+		NOTICE_LOG(Log::Boot, "PPSSPP %s", PPSSPP_GIT_VERSION);
 
-	Path filename = g_CoreParameter.fileToStart;
-	FileLoader *loadedFile = ResolveFileLoaderTarget(ConstructFileLoader(filename));
-	IdentifiedFileType type = Identify_File(loadedFile, &g_CoreParameter.errorString);
-	g_CoreParameter.fileType = type;
+		Core_NotifyLifecycle(CoreLifecycle::STARTING);
 
-	printf("InitStartE\n");
+		Path filename = g_CoreParameter.fileToStart;
+		FileLoader *loadedFile = ResolveFileLoaderTarget(ConstructFileLoader(filename));
 
-	if (System_GetPropertyBool(SYSPROP_ENOUGH_RAM_FOR_FULL_ISO)) {
-		if (g_Config.bCacheFullIsoInRam) {
-			switch (g_CoreParameter.fileType) {
-			case IdentifiedFileType::PSP_ISO:
-			case IdentifiedFileType::PSP_ISO_NP:
-				loadedFile = new RamCachingFileLoader(loadedFile);
-				break;
-			default:
-				INFO_LOG(Log::Loader, "RAM caching is on, but file is not an ISO, so ignoring");
-				break;
+		IdentifiedFileType type = Identify_File(loadedFile, &g_CoreParameter.errorString);
+		g_CoreParameter.fileType = type;
+
+		if (System_GetPropertyBool(SYSPROP_ENOUGH_RAM_FOR_FULL_ISO)) {
+			if (g_Config.bCacheFullIsoInRam) {
+				switch (g_CoreParameter.fileType) {
+				case IdentifiedFileType::PSP_ISO:
+				case IdentifiedFileType::PSP_ISO_NP:
+					loadedFile = new RamCachingFileLoader(loadedFile);
+					break;
+				default:
+					INFO_LOG(Log::Loader, "RAM caching is on, but file is not an ISO, so ignoring");
+					break;
+				}
 			}
 		}
-	}
 
-	// TODO: The reason we pass in g_CoreParameter.errorString here is that it's persistent -
-	// it gets written to from the loader thread that gets spawned.
-	printf("InitStartF\n");
-	if (!CPU_Init(loadedFile, type, &g_CoreParameter.errorString)) {
-		CPU_Shutdown(false);
-		g_CoreParameter.fileToStart.clear();
-		*error_string = g_CoreParameter.errorString;
-		if (error_string->empty()) {
-			*error_string = "Failed initializing CPU/Memory";
+		// TODO: The reason we pass in g_CoreParameter.errorString here is that it's persistent -
+		// it gets written to from the loader thread that gets spawned.
+		if (!CPU_Init(loadedFile, type, &g_CoreParameter.errorString)) {
+			CPU_Shutdown(false);
+			g_CoreParameter.fileToStart.clear();
+			*error_string = g_CoreParameter.errorString;
+			if (error_string->empty()) {
+				*error_string = "Failed initializing CPU/Memory";
+			}
+			g_bootState = BootState::Failed;
+			return false;
 		}
-		g_bootState = BootState::Failed;
-		return false;
-	}
 
-	printf("InitStartG\n");
+		g_bootState = BootState::Complete;
 
-	g_bootState = BootState::Complete;
-
-	printf("InitStartH\n");
 	return true;
 }
 
@@ -585,6 +586,10 @@ BootState PSP_InitUpdate(std::string *error_string) {
 	}
 
 	_dbg_assert_(g_bootState == BootState::Complete || g_bootState == BootState::Failed);
+
+	// Since we load on a background thread, wait for startup to complete.
+	// _dbg_assert_(g_loadingThread.joinable());
+	// g_loadingThread.join();
 
 	if (g_bootState == BootState::Failed) {
 		// Failed! (Note: PSP_Shutdown was already called on the loader thread).
