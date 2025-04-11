@@ -17,18 +17,18 @@ bool LibretroGLContext::Init() {
 
 void LibretroGLContext::CreateDrawContext() {
 
-// #ifndef USING_GLES2
-//     // Some core profile drivers elide certain extensions from GL_EXTENSIONS/etc.
-//     // glewExperimental allows us to force GLEW to search for the pointers anyway.
-//     if (gl_extensions.IsCoreContext)
-//         glewExperimental = true;
-//     if (GLEW_OK != glewInit()) {
-//         printf("Failed to initialize glew!\n");
-//     }
-//     // Unfortunately, glew will generate an invalid enum error, ignore.
-//     if (gl_extensions.IsCoreContext)
-//         glGetError();
-// #endif
+#ifndef USING_GLES2
+    // Some core profile drivers elide certain extensions from GL_EXTENSIONS/etc.
+    // glewExperimental allows us to force GLEW to search for the pointers anyway.
+    if (gl_extensions.IsCoreContext)
+        glewExperimental = true;
+    if (GLEW_OK != glewInit()) {
+        printf("Failed to initialize glew!\n");
+    }
+    // Unfortunately, glew will generate an invalid enum error, ignore.
+    if (gl_extensions.IsCoreContext)
+        glGetError();
+#endif
 
     CheckGLExtensions();
     draw_ = Draw::T3DCreateGLContext(false);
