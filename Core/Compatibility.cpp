@@ -16,7 +16,7 @@
 // https://github.com/hrydgard/ppsspp and http://www.ppsspp.org/.
 
 #include <cstring>
-#include <sstream>
+
 #include "Common/Log.h"
 #include "Common/Data/Format/IniFile.h"
 #include "Common/Data/Text/I18n.h"
@@ -27,6 +27,7 @@
 #include "Core/Config.h"
 #include "Core/System.h"
 
+#include <sstream>
 extern std::string _compatibilityFileData;
 extern std::string _compatibilityVRFileData;
 
@@ -47,9 +48,7 @@ void Compatibility::Load(const std::string &gameID) {
 	{
 		IniFile compat;
 		// This loads from assets.
-		// if (compat.LoadFromVFS(g_VFS, "compat.ini"))
-		if (compat.Load(compatIString))
-		{
+		if (compat.Load(compatIString)) {
 			CheckSettings(compat, gameID);
 		} else {
 			auto e = GetI18NCategory(I18NCat::ERRORS);
@@ -58,32 +57,31 @@ void Compatibility::Load(const std::string &gameID) {
 		}
 	}
 
-	// {
-	// 	IniFile compat2;
-	// 	// This one is user-editable. Need to load it after the system one.
-	// 	Path path = GetSysDirectory(DIRECTORY_SYSTEM) / "compat.ini";
-	// 	if (compat2.Load(path)) {
-	// 		CheckSettings(compat2, gameID);
-	// 	}
-	// }
+	{
+		IniFile compat2;
+		// This one is user-editable. Need to load it after the system one.
+		Path path = GetSysDirectory(DIRECTORY_SYSTEM) / "compat.ini";
+		if (compat2.Load(path)) {
+			CheckSettings(compat2, gameID);
+		}
+	}
 
 	{
 		IniFile compat;
 		// This loads from assets.
-		if (compat.Load(compatVRIString))
-		{
+		if (compat.Load(compatVRIString)) {
 			CheckVRSettings(compat, gameID);
 		}
 	}
 
-	// {
-	// 	IniFile compat2;
-	// 	// This one is user-editable. Need to load it after the system one.
-	// 	Path path = GetSysDirectory(DIRECTORY_SYSTEM) / "compatvr.ini";
-	// 	if (compat2.Load(path)) {
-	// 		CheckVRSettings(compat2, gameID);
-	// 	}
-	// }
+	{
+		IniFile compat2;
+		// This one is user-editable. Need to load it after the system one.
+		Path path = GetSysDirectory(DIRECTORY_SYSTEM) / "compatvr.ini";
+		if (compat2.Load(path)) {
+			CheckVRSettings(compat2, gameID);
+		}
+	}
 }
 
 void Compatibility::Clear() {
@@ -176,6 +174,7 @@ void Compatibility::CheckVRSettings(IniFile &iniFile, const std::string &gameID)
 void Compatibility::CheckSetting(IniFile &iniFile, const std::string &gameID, const char *option, bool *flag) {
 	if (ignored_.find(option) == ignored_.end()) {
 		iniFile.Get(option, gameID.c_str(), flag, *flag);
+
 		// Shortcut for debugging, sometimes useful to globally enable compat flags.
 		bool all = false;
 		iniFile.Get(option, "ALL", &all, false);
