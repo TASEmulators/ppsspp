@@ -51,7 +51,7 @@ public:
 	}
 	virtual bool IsDisc() const = 0;
 
-	void NotifyReadError();
+	void NotifyReadError() {} ;
 
 protected:
 	FileLoader *fileLoader_;
@@ -137,4 +137,4 @@ private:
 };
 
 
-BlockDevice *constructBlockDevice(FileLoader *fileLoader);
+inline BlockDevice *constructBlockDevice(FileLoader *fileLoader) { return nullptr; }; // Getting rid of libchdr dependency -- bizhawk handles its own CD reading
