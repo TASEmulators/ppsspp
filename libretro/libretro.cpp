@@ -1,6 +1,7 @@
 #include "ppsspp_config.h"
 #include <cstring>
 #include <cassert>
+#include <thread>
 #include <atomic>
 #include <vector>
 #include <cstdlib>
@@ -34,6 +35,7 @@
 #include "Core/System.h"
 #include "Core/CoreTiming.h"
 #include "Core/HW/Display.h"
+#include "Core/CwCheat.h"
 #include "Core/ELF/ParamSFO.h"
 
 #include "GPU/GPUState.h"
@@ -103,6 +105,7 @@ namespace Libretro
    static retro_log_printf_t log_cb;
 
    bool g_pendingBoot = false;
+   std::string g_bootErrorString;
 
    static bool detectVsyncSwapInterval = false;
    static bool detectVsyncSwapIntervalOptShown = true;
@@ -478,8 +481,6 @@ static void check_variables(CoreParameter &coreParam)
       if (environ_cb(RETRO_ENVIRONMENT_GET_FASTFORWARDING, &isFastForwarding))
           coreParam.fastForward = isFastForwarding;
    }
-
-   bool updated = false;
 
    struct retro_variable var = {0};
    std::string sTextureShaderName_prev;
@@ -1084,6 +1085,13 @@ static void check_variables(CoreParameter &coreParam)
 
    g_Config.bTexHardwareScaling = g_Config.sTextureShaderName != "Off";
 
+   if (gpu && (g_Config.iTexScalingType != iTexScalingType_prev
+         || g_Config.iTexScalingLevel != iTexScalingLevel_prev
+         || g_Config.sTextureShaderName != sTextureShaderName_prev))
+   {
+      gpu->NotifyConfigChanged();
+   }
+
    if (g_Config.iLanguage < 0)
       g_Config.iLanguage = get_language_auto();
 
@@ -1105,6 +1113,36 @@ static void check_variables(CoreParameter &coreParam)
    {
       vsyncSwapInterval = 1;
       updateAvInfo = true;
+   }
+
+   if (g_Config.iInternalResolution != iInternalResolution_prev && backend != RETRO_HW_CONTEXT_NONE)
+   {
+      coreParam.pixelWidth  = coreParam.renderWidth  = g_Config.iInternalResolution * NATIVEWIDTH;
+      coreParam.pixelHeight = coreParam.renderHeight = g_Config.iInternalResolution * NATIVEHEIGHT;
+
+      if (gpu)
+      {
+         retro_system_av_info avInfo;
+         retro_get_system_av_info(&avInfo);
+         environ_cb(RETRO_ENVIRONMENT_SET_SYSTEM_AV_INFO, &avInfo);
+         updateAvInfo = false;
+         gpu->NotifyDisplayResized();
+      }
+   }
+
+   if (g_Config.bDisplayCropTo16x9 != bDisplayCropTo16x9_prev && PSP_IsInited())
+   {
+      updateGeometry = true;
+      if (gpu)
+         gpu->NotifyDisplayResized();
+   }
+
+   if (g_Config.iMultiSampleLevel != iMultiSampleLevel_prev && PSP_IsInited())
+   {
+      if (gpu)
+      {
+         gpu->NotifyRenderResized();
+      }
    }
 
    if (updateAvInfo)
@@ -1251,6 +1289,8 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    info->timing.fps            = (60.0 / 1.001) / (double)vsyncSwapInterval;
    info->timing.sample_rate    = SAMPLERATE;
 
+   _dbg_assert_(g_Config.iInternalResolution != 0);
+
    info->geometry.base_width   = g_Config.iInternalResolution * NATIVEWIDTH;
    info->geometry.base_height  = g_Config.iInternalResolution * NATIVEHEIGHT;
    info->geometry.max_width    = g_Config.iInternalResolution * NATIVEWIDTH;
@@ -1266,14 +1306,18 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 
    /* Must reset context to resize render area properly while running,
     * but not necessary with software, and not working with Vulkan.. (TODO) */
-   if (PSP_IsInited() && ctx && backend != RETRO_HW_CONTEXT_NONE && ctx->GetGPUCore() != GPUCORE_VULKAN)
-      ((LibretroHWRenderContext *)Libretro::ctx)->ContextReset();
+   //if (PSP_IsInited() && ctx && backend != RETRO_HW_CONTEXT_NONE && ctx->GetGPUCore() != GPUCORE_VULKAN)
+   //   ((LibretroHWRenderContext *)Libretro::ctx)->ContextReset();
 }
 
 unsigned retro_api_version(void) { return RETRO_API_VERSION; }
 
 namespace Libretro
 {
+   bool useEmuThread = false;
+   std::atomic<EmuThreadState> emuThreadState(EmuThreadState::DISABLED);
+
+   static std::thread emuThread;
    static void EmuFrame()
    {
       ctx->SetRenderTarget();
@@ -1283,8 +1327,16 @@ namespace Libretro
       if (gpu)
          gpu->BeginHostFrame();
 
-      coreState = CORE_RUNNING_CPU;
       PSP_RunLoopWhileState();
+      switch (coreState) {
+      case CORE_NEXTFRAME:
+         // Reached the end of the frame while running at full blast, all good. Set back to running for the next frame
+         coreState = CORE_RUNNING_CPU;
+         break;
+      default:
+         // We're not handling the various states used for debugging in the libretro port.
+         break;
+      }
 
       if (gpu)
          gpu->EndHostFrame();
@@ -1294,6 +1346,77 @@ namespace Libretro
          ctx->GetDrawContext()->Present(Draw::PresentMode::FIFO, 1);
       }
    }
+
+   static void EmuThreadFunc()
+   {
+      SetCurrentThreadName("EmuThread");
+
+      for (;;)
+      {
+         switch ((EmuThreadState)emuThreadState)
+         {
+            case EmuThreadState::START_REQUESTED:
+               emuThreadState = EmuThreadState::RUNNING;
+               [[fallthrough]];
+            case EmuThreadState::RUNNING:
+               EmuFrame();
+               break;
+            case EmuThreadState::PAUSE_REQUESTED:
+               emuThreadState = EmuThreadState::PAUSED;
+               [[fallthrough]];
+            case EmuThreadState::PAUSED:
+               sleep_ms(1, "libretro-paused");
+               break;
+            default:
+            case EmuThreadState::QUIT_REQUESTED:
+               emuThreadState = EmuThreadState::STOPPED;
+               ctx->StopThread();
+               return;
+         }
+      }
+   }
+
+   void EmuThreadStart()
+   {
+      bool wasPaused = emuThreadState == EmuThreadState::PAUSED;
+      emuThreadState = EmuThreadState::START_REQUESTED;
+
+      if (!wasPaused)
+      {
+         ctx->ThreadStart();
+         emuThread = std::thread(&EmuThreadFunc);
+      }
+   }
+
+   void EmuThreadStop()
+   {
+      if (emuThreadState != EmuThreadState::RUNNING)
+         return;
+
+      emuThreadState = EmuThreadState::QUIT_REQUESTED;
+
+      // Need to keep eating frames to allow the EmuThread to exit correctly.
+      while (ctx->ThreadFrame())
+         ;
+
+      emuThread.join();
+      emuThread = std::thread();
+      ctx->ThreadEnd();
+   }
+
+   void EmuThreadPause()
+   {
+      if (emuThreadState != EmuThreadState::RUNNING)
+         return;
+
+      emuThreadState = EmuThreadState::PAUSE_REQUESTED;
+
+      ctx->ThreadFrame(); // Eat 1 frame
+
+      while (emuThreadState != EmuThreadState::PAUSED)
+         sleep_ms(1, "libretro-pause-poll");
+   }
+
 } // namespace Libretro
 
 static void retro_check_backend(void)
@@ -1333,37 +1456,32 @@ bool retro_load_game(const struct retro_game_info *game)
    Core_SetGraphicsContext(ctx);
    SetGPUBackend((GPUBackend)g_Config.iGPUBackend);
 
+   useEmuThread              = false; // ctx->GetGPUCore() == GPUCORE_GLES;
+
    // default to interpreter to allow startup in platforms w/o JIT capability
+   // TODO: I guess we should auto detect? And also, default to IR Interpreter...
    g_Config.iCpuCore         = (int)CPUCore::INTERPRETER;
 
    CoreParameter coreParam   = {};
    coreParam.enableSound     = true;
    coreParam.fileToStart     = Path(std::string(game->path));
-   coreParam.mountIso.clear();
    coreParam.startBreak      = false;
-   coreParam.headLess        = true;
+   coreParam.headLess        = true;  // really?
    coreParam.graphicsContext = ctx;
    coreParam.gpuCore = GPUCORE_SOFTWARE;
    check_variables(coreParam);
 
    // TODO: OpenGL goes black when inited with software rendering,
    // therefore start without, set back after init, and reset.
-   softwareRenderInitHack = false;
-
+   softwareRenderInitHack    = ctx->GetGPUCore() == GPUCORE_GLES && g_Config.bSoftwareRendering;
    if (softwareRenderInitHack)
       g_Config.bSoftwareRendering = false;
-   
-      // set cpuCore from libretro setting variable
+
+   // set cpuCore from libretro setting variable
    coreParam.cpuCore         =  (CPUCore)g_Config.iCpuCore;
 
    g_pendingBoot = true;
 
-   std::string error_string;
-   if (!PSP_InitStart(coreParam)) {
-      // Can't really fail, the errors happen later during InitUpdate
-      ERROR_LOG(Log::Boot, "%s", error_string.c_str());
-      return false;
-   }
    struct retro_core_option_display option_display;
 
    // Show/hide 'MSAA' and 'Texture Shader' options, Vulkan only
@@ -1375,22 +1493,31 @@ bool retro_load_game(const struct retro_game_info *game)
 
    // Show/hide 'Buffered Frames' option, Vulkan/GL only
    option_display.visible = (g_Config.iGPUBackend == (int)GPUBackend::VULKAN ||
-         g_Config.iGPUBackend == (int)GPUBackend::OPENGL);
+      g_Config.iGPUBackend == (int)GPUBackend::OPENGL);
    option_display.key = "ppsspp_inflight_frames";
    environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_DISPLAY, &option_display);
 
    set_variable_visibility();
 
-   // Advancing until gpu is initialized
-   while (!gpu) retro_run();
-
    // NOTE: At this point we haven't really booted yet, but "in-game" we'll just keep polling
    // PSP_InitUpdate until done.
+
+   // Launch the init process.
+   if (!PSP_InitStart(coreParam)) {
+      g_bootErrorString = coreParam.errorString;
+      // Can't really fail, the errors happen later during InitUpdate
+      ERROR_LOG(Log::Boot, "%s", g_bootErrorString.c_str());
+      return false;
+   }
+
    return true;
 }
 
 void retro_unload_game(void)
 {
+	if (Libretro::useEmuThread)
+		Libretro::EmuThreadStop();
+
 	PSP_Shutdown(true);
 	g_VFS.Clear();
 
@@ -1401,13 +1528,11 @@ void retro_unload_game(void)
 
 void retro_reset(void)
 {
-   std::string error_string;
-
    PSP_Shutdown(true);
 
-   if (BootState::Complete != PSP_Init(PSP_CoreParameter(), &error_string))
+   if (BootState::Complete != PSP_Init(PSP_CoreParameter(), &g_bootErrorString))
    {
-      ERROR_LOG(Log::Boot, "%s", error_string.c_str());
+      ERROR_LOG(Log::Boot, "%s", g_bootErrorString.c_str());
       environ_cb(RETRO_ENVIRONMENT_SHUTDOWN, nullptr);
    }
 }
@@ -1513,21 +1638,28 @@ static void retro_input(void)
 void retro_run(void)
 {
    if (g_pendingBoot) {
-      std::string error_string;
-      BootState state = PSP_InitUpdate(&error_string);
-      if (state == BootState::Failed) {
+      BootState state = PSP_InitUpdate(&g_bootErrorString);
+      switch (state) {
+      case BootState::Failed:
          g_pendingBoot = false;
-         ERROR_LOG(Log::Boot, "%s", error_string.c_str());
+         ERROR_LOG(Log::Boot, "%s", g_bootErrorString.c_str());
          environ_cb(RETRO_ENVIRONMENT_SHUTDOWN, nullptr);
          return;
-      } else if (state == BootState::Booting) {
+      case BootState::Booting:
          // Not done yet. Do maintenance stuff and bail.
          retro_input();
          ctx->SwapBuffers();
          return;
+      case BootState::Off:
+         // shouldn't happen.
+         _dbg_assert_(false);
+         return;
       }
 
+      // BootState is BootState::Complete.
       // Here's where we finish the boot process.
+      coreState = CORE_RUNNING_CPU;
+      g_bootErrorString.clear();
       g_pendingBoot = false;
    }
 
@@ -1540,11 +1672,34 @@ void retro_run(void)
       retro_reset();
    }
 
-   check_variables(PSP_CoreParameter());
+   bool updated;
+   if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE_UPDATE, &updated)
+      && updated)
+      check_variables(PSP_CoreParameter());
 
    retro_input();
 
-   EmuFrame();
+   if (useEmuThread)
+   {
+      if (  emuThreadState == EmuThreadState::PAUSED ||
+            emuThreadState == EmuThreadState::PAUSE_REQUESTED)
+      {
+         VsyncSwapIntervalDetect();
+         ctx->SwapBuffers();
+         return;
+      }
+
+      if (emuThreadState != EmuThreadState::RUNNING)
+         EmuThreadStart();
+
+      if (!ctx->ThreadFrame())
+      {
+         VsyncSwapIntervalDetect();
+         return;
+      }
+   }
+   else
+      EmuFrame();
 
    VsyncSwapIntervalDetect();
    ctx->SwapBuffers();
@@ -1569,6 +1724,9 @@ size_t retro_serialize_size(void)
       return 134217728; // 128MB ought to be enough for anybody.
 
    SaveState::SaveStart state;
+   // TODO: Libretro API extension to use the savestate queue
+   if (useEmuThread)
+      EmuThreadPause();
 
    return (CChunkFileReader::MeasurePtr(state) + 0x800000) & ~0x7FFFFF;
    // We don't unpause intentionally
@@ -1576,15 +1734,23 @@ size_t retro_serialize_size(void)
 
 bool retro_serialize(void *data, size_t size)
 {
-   printf("Serialize A\n");
    if (!gpu) // The HW renderer isn't ready on first pass.
       return false;
-   printf("Serialize B\n");
+
+   // TODO: Libretro API extension to use the savestate queue
+   if (useEmuThread)
+      EmuThreadPause(); // Does nothing if already paused
 
    size_t measuredSize;
    SaveState::SaveStart state;
    auto err = CChunkFileReader::MeasureAndSavePtr(state, (u8 **)&data, &measuredSize);
    bool retVal = err == CChunkFileReader::ERROR_NONE;
+
+   if (useEmuThread)
+   {
+      EmuThreadStart();
+      sleep_ms(4, "libretro-serialize");
+   }
 
    return retVal;
 }
@@ -1594,10 +1760,20 @@ bool retro_unserialize(const void *data, size_t size)
    if (!gpu) // The HW renderer isn't ready on first pass.
       return false;
 
+   // TODO: Libretro API extension to use the savestate queue
+   if (useEmuThread)
+      EmuThreadPause(); // Does nothing if already paused
+
    std::string errorString;
    SaveState::SaveStart state;
    bool retVal = CChunkFileReader::LoadPtr((u8 *)data, state, &errorString)
       == CChunkFileReader::ERROR_NONE;
+
+   if (useEmuThread)
+   {
+      EmuThreadStart();
+      sleep_ms(4, "libretro-unserialize");
+   }
 
    return retVal;
 }
@@ -1617,9 +1793,84 @@ size_t retro_get_memory_size(unsigned id)
 }
 
 void retro_cheat_reset(void) {
+   // Init Cheat Engine
+   CWCheatEngine *cheatEngine = new CWCheatEngine(g_paramSFO.GetDiscID());
+   Path file=cheatEngine->CheatFilename();
+
+   // Output cheats to cheat file
+   std::ofstream outFile;
+   outFile.open(file.c_str());
+   outFile << "_S " << g_paramSFO.GetDiscID() << std::endl;
+   outFile.close();
+
+   g_Config.bReloadCheats = true;
+
+   // Parse and Run the Cheats
+   cheatEngine->ParseCheats();
+   if (cheatEngine->HasCheats()) {
+      cheatEngine->Run();
+   }
+
 }
 
 void retro_cheat_set(unsigned index, bool enabled, const char *code) {
+   // Initialize Cheat Engine
+   CWCheatEngine *cheatEngine = new CWCheatEngine(g_paramSFO.GetDiscID());
+   cheatEngine->CreateCheatFile();
+   Path file=cheatEngine->CheatFilename();
+
+   // Read cheats file
+   std::vector<std::string> cheats;
+   std::ifstream cheat_content(file.c_str());
+   std::stringstream buffer;
+   buffer << cheat_content.rdbuf();
+   std::string existing_cheats=ReplaceAll(buffer.str(), std::string("\n_C"), std::string("|"));
+   SplitString(existing_cheats, '|', cheats);
+
+   // Generate Cheat String
+   std::stringstream cheat("");
+   cheat << (enabled ? "1 " : "0 ") << index << std::endl;
+   std::string code_str(code);
+   std::vector<std::string> codes;
+   code_str=ReplaceAll(code_str, std::string(" "), std::string("+"));
+   SplitString(code_str, '+', codes);
+   int part=0;
+   for (int i=0; i < codes.size(); i++) {
+      if (codes[i].size() <= 2) {
+         // _L _M ..etc
+         // Assume _L
+      } else if (part == 0) {
+         cheat << "_L " << codes[i] << " ";
+         part++;
+      } else {
+         cheat << codes[i] << std::endl;
+         part=0;
+      }
+   }
+
+   // Add or Replace the Cheat
+   if (index + 1 < cheats.size()) {
+      cheats[index + 1]=cheat.str();
+   } else {
+      cheats.push_back(cheat.str());
+   }
+
+   // Output cheats to cheat file
+   std::ofstream outFile;
+   outFile.open(file.c_str());
+   outFile << "_S " << g_paramSFO.GetDiscID() << std::endl;
+   for (int i=1; i < cheats.size(); i++) {
+      outFile << "_C" << cheats[i] << std::endl;
+   }
+   outFile.close();
+
+   g_Config.bReloadCheats = true;
+
+   // Parse and Run the Cheats
+   cheatEngine->ParseCheats();
+   if (cheatEngine->HasCheats()) {
+      cheatEngine->Run();
+   }
 }
 
 int64_t System_GetPropertyInt(SystemProperty prop)
@@ -1688,8 +1939,9 @@ void System_Notify(SystemNotification notification) {
    }
 }
 bool System_MakeRequest(SystemRequestType type, int requestId, const std::string &param1, const std::string &param2, int64_t param3, int64_t param4) { return false; }
-void System_PostUIMessage(UIMessage message, const std::string &param) { printf("UI: %s\n", param.c_str()); }
+void System_PostUIMessage(UIMessage message, const std::string &param) {}
 void System_RunOnMainThread(std::function<void()>) {}
+void NativeFrame(GraphicsContext *graphicsContext) {}
 void NativeResized() {}
 
 void System_Toast(std::string_view str) {}
