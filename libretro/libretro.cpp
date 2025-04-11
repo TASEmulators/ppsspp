@@ -1306,7 +1306,7 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 
    /* Must reset context to resize render area properly while running,
     * but not necessary with software, and not working with Vulkan.. (TODO) */
-   //if (PSP_IsInited() && ctx && backend != RETRO_HW_CONTEXT_NONE && ctx->GetGPUCore() != GPUCORE_VULKAN)
+   // if (PSP_IsInited() && ctx && backend != RETRO_HW_CONTEXT_NONE && ctx->GetGPUCore() != GPUCORE_VULKAN)
    //   ((LibretroHWRenderContext *)Libretro::ctx)->ContextReset();
 }
 
@@ -1456,7 +1456,7 @@ bool retro_load_game(const struct retro_game_info *game)
    Core_SetGraphicsContext(ctx);
    SetGPUBackend((GPUBackend)g_Config.iGPUBackend);
 
-   useEmuThread              = false; // ctx->GetGPUCore() == GPUCORE_GLES;
+   useEmuThread              = ctx->GetGPUCore() == GPUCORE_GLES;
 
    // default to interpreter to allow startup in platforms w/o JIT capability
    // TODO: I guess we should auto detect? And also, default to IR Interpreter...
