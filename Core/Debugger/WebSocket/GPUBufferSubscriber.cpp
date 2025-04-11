@@ -42,7 +42,122 @@ DebuggerSubscriber *WebSocketGPUBufferInit(DebuggerEventHandlerMap &map) {
 
 // Note: Calls req.Respond().  Other data can be added afterward.
 static bool StreamBufferToDataURI(DebuggerRequest &req, const GPUDebugBuffer &buf, bool isFramebuffer, bool includeAlpha, int stackWidth) {
+#ifdef USING_QT_UI
+	req.Fail("Not supported on Qt yet, pull requests accepted");
 	return false;
+#else
+	u8 *flipbuffer = nullptr;
+	u32 w = (u32)-1;
+	u32 h = (u32)-1;
+	const u8 *buffer = ConvertBufferToScreenshot(buf, includeAlpha, flipbuffer, w, h);
+	if (!buffer) {
+		req.Fail("Internal error converting buffer for PNG encode");
+		return false;
+	}
+
+	if (stackWidth > 0) {
+		u32 totalPixels = w * h;
+		w = stackWidth;
+		while ((totalPixels % w) != 0)
+			--w;
+		h = totalPixels / w;
+	}
+
+	png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+	if (!png_ptr) {
+		req.Fail("Internal error setting up PNG encoder (png_ptr)");
+		return false;
+	}
+	png_infop info_ptr = png_create_info_struct(png_ptr);
+	if (!info_ptr) {
+		png_destroy_write_struct(&png_ptr, nullptr);
+		req.Fail("Internal error setting up PNG encoder (info_ptr)");
+		return false;
+	}
+
+	// Speed.  Wireless N should give 35 KB/ms.  For most devices, zlib/filters will cost more.
+	png_set_compression_strategy(png_ptr, Z_RLE);
+	png_set_compression_level(png_ptr, 1);
+	png_set_filter(png_ptr, PNG_FILTER_TYPE_BASE, PNG_FILTER_NONE);
+
+	auto &json = req.Respond();
+	json.writeInt("width", w);
+	json.writeInt("height", h);
+	if (isFramebuffer) {
+		json.writeBool("isFramebuffer", isFramebuffer);
+	}
+
+	// Start a value...
+	json.writeRaw("uri", "");
+	req.Flush();
+	// Now we'll write it directly to the stream.
+	req.ws->AddFragment(false, "\"data:image/png;base64,");
+
+	struct Context {
+		DebuggerRequest *req;
+		uint8_t buf[3];
+		size_t bufSize;
+	};
+	Context ctx = { &req, {}, 0 };
+
+	auto write = [](png_structp png_ptr, png_bytep data, png_size_t length) {
+		auto ctx = (Context *)png_get_io_ptr(png_ptr);
+		auto &req = *ctx->req;
+
+		// If we buffered some bytes, fill to 3 bytes for a clean base64 encode.
+		// This way we don't have padding.
+		while (length > 0 && ctx->bufSize > 0 && ctx->bufSize != 3) {
+			ctx->buf[ctx->bufSize++] = data[0];
+			data++;
+			length--;
+		}
+
+		if (ctx->bufSize == 3) {
+			req.ws->AddFragment(false, Base64Encode(ctx->buf, ctx->bufSize));
+			ctx->bufSize = 0;
+		}
+		_assert_(ctx->bufSize == 0 || length == 0);
+
+		// Save bytes that would result in padding for next time.
+		size_t toBuffer = length % 3;
+		for (size_t i = 0; i < toBuffer; ++i) {
+			ctx->buf[i] = data[length - toBuffer + i];
+			ctx->bufSize++;
+		}
+
+		if (length > toBuffer) {
+			req.ws->AddFragment(false, Base64Encode(data, length - toBuffer));
+		}
+	};
+	auto flush = [](png_structp png_ptr) {
+		// Nothing, just here to prevent stdio flush.
+	};
+
+	png_bytep *row_pointers = new png_bytep[h];
+	u32 stride = includeAlpha ? w * 4 : w * 3;
+	for (u32 i = 0; i < h; ++i) {
+		row_pointers[i] = (u8 *)buffer + stride * i;
+	}
+
+	png_set_write_fn(png_ptr, &ctx, write, flush);
+	int colorType = includeAlpha ? PNG_COLOR_TYPE_RGBA : PNG_COLOR_TYPE_RGB;
+	png_set_IHDR(png_ptr, info_ptr, w, h, 8, colorType, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+	png_set_rows(png_ptr, info_ptr, row_pointers);
+	png_write_png(png_ptr, info_ptr, PNG_TRANSFORM_IDENTITY, nullptr);
+
+	png_destroy_write_struct(&png_ptr, &info_ptr);
+	delete [] row_pointers;
+	delete [] flipbuffer;
+
+	if (ctx.bufSize > 0) {
+		req.ws->AddFragment(false, Base64Encode(ctx.buf, ctx.bufSize));
+		ctx.bufSize = 0;
+	}
+
+	// End the string.
+	req.ws->AddFragment(false, "\"");
+	return true;
+#endif
 }
 
 static std::string DescribeFormat(GPUDebugBufferFormat fmt) {
