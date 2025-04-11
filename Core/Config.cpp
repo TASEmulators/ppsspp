@@ -60,6 +60,7 @@
 
 #include "GPU/Common/FramebufferManagerCommon.h"
 
+const char *PPSSPP_GIT_VERSION = "unknown";
 inline bool VulkanMayBeAvailable() { return false; }
 
 // TODO: Find a better place for this.
