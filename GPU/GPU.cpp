@@ -25,7 +25,19 @@
 #include "GPU/GPU.h"
 #include "GPU/GPUCommon.h"
 
+#if PPSSPP_API(ANY_GL)
+// #include "GPU/GLES/GPU_GLES.h"
+#endif
+// #include "GPU/Vulkan/GPU_Vulkan.h"
 #include "GPU/Software/SoftGpu.h"
+
+#if PPSSPP_API(D3D9)
+// #include "GPU/Directx9/GPU_DX9.h"
+#endif
+
+#if PPSSPP_API(D3D11)
+// #include "GPU/D3D11/GPU_D3D11.h"
+#endif
 
 GPUStatistics gpuStats;
 GPUCommon *gpu;
@@ -48,13 +60,16 @@ bool GPU_IsStarted() {
 }
 
 bool GPU_Init(GraphicsContext *ctx, Draw::DrawContext *draw) {
-	const auto& gpuCore = GPUCore::GPUCORE_SOFTWARE;
+	SetGPU(new SoftGPU(ctx, draw));
+	return true;
+	
+	const auto &gpuCore = PSP_CoreParameter().gpuCore;
 	_assert_(draw || gpuCore == GPUCORE_SOFTWARE);
 #if PPSSPP_PLATFORM(UWP)
 	if (gpuCore == GPUCORE_SOFTWARE) {
 		SetGPU(new SoftGPU(ctx, draw));
 	} else {
-		SetGPU(new GPU_D3D11(ctx, draw));
+		// SetGPU(new GPU_D3D11(ctx, draw));
 	}
 	return true;
 #else
@@ -62,14 +77,26 @@ bool GPU_Init(GraphicsContext *ctx, Draw::DrawContext *draw) {
 	case GPUCORE_GLES:
 		// Disable GLES on ARM Windows (but leave it enabled on other ARM platforms).
 #if PPSSPP_API(ANY_GL)
+		// SetGPU(new GPU_GLES(ctx, draw));
 		break;
 #else
 		return false;
 #endif
 	case GPUCORE_SOFTWARE:
-		SetGPU(new SoftGPU(ctx, draw));
+		// SetGPU(new SoftGPU(ctx, draw));
 		break;
 	case GPUCORE_DIRECTX9:
+#if PPSSPP_API(D3D9)
+		// SetGPU(new GPU_DX9(ctx, draw));
+		break;
+#else
+		return false;
+#endif
+	case GPUCORE_DIRECTX11:
+#if PPSSPP_API(D3D11)
+		// SetGPU(new GPU_D3D11(ctx, draw));
+		break;
+#else
 		return false;
 #endif
 #if !PPSSPP_PLATFORM(SWITCH)
@@ -78,6 +105,7 @@ bool GPU_Init(GraphicsContext *ctx, Draw::DrawContext *draw) {
 			ERROR_LOG(Log::G3D, "Unable to init Vulkan GPU backend, no context");
 			break;
 		}
+		// SetGPU(new GPU_Vulkan(ctx, draw));
 		break;
 #endif
 	default:
@@ -88,6 +116,7 @@ bool GPU_Init(GraphicsContext *ctx, Draw::DrawContext *draw) {
 		SetGPU<SoftGPU>(nullptr);
 
 	return gpu != nullptr;
+#endif
 }
 #ifdef USE_CRT_DBG
 #define new DBG_NEW
