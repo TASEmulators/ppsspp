@@ -51,7 +51,7 @@ public:
 	}
 	virtual bool IsDisc() const = 0;
 
-	void NotifyReadError() {}; // Getting rid of libchdr dependency -- bizhawk handles its own CD reading
+	void NotifyReadError();
 
 protected:
 	FileLoader *fileLoader_;
@@ -157,4 +157,4 @@ private:
 	u32 numBlocks = 0;
 };
 
-inline BlockDevice *constructBlockDevice(FileLoader *fileLoader) { return nullptr; }; // Getting rid of libchdr dependency -- bizhawk handles its own CD reading
+BlockDevice *constructBlockDevice(FileLoader *fileLoader);

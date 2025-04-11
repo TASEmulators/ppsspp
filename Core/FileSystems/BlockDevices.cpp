@@ -647,7 +647,7 @@ CHDFileBlockDevice::CHDFileBlockDevice(FileLoader *fileLoader)
 			memcpy(childHeader.parentsha1, parentHeader.parentsha1, sizeof(childHeader.parentsha1));
 		} while (memcmp(nullsha1, childHeader.parentsha1, sizeof(childHeader.sha1)) != 0);
 	}
-	*/
+
 
 	chd_file *file = nullptr;
 	chd_error err = chd_open_core_file(&core_file_->core, CHD_OPEN_READ, NULL, &file);
@@ -664,16 +664,18 @@ CHDFileBlockDevice::CHDFileBlockDevice(FileLoader *fileLoader)
 	currentHunk = -1;
 	blocksPerHunk = impl_->header->hunkbytes / impl_->header->unitbytes;
 	numBlocks = impl_->header->unitcount;
+	*/
 }
 
 CHDFileBlockDevice::~CHDFileBlockDevice() {
 	if (impl_->chd) {
-		chd_close(impl_->chd);
+		// chd_close(impl_->chd);
 		delete[] readBuffer;
 	}
 }
 
 bool CHDFileBlockDevice::ReadBlock(int blockNumber, u8 *outPtr, bool uncached) {
+	return false; // Bizhawk manages its own CD, removing LibCHDR dependency
 	if (!impl_->chd) {
 		ERROR_LOG(Log::Loader, "ReadBlock: CHD not open. %s", fileLoader_->GetPath().c_str());
 		return false;
@@ -686,11 +688,11 @@ bool CHDFileBlockDevice::ReadBlock(int blockNumber, u8 *outPtr, bool uncached) {
 	u32 blockInHunk = blockNumber % blocksPerHunk;
 
 	if (currentHunk != hunk) {
-		chd_error err = chd_read(impl_->chd, hunk, readBuffer);
-		if (err != CHDERR_NONE) {
-			ERROR_LOG(Log::Loader, "CHD read failed: %d %d %s", blockNumber, hunk, chd_error_string(err));
-			NotifyReadError();
-		}
+		//chd_error err = chd_read(impl_->chd, hunk, readBuffer);
+		// if (err != CHDERR_NONE) {
+			//ERROR_LOG(Log::Loader, "CHD read failed: %d %d %s", blockNumber, hunk, chd_error_string(err));
+			//NotifyReadError();
+		//}
 		currentHunk = hunk;
 	}
 	memcpy(outPtr, readBuffer + blockInHunk * impl_->header->unitbytes, GetBlockSize());
