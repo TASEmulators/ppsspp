@@ -109,7 +109,7 @@ void do_cpuid(u32 regs[4], u32 cpuid_leaf)
 CPUInfo cpu_info;
 
 CPUInfo::CPUInfo() {
-		//Detect(); // Removing for homogeneity among all cpus
+	Detect();
 }
 
 #if PPSSPP_PLATFORM(LINUX)
