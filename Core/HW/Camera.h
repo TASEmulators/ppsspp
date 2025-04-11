@@ -53,7 +53,7 @@ void __cameraDummyImage(int width, int height, unsigned char** outData, int* out
 
 #elif PPSSPP_PLATFORM(LINUX) && !PPSSPP_PLATFORM(ANDROID)
 #include <fcntl.h>
-// #include <linux/videodev2.h>
+#include <linux/videodev2.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 

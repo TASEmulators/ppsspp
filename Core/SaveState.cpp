@@ -17,6 +17,8 @@
 
 #include <algorithm>
 #include <vector>
+#include <thread>
+#include <mutex>
 
 #include "Common/Data/Text/I18n.h"
 #include "Common/Thread/ThreadUtil.h"
@@ -46,10 +48,9 @@
 #include "Core/MemMap.h"
 #include "Core/MIPS/MIPS.h"
 #include "Core/MIPS/JitCommon/JitBlockCache.h"
+#include "Core/RetroAchievements.h"
 #include "HW/MemoryStick.h"
 #include "GPU/GPUState.h"
-#include "Common/CommonTypes.h"
-#include "Core/Loaders.h"  // for IdentifiedFileType
 
 #ifndef MOBILE_DEVICE
 #include "Core/AVIDump.h"
@@ -113,11 +114,21 @@ double g_lastSaveTime = -1.0;
 		}
 
 		~StateRingbuffer() {
+			// if (compressThread_.joinable()) {
+			// 	compressThread_.join();
+			// }
 		}
 
 		CChunkFileReader::Error Save()
 		{
 			rewindLastTime_ = time_now_d();
+
+			// Make sure we're not processing a previous save. That'll cause a hitch though, but at least won't
+			// crash due to contention over buffer_.
+			// if (compressThread_.joinable())
+			// 	compressThread_.join();
+
+			std::lock_guard<std::mutex> guard(lock_);
 
 			int n = next_++ % size_;
 			if ((next_ % size_) == first_)
@@ -148,6 +159,8 @@ double g_lastSaveTime = -1.0;
 
 		CChunkFileReader::Error Restore(std::string *errorString)
 		{
+			std::lock_guard<std::mutex> guard(lock_);
+
 			// No valid states left.
 			if (Empty())
 				return CChunkFileReader::ERROR_BAD_FILE;
@@ -166,10 +179,21 @@ double g_lastSaveTime = -1.0;
 		void ScheduleCompress(std::vector<u8> *result, const std::vector<u8> *state, const std::vector<u8> *base)
 		{
 			Compress(*result, *state, *base);
+			return;
+
+			if (compressThread_.joinable())
+				compressThread_.join();
+			compressThread_ = std::thread([=]{
+				SetCurrentThreadName("SaveStateCompress");
+
+				// Should do no I/O, so no JNI thread context needed.
+				Compress(*result, *state, *base);
+			});
 		}
 
 		void Compress(std::vector<u8> &result, const std::vector<u8> &state, const std::vector<u8> &base)
 		{
+			std::lock_guard<std::mutex> guard(lock_);
 			// Bail if we were cleared before locking.
 			if (first_ == 0 && next_ == 0)
 				return;
@@ -224,7 +248,11 @@ double g_lastSaveTime = -1.0;
 
 		void Clear()
 		{
+			// if (compressThread_.joinable())
+			// 	compressThread_.join();
+
 			// This lock is mainly for shutdown.
+			std::lock_guard<std::mutex> guard(lock_);
 			first_ = 0;
 			next_ = 0;
 			for (auto &b : bases_) {
@@ -284,6 +312,8 @@ double g_lastSaveTime = -1.0;
 		std::vector<StateBuffer> states_;
 		StateBuffer bases_[2];
 		std::vector<int> baseMapping_;
+		std::mutex lock_;
+		std::thread compressThread_;
 		std::vector<u8> buffer_;
 
 		int base_ = -1;
@@ -373,27 +403,31 @@ double g_lastSaveTime = -1.0;
 		currentMIPS->DoState(p);
 		HLEDoState(p);
 		__KernelDoState(p);
+		Achievements::DoState(p);
 		// Kernel object destructors might close open files, so do the filesystem last.
 		pspFileSystem.DoState(p);
 	}
 
 	void Enqueue(const SaveState::Operation &op)
 	{
-		// if (!NetworkAllowSaveState()) {
-		// 	return;
-		// }
-		//  {
-		// 		// Operation not allowed
-		// 		return;
-		// 	}
-		// }
+		if (!NetworkAllowSaveState()) {
+			return;
+		}
+		if (Achievements::HardcoreModeActive()) {
+			if (g_Config.bAchievementsSaveStateInHardcoreMode && ((op.type == SaveState::SAVESTATE_SAVE) || (op.type == SAVESTATE_SAVE_SCREENSHOT))) {
+				// We allow saving in hardcore mode if this setting is on.
+			} else {
+				// Operation not allowed
+				return;
+			}
+		}
 
-		// std::lock_guard<std::mutex> guard(mutex);
-		// pending.push_back(op);
+		std::lock_guard<std::mutex> guard(mutex);
+		pending.push_back(op);
 
-		// // Don't actually run it until next frame.
-		// // It's possible there might be a duplicate but it won't hurt us.
-		// needsProcess = true;
+		// Don't actually run it until next frame.
+		// It's possible there might be a duplicate but it won't hurt us.
+		needsProcess = true;
 	}
 
 	void Load(const Path &filename, int slot, Callback callback, void *cbUserData)
@@ -962,6 +996,17 @@ double g_lastSaveTime = -1.0;
 					if (!slot_prefix.empty())
 						callbackMessage = slot_prefix + callbackMessage;
 
+#ifndef MOBILE_DEVICE
+					if (g_Config.bSaveLoadResetsAVdumping) {
+						if (g_Config.bDumpFrames) {
+							AVIDump::Stop();
+							AVIDump::Start(PSP_CoreParameter().renderWidth, PSP_CoreParameter().renderHeight);
+						}
+						if (g_Config.bDumpAudio) {
+							WAVDump::Reset();
+						}
+					}
+#endif
 					g_lastSaveTime = time_now_d();
 				} else if (result == CChunkFileReader::ERROR_BROKEN_STATE) {
 					HandleLoadFailure(false);
@@ -987,6 +1032,17 @@ double g_lastSaveTime = -1.0;
 				if (result == CChunkFileReader::ERROR_NONE) {
 					callbackMessage = slot_prefix + std::string(sc->T("Saved State"));
 					callbackResult = Status::SUCCESS;
+#ifndef MOBILE_DEVICE
+					if (g_Config.bSaveLoadResetsAVdumping) {
+						if (g_Config.bDumpFrames) {
+							AVIDump::Stop();
+							AVIDump::Start(PSP_CoreParameter().renderWidth, PSP_CoreParameter().renderHeight);
+						}
+						if (g_Config.bDumpAudio) {
+							WAVDump::Reset();
+						}
+					}
+#endif
 					g_lastSaveTime = time_now_d();
 				} else if (result == CChunkFileReader::ERROR_BROKEN_STATE) {
 					// TODO: What else might we want to do here? This should be very unusual.
@@ -1037,6 +1093,40 @@ double g_lastSaveTime = -1.0;
 				}
 				break;
 
+			case SAVESTATE_SAVE_SCREENSHOT:
+			{
+				_dbg_assert_(!op.callback);
+
+				int maxResMultiplier = 2;
+				ScreenshotResult tempResult = TakeGameScreenshot(nullptr, op.filename, ScreenshotFormat::JPG, SCREENSHOT_DISPLAY, maxResMultiplier, [](bool success) {
+					if (success) {
+						screenshotFailures = 0;
+					}
+				});
+				
+				switch (tempResult) {
+				case ScreenshotResult::ScreenshotNotPossible:
+					// Try again soon, for a short while.
+					callbackResult = Status::FAILURE;
+					WARN_LOG(Log::SaveState, "Failed to take a screenshot for the savestate! (%s) The savestate will lack an icon.", op.filename.c_str());
+					if (coreState != CORE_STEPPING_CPU && screenshotFailures++ < SCREENSHOT_FAILURE_RETRIES) {
+						// Requeue for next frame (if we were stepping, no point, will just spam errors quickly).
+						SaveScreenshot(op.filename);
+					}
+					break;
+				case ScreenshotResult::DelayedResult:
+				case ScreenshotResult::Success:
+					// We might not know if the file write succeeded yet though.
+					callbackResult = Status::SUCCESS;
+					readbackImage = true;
+					break;
+				case ScreenshotResult::FailedToWriteFile:
+					// Can't reach here when we pass in a callback to TakeGameScreenshot.
+					callbackResult = Status::SUCCESS;
+					break;
+				}
+				break;
+			}
 			default:
 				ERROR_LOG(Log::SaveState, "Savestate failure: unknown operation type %d", op.type);
 				callbackResult = Status::FAILURE;
