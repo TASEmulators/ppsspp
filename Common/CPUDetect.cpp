@@ -22,7 +22,7 @@
 #include "ext/cpu_features/include/cpuinfo_x86.h"
 
 #if defined(CPU_FEATURES_OS_FREEBSD) || defined(CPU_FEATURES_OS_LINUX) || defined(CPU_FEATURES_OS_ANDROID) || defined(CPU_FEATURES_OS_MACOS) || defined(CPU_FEATURES_OS_WINDOWS)
-//#define USE_CPU_FEATURES 1
+#define USE_CPU_FEATURES 1
 #endif
 
 #ifdef __ANDROID__
@@ -109,7 +109,7 @@ void do_cpuid(u32 regs[4], u32 cpuid_leaf)
 CPUInfo cpu_info;
 
 CPUInfo::CPUInfo() {
-	//Detect(); // Removing for homogeneity among all cpus
+		//Detect(); // Removing for homogeneity among all cpus
 }
 
 #if PPSSPP_PLATFORM(LINUX)
@@ -276,13 +276,13 @@ void CPUInfo::Detect() {
 		//  - Is the XSAVE bit set in CPUID? ( >>26)
 		//  - Is the OSXSAVE bit set in CPUID? ( >>27)
 		//  - XGETBV result has the XCR bit set.
-		// if (((cpu_id[2] >> 28) & 1) && ((cpu_id[2] >> 27) & 1) && ((cpu_id[2] >> 26) & 1)) {
-		// 	if ((do_xgetbv(_XCR_XFEATURE_ENABLED_MASK) & 0x6) == 0x6) {
-		// 		bAVX = true;
-		// 		if ((cpu_id[2] >> 12) & 1)
-		// 			bFMA3 = true;
-		// 	}
-		// }
+		if (((cpu_id[2] >> 28) & 1) && ((cpu_id[2] >> 27) & 1) && ((cpu_id[2] >> 26) & 1)) {
+			if ((do_xgetbv(_XCR_XFEATURE_ENABLED_MASK) & 0x6) == 0x6) {
+				bAVX = true;
+				if ((cpu_id[2] >> 12) & 1)
+					bFMA3 = true;
+			}
+		}
 
 
 		// TSX support require check:
