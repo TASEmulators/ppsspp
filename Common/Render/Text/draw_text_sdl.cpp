@@ -15,8 +15,8 @@
 
 #if defined(USE_SDL2_TTF)
 
-#include "SDL2/SDL.h"
-#include "SDL2/SDL_ttf.h"
+#include "SDL.h"
+#include "SDL_ttf.h"
 
 static std::string getlocale() {
 	// setlocale is not an intuitive function...

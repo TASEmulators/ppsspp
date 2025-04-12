@@ -32,7 +32,7 @@
 #include "Core/MemMapHelpers.h"
 
 #if defined(_WIN32) && !PPSSPP_PLATFORM(UWP) && !defined(__LIBRETRO__)
-#define HAVE_WIN32_MICROPHONE
+//#define HAVE_WIN32_MICROPHONE
 #endif
 
 #ifdef HAVE_WIN32_MICROPHONE

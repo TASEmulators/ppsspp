@@ -124,16 +124,18 @@ int LoadZIMPtr(const uint8_t *zim, size_t datasize, int *width, int *height, int
 	return num_levels;
 }
 
-extern std::string _atlasFontZimFileData;
+extern std::string _ppgeAtlasFontZimFileData;
 int LoadZIM(const char *filename, int *width, int *height, int *format, uint8_t **image) {
 	size_t size;
 	uint8_t *buffer = g_VFS.ReadFile(filename, &size);
+	bool deleteBuffer = true;
 
 	// If couldn't find the file natively, check the pre-loaded file data
 	if (!buffer && std::string(filename).find("ppge_atlas.zim") != std::string::npos)
 	{
-		size = _atlasFontZimFileData.size();
-		buffer = (uint8_t*)_atlasFontZimFileData.data();
+		size = _ppgeAtlasFontZimFileData.size();
+		buffer = (uint8_t*)_ppgeAtlasFontZimFileData.data();
+		deleteBuffer = false;
 	} 
 
 	if (!buffer) {
@@ -145,6 +147,6 @@ int LoadZIM(const char *filename, int *width, int *height, int *format, uint8_t 
 	if (!retval) {
 		ERROR_LOG(Log::IO, "Not a valid ZIM file: %s (size: %lld bytes)", filename, (long long)size);
 	}
-	delete [] buffer;
+	if (deleteBuffer) delete [] buffer; 
 	return retval;
 }
