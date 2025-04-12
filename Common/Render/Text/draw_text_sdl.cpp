@@ -240,6 +240,7 @@ int TextDrawerSDL::FindFallbackFonts(uint32_t missingGlyph, int ptSize) {
 	return -1;
 }
 
+extern std::string _ppgeFontFileData;
 uint32_t TextDrawerSDL::SetFont(const char *fontName, int size, int flags) {
 	uint32_t fontHash = fontName && strlen(fontName) ? hash::Adler32((const uint8_t *)fontName, strlen(fontName)) : 0;
 	fontHash ^= size;
@@ -251,10 +252,21 @@ uint32_t TextDrawerSDL::SetFont(const char *fontName, int size, int flags) {
 		return fontHash;
 	}
 
-	const char *useFont = fontName ? fontName : "Roboto-Condensed.ttf";
+	const char *useFont = std::string(fontName) != "" ? fontName : "Roboto-Condensed.ttf";
 	const int ptSize = (int)((size + 6) / dpiScale_);
+	TTF_Font *font = nullptr;
 
-	TTF_Font *font = TTF_OpenFont(useFont, ptSize);
+	// If it's the default font, take it from memory 
+	if (_ppgeFontFileData != "")
+	{
+		SDL_RWops *rw = SDL_RWFromConstMem(_ppgeFontFileData.data(),  _ppgeFontFileData.size());
+		if ( rw != NULL ) font = TTF_OpenFontRW(rw, 0, ptSize);
+	}
+	else // otherwise from a file
+	{
+		font = TTF_OpenFont(useFont, ptSize);
+	}
+	
 
 	if (!font) {
 		File::FileInfo fileInfo;
