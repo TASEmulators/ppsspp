@@ -851,8 +851,9 @@ static void DrawBreakpointsView(MIPSDebugInterface *mipsDebug, ImConfig &cfg) {
 				ImGui::TableNextRow();
 				ImGui::TableNextColumn();
 				ImGui::PushID(i);
-				// TODO: This clashes with the checkbox!
-				if (ImGui::Selectable("", cfg.selectedBreakpoint == i, ImGuiSelectableFlags_SpanAllColumns) && !bp.temporary) {
+				// DONE: This clashes with the checkbox!
+				// TODO: Test to make sure this works properly
+				if (ImGui::Selectable("", cfg.selectedBreakpoint == i, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap) && !bp.temporary) {
 					cfg.selectedBreakpoint = i;
 					cfg.selectedMemCheck = -1;
 				}
@@ -889,7 +890,7 @@ static void DrawBreakpointsView(MIPSDebugInterface *mipsDebug, ImConfig &cfg) {
 				ImGui::TableNextRow();
 				ImGui::TableNextColumn();
 				ImGui::PushID(i + 10000);
-				if (ImGui::Selectable("", cfg.selectedMemCheck == i, ImGuiSelectableFlags_SpanAllColumns)) {
+				if (ImGui::Selectable("##memcheck", cfg.selectedMemCheck == i, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowOverlap)) {
 					cfg.selectedBreakpoint = -1;
 					cfg.selectedMemCheck = i;
 				}
@@ -935,8 +936,8 @@ static void DrawBreakpointsView(MIPSDebugInterface *mipsDebug, ImConfig &cfg) {
 				auto &mc = mcs[cfg.selectedMemCheck];
 				ImGui::TextUnformatted("Edit memcheck");
 				ImGui::CheckboxFlags("Enabled", (int *)&mc.result, (int)BREAK_ACTION_PAUSE);
-				ImGui::InputScalar("Start", ImGuiDataType_U32, &mc.start);
-				ImGui::InputScalar("End", ImGuiDataType_U32, &mc.end);
+				ImGui::InputScalar("Start", ImGuiDataType_U32, &mc.start, NULL, NULL, "%08x", ImGuiInputTextFlags_CharsHexadecimal);
+				ImGui::InputScalar("End", ImGuiDataType_U32, &mc.end, NULL, NULL, "%08x", ImGuiInputTextFlags_CharsHexadecimal);
 				if (ImGui::Button("Delete")) {
 					g_breakpoints.RemoveMemCheck(mcs[cfg.selectedMemCheck].start, mcs[cfg.selectedMemCheck].end);
 				}
@@ -956,42 +957,57 @@ void DrawAudioDecodersView(ImConfig &cfg, ImControl &control) {
 	}
 
 	if (ImGui::CollapsingHeader("sceAtrac", ImGuiTreeNodeFlags_DefaultOpen)) {
-		if (ImGui::BeginTable("atracs", 7, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersH)) {
+		ImGui::Checkbox("Force FFMPEG", &g_Config.bForceFfmpegForAudioDec);
+		if (ImGui::BeginTable("atracs", 8, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersH)) {
 			ImGui::TableSetupColumn("Index", ImGuiTableColumnFlags_WidthFixed);
+			ImGui::TableSetupColumn("Mute", ImGuiTableColumnFlags_WidthFixed);
 			ImGui::TableSetupColumn("Type", ImGuiTableColumnFlags_WidthFixed);
 			ImGui::TableSetupColumn("Status", ImGuiTableColumnFlags_WidthFixed);
 			ImGui::TableSetupColumn("Channels", ImGuiTableColumnFlags_WidthFixed);
-			ImGui::TableSetupColumn("CurrentSample", ImGuiTableColumnFlags_WidthFixed);
-			ImGui::TableSetupColumn("RemainingFrames", ImGuiTableColumnFlags_WidthFixed);
+			ImGui::TableSetupColumn("CurSample", ImGuiTableColumnFlags_WidthFixed);
+			ImGui::TableSetupColumn("RemFrames", ImGuiTableColumnFlags_WidthFixed);
 			ImGui::TableSetupColumn("Impl", ImGuiTableColumnFlags_WidthFixed);
 
 			ImGui::TableHeadersRow();
-
-			for (int i = 0; i < PSP_MAX_ATRAC_IDS; i++) {
-				u32 type = 0;
-				const AtracBase *ctx = __AtracGetCtx(i, &type);
-				if (!ctx) {
-					continue;
-				}
+			const int maxContexts = __AtracMaxContexts();
+			for (int i = 0; i < maxContexts; i++) {
+				u32 codecType = 0;
 
 				ImGui::TableNextRow();
 				ImGui::TableNextColumn();
+				ImGui::PushID(i);
+				ImGui::SetNextItemAllowOverlap();
 				char temp[16];
 				snprintf(temp, sizeof(temp), "%d", i);
 				if (ImGui::Selectable(temp, i == cfg.selectedAtracCtx, ImGuiSelectableFlags_SpanAllColumns)) {
 					cfg.selectedAtracCtx = i;
 				}
 				ImGui::TableNextColumn();
-				switch (type) {
-				case PSP_MODE_AT_3_PLUS:
+				bool *mutePtr = __AtracMuteFlag(i);
+				if (mutePtr) {
+					ImGui::Checkbox("", mutePtr);
+				}
+				ImGui::TableNextColumn();
+				switch (codecType) {
+				case 0:
+					ImGui::TextUnformatted("-");  // Uninitialized
+					break;
+				case PSP_CODEC_AT3PLUS:
 					ImGui::TextUnformatted("Atrac3+");
 					break;
-				case PSP_MODE_AT_3:
+				case PSP_CODEC_AT3:
 					ImGui::TextUnformatted("Atrac3");
 					break;
 				default:
-					ImGui::Text("%04x", type);
+					ImGui::Text("%04x", codecType);
 					break;
+				}
+
+				const AtracBase *ctx = __AtracGetCtx(i, &codecType);
+				if (!ctx) {
+					// Nothing more we can display about uninitialized contexts.
+					ImGui::PopID();
+					continue;
 				}
 				ImGui::TableNextColumn();
 				ImGui::TextUnformatted(AtracStatusToString(ctx->BufferState()));
@@ -1013,6 +1029,7 @@ void DrawAudioDecodersView(ImConfig &cfg, ImControl &control) {
 				}
 				ImGui::TableNextColumn();
 				ImGui::TextUnformatted(ctx->GetContextVersion() >= 2 ? "NewImpl" : "Legacy");
+				ImGui::PopID();
 			}
 
 			ImGui::EndTable();
@@ -1290,6 +1307,8 @@ void DrawSasAudio(ImConfig &cfg) {
 		return;
 	}
 
+	ImGui::Checkbox("Mute", __SasGetGlobalMuteFlag());
+	ImGui::SameLine();
 	ImGui::Checkbox("Show all voices", &cfg.sasShowAllVoices);
 
 	if (ImGui::BeginTable("saschannels", 9, ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersH)) {
@@ -1833,6 +1852,10 @@ void ImDebugger::Frame(MIPSDebugInterface *mipsDebug, GPUDebugInterface *gpuDebu
 					System_CopyStringToClipboard(StringFromFormat("%016llx", (uint64_t)(uintptr_t)Memory::base));
 				}
 			}
+			ImGui::Separator();
+			if (ImGui::MenuItem("Close")) {
+				g_Config.bShowImDebugger = false;
+			}
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("Core")) {
@@ -1951,11 +1974,22 @@ void ImDebugger::Frame(MIPSDebugInterface *mipsDebug, GPUDebugInterface *gpuDebu
 			ImGui::MenuItem("Dear ImGui Style editor", nullptr, &cfg_.styleEditorOpen);
 			ImGui::EndMenu();
 		}
-
-		// Let's have this at the top level, to help anyone confused.
-		if (ImGui::BeginMenu("Close Debugger")) {
+		if (ImGui::MenuItem("Close")) {
 			g_Config.bShowImDebugger = false;
-			ImGui::EndMenu();
+		}
+		switch (coreState) {
+		case CoreState::CORE_STEPPING_CPU:
+			if (ImGui::MenuItem(">> Run")) {
+				Core_Resume();
+			}
+			break;
+		case CoreState::CORE_RUNNING_CPU:
+			if (ImGui::MenuItem("|| Break")) {
+				Core_Break(BreakReason::DebugBreak);
+			}
+			break;
+		default:
+			break;
 		}
 		ImGui::EndMainMenuBar();
 	}
