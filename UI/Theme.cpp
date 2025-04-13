@@ -186,17 +186,9 @@ static UI::Style MakeStyle(uint32_t fg, uint32_t bg) {
 }
 
 static void LoadAtlasMetadata(Atlas &metadata, const char *filename, bool required) {
-	size_t atlas_data_size = 0;
-	const uint8_t *atlas_data = g_VFS.ReadFile(filename, &atlas_data_size);
-	bool load_success = atlas_data != nullptr && metadata.Load(atlas_data, atlas_data_size);
-	if (!load_success) {
-		if (required)
-			ERROR_LOG(Log::G3D, "Failed to load %s - graphics will be broken", filename);
-		else
-			WARN_LOG(Log::G3D, "Failed to load %s", filename);
-		// Stumble along with broken visuals instead of dying...
-	}
-	delete[] atlas_data;
+	uint8_t *atlas_data = (uint8_t*)_atlasFontMetadataFileData.data();
+	size_t atlas_data_size = _atlasFontMetadataFileData.size();
+	if (atlas_data) g_ppge_atlas.Load(atlas_data, atlas_data_size);
 }
 
 void UpdateTheme(UIContext *ctx) {
