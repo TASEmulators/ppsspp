@@ -1085,12 +1085,12 @@ static void check_variables(CoreParameter &coreParam)
 
    g_Config.bTexHardwareScaling = g_Config.sTextureShaderName != "Off";
 
-   if (gpu && (g_Config.iTexScalingType != iTexScalingType_prev
-         || g_Config.iTexScalingLevel != iTexScalingLevel_prev
-         || g_Config.sTextureShaderName != sTextureShaderName_prev))
-   {
-      gpu->NotifyConfigChanged();
-   }
+   //if (gpu && (g_Config.iTexScalingType != iTexScalingType_prev
+   //      || g_Config.iTexScalingLevel != iTexScalingLevel_prev
+   //      || g_Config.sTextureShaderName != sTextureShaderName_prev))
+   //{
+   //   gpu->NotifyConfigChanged();
+  // }
 
    if (g_Config.iLanguage < 0)
       g_Config.iLanguage = get_language_auto();
@@ -1115,7 +1115,7 @@ static void check_variables(CoreParameter &coreParam)
       updateAvInfo = true;
    }
 
-   if (g_Config.iInternalResolution != iInternalResolution_prev && backend != RETRO_HW_CONTEXT_NONE)
+   //if (g_Config.iInternalResolution != iInternalResolution_prev && backend != RETRO_HW_CONTEXT_NONE)
    {
       coreParam.pixelWidth  = coreParam.renderWidth  = g_Config.iInternalResolution * NATIVEWIDTH;
       coreParam.pixelHeight = coreParam.renderHeight = g_Config.iInternalResolution * NATIVEHEIGHT;
@@ -1130,14 +1130,14 @@ static void check_variables(CoreParameter &coreParam)
       }
    }
 
-   if (g_Config.bDisplayCropTo16x9 != bDisplayCropTo16x9_prev && PSP_IsInited())
+   //if (g_Config.bDisplayCropTo16x9 != bDisplayCropTo16x9_prev && PSP_IsInited())
    {
       updateGeometry = true;
       if (gpu)
          gpu->NotifyDisplayResized();
    }
 
-   if (g_Config.iMultiSampleLevel != iMultiSampleLevel_prev && PSP_IsInited())
+   //if (g_Config.iMultiSampleLevel != iMultiSampleLevel_prev && PSP_IsInited())
    {
       if (gpu)
       {
@@ -1289,7 +1289,7 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
    info->timing.fps            = (60.0 / 1.001) / (double)vsyncSwapInterval;
    info->timing.sample_rate    = SAMPLERATE;
 
-   _dbg_assert_(g_Config.iInternalResolution != 0);
+   //_dbg_assert_(g_Config.iInternalResolution != 0);
 
    info->geometry.base_width   = g_Config.iInternalResolution * NATIVEWIDTH;
    info->geometry.base_height  = g_Config.iInternalResolution * NATIVEHEIGHT;
@@ -1651,7 +1651,7 @@ void retro_run(void)
          ctx->SwapBuffers();
          return;
       case BootState::Off:
-         // shouldn't happen.
+         // shouldn't happen. 
          _dbg_assert_(false);
          return;
       }
