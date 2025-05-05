@@ -60,6 +60,7 @@ ThreadManager::~ThreadManager() {
 }
 
 void ThreadManager::Teardown() {
+	return;
 	for (TaskThreadContext *&threadCtx : global_->threads_) {
 		std::unique_lock<std::mutex> lock(threadCtx->mutex);
 		threadCtx->cancelled = true;
@@ -106,6 +107,7 @@ void ThreadManager::Teardown() {
 }
 
 bool ThreadManager::TeardownTask(Task *task, bool enqueue) {
+	return true;
 	if (!task)
 		return true;
 
@@ -131,6 +133,7 @@ bool ThreadManager::TeardownTask(Task *task, bool enqueue) {
 }
 
 static void WorkerThreadFunc(GlobalThreadContext *global, TaskThreadContext *thread) {
+	return;
 	if (thread->type == TaskType::CPU_COMPUTE) {
 		snprintf(thread->name, sizeof(thread->name), "PoolW %d", thread->index);
 	} else {
@@ -216,6 +219,7 @@ static void WorkerThreadFunc(GlobalThreadContext *global, TaskThreadContext *thr
 }
 
 void ThreadManager::Init(int numRealCores, int numLogicalCoresPerCpu) {
+	return;
 	if (IsInitialized()) {
 		Teardown();
 	}
@@ -238,6 +242,9 @@ void ThreadManager::Init(int numRealCores, int numLogicalCoresPerCpu) {
 }
 
 void ThreadManager::EnqueueTask(Task *task) {
+	task->Run();
+	task->Release();
+	return;
 	if (task->Type() == TaskType::DEDICATED_THREAD) {
 		std::thread th([=](Task *task) {
 			SetCurrentThreadName("DedicatedThreadTask");
@@ -302,6 +309,9 @@ void ThreadManager::EnqueueTask(Task *task) {
 }
 
 void ThreadManager::EnqueueTaskOnThread(int threadNum, Task *task) {
+	task->Run();
+	task->Release();
+	return;
 	_assert_msg_(task->Type() != TaskType::DEDICATED_THREAD, "Dedicated thread tasks can't be put on specific threads");
 
 	_assert_msg_(threadNum >= 0 && threadNum < (int)global_->threads_.size(), "Bad threadnum or not initialized");
@@ -316,6 +326,7 @@ void ThreadManager::EnqueueTaskOnThread(int threadNum, Task *task) {
 }
 
 int ThreadManager::GetNumLooperThreads() const {
+	return 1;
 	return numComputeThreads_;
 }
 
@@ -324,5 +335,6 @@ void ThreadManager::TryCancelTask(uint64_t taskID) {
 }
 
 bool ThreadManager::IsInitialized() const {
+	return true;
 	return !global_->threads_.empty();
 }

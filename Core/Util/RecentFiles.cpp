@@ -31,6 +31,7 @@ void RecentFilesManager::EnsureThread() {
 		return;
 	}
 	std::lock_guard<std::mutex> guard(cmdLock_);
+	fprintf(stderr, "Unexpected thread creation found in RecentFiles.cpp\n"); std::abort();
 	thread_ = std::thread([this] {
 		// NOTE: Can't create the thread in the constructor, because at that point,
 		// JNI attachment doesn't yet work.

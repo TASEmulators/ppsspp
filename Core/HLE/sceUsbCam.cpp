@@ -31,7 +31,7 @@
 #include "Core/MemMapHelpers.h"
 
 #if defined(_WIN32) && !PPSSPP_PLATFORM(UWP) && !defined(__LIBRETRO__)
-#define HAVE_WIN32_CAMERA
+//#define HAVE_WIN32_CAMERA
 #endif
 
 #ifdef HAVE_WIN32_CAMERA

@@ -1206,6 +1206,7 @@ void PSPSaveDialog::ExecuteNotVisibleIOAction() {
 }
 
 void PSPSaveDialog::JoinIOThread() {
+	return; // Disabling multithreading
 	if (ioThread) {
 		ioThread->join();
 		delete ioThread;
@@ -1221,6 +1222,8 @@ static void DoExecuteIOAction(PSPSaveDialog *dialog) {
 }
 
 void PSPSaveDialog::StartIOThread() {
+	ExecuteIOAction(); // Exeute the action directly
+	return; // Disabling multithreading
 	if (ioThread) {
 		WARN_LOG_REPORT(Log::sceUtility, "Starting a save io thread when one already pending, uh oh.");
 		JoinIOThread();

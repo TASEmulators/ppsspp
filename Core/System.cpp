@@ -530,9 +530,9 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 
 	INFO_LOG(Log::Loader, "Starting loader thread...");
 
-	_dbg_assert_(!g_loadingThread.joinable());
+	// _dbg_assert_(!g_loadingThread.joinable());
 
-	g_loadingThread = std::thread([error_string]() {
+	//g_loadingThread = std::thread([error_string]() {
 		SetCurrentThreadName("ExecLoader");
 
 		AndroidJNIThreadContext jniContext;
@@ -571,11 +571,10 @@ bool PSP_InitStart(const CoreParameter &coreParam) {
 				*error_string = "Failed initializing CPU/Memory";
 			}
 			g_bootState = BootState::Failed;
-			return;
+			return false;
 		}
 
 		g_bootState = BootState::Complete;
-	});
 
 	return true;
 }
@@ -589,8 +588,8 @@ BootState PSP_InitUpdate(std::string *error_string) {
 	_dbg_assert_(g_bootState == BootState::Complete || g_bootState == BootState::Failed);
 
 	// Since we load on a background thread, wait for startup to complete.
-	_dbg_assert_(g_loadingThread.joinable());
-	g_loadingThread.join();
+	// _dbg_assert_(g_loadingThread.joinable());
+	// g_loadingThread.join();
 
 	if (g_bootState == BootState::Failed) {
 		// Failed! (Note: PSP_Shutdown was already called on the loader thread).

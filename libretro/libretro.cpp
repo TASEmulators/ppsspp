@@ -1306,8 +1306,8 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 
    /* Must reset context to resize render area properly while running,
     * but not necessary with software, and not working with Vulkan.. (TODO) */
-   if (PSP_IsInited() && ctx && backend != RETRO_HW_CONTEXT_NONE && ctx->GetGPUCore() != GPUCORE_VULKAN)
-      ((LibretroHWRenderContext *)Libretro::ctx)->ContextReset();
+   // if (PSP_IsInited() && ctx && backend != RETRO_HW_CONTEXT_NONE && ctx->GetGPUCore() != GPUCORE_VULKAN)
+   //   ((LibretroHWRenderContext *)Libretro::ctx)->ContextReset();
 }
 
 unsigned retro_api_version(void) { return RETRO_API_VERSION; }
@@ -1466,9 +1466,9 @@ bool retro_load_game(const struct retro_game_info *game)
    coreParam.enableSound     = true;
    coreParam.fileToStart     = Path(std::string(game->path));
    coreParam.startBreak      = false;
-   coreParam.headLess        = true;  // really?
+   coreParam.headLess        = false;  // really?
    coreParam.graphicsContext = ctx;
-   coreParam.gpuCore         = ctx->GetGPUCore();
+   coreParam.gpuCore = GPUCORE_SOFTWARE;
    check_variables(coreParam);
 
    // TODO: OpenGL goes black when inited with software rendering,

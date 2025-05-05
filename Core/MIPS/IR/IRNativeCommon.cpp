@@ -494,6 +494,8 @@ void IRNativeJit::Init(IRNativeBackend &backend) {
 
 	if (enableDebugProfiler && hooks_.profilerPC) {
 		debugProfilerThreadStatus = true;
+
+		fprintf(stderr, "Unexpected thread creation found in IRNativeCommon.cpp\n"); std::abort();
 		debugProfilerThread = std::thread([&] {
 			// Spin, spin spin... maybe could at least hook into sleeps.
 			while (debugProfilerThreadStatus) {

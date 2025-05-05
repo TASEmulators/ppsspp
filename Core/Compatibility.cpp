@@ -27,6 +27,10 @@
 #include "Core/Config.h"
 #include "Core/System.h"
 
+#include <sstream>
+extern std::string _compatibilityFileData;
+extern std::string _compatibilityVRFileData;
+
 void Compatibility::Load(const std::string &gameID) {
 	Clear();
 
@@ -38,10 +42,13 @@ void Compatibility::Load(const std::string &gameID) {
 	if (ignored_.find("ALL") != ignored_.end())
 		return;
 
+	std::istringstream compatIString (_compatibilityFileData);
+	std::istringstream compatVRIString (_compatibilityVRFileData);
+
 	{
 		IniFile compat;
 		// This loads from assets.
-		if (compat.LoadFromVFS(g_VFS, "compat.ini")) {
+		if (compat.Load(compatIString)) {
 			CheckSettings(compat, gameID);
 		} else {
 			auto e = GetI18NCategory(I18NCat::ERRORS);
@@ -62,7 +69,7 @@ void Compatibility::Load(const std::string &gameID) {
 	{
 		IniFile compat;
 		// This loads from assets.
-		if (compat.LoadFromVFS(g_VFS, "compatvr.ini")) {
+		if (compat.Load(compatVRIString)) {
 			CheckVRSettings(compat, gameID);
 		}
 	}

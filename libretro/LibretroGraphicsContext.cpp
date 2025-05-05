@@ -1,10 +1,10 @@
 
 #include "libretro/LibretroGraphicsContext.h"
-#include "libretro/LibretroGLContext.h"
-#include "libretro/LibretroGLCoreContext.h"
-#include "libretro/LibretroVulkanContext.h"
+// #include "libretro/LibretroGLContext.h"
+// #include "libretro/LibretroGLCoreContext.h"
+// #include "libretro/LibretroVulkanContext.h"
 #ifdef _WIN32
-#include "libretro/LibretroD3D11Context.h"
+// #include "libretro/LibretroD3D11Context.h"
 #endif
 
 #include "Common/Log.h"
@@ -93,6 +93,9 @@ void LibretroGraphicsContext::LostBackbuffer() { draw_->HandleEvent(Draw::Event:
 
 LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext() {
 	LibretroGraphicsContext *ctx;
+	ctx = new LibretroSoftwareContext();
+	ctx->Init();
+	return ctx;
 
 	retro_hw_context_type preferred;
 	if (!Libretro::environ_cb(RETRO_ENVIRONMENT_GET_PREFERRED_HW_RENDER, &preferred))
@@ -103,7 +106,7 @@ LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext() {
 
 #ifndef USING_GLES2
 	if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_OPENGL_CORE) {
-		ctx = new LibretroGLCoreContext();
+		// ctx = new LibretroGLCoreContext();
 
 		if (ctx->Init()) {
 			return ctx;
@@ -113,7 +116,7 @@ LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext() {
 #endif
 
 	if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_OPENGL || preferred == RETRO_HW_CONTEXT_OPENGLES3) {
-		ctx = new LibretroGLContext();
+		// ctx = new LibretroGLContext();
 
 		if (ctx->Init()) {
 			return ctx;
@@ -123,7 +126,7 @@ LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext() {
 
 #ifndef HAVE_LIBNX
 	if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_VULKAN) {
-		ctx = new LibretroVulkanContext();
+		// ctx = new LibretroVulkanContext();
 
 		if (ctx->Init()) {
 			return ctx;
@@ -134,14 +137,14 @@ LibretroGraphicsContext *LibretroGraphicsContext::CreateGraphicsContext() {
 
 #ifdef _WIN32
 	if (preferred == RETRO_HW_CONTEXT_DUMMY || preferred == RETRO_HW_CONTEXT_DIRECT3D) {
-		ctx = new LibretroD3D11Context();
+		// ctx = new LibretroD3D11Context();
 
 		if (ctx->Init()) {
 			return ctx;
 		}
 		delete ctx;
 
-		ctx = new LibretroD3D9Context();
+		// ctx = new LibretroD3D9Context();
 		if (ctx->Init()) {
 			return ctx;
 		}

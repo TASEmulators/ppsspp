@@ -79,15 +79,15 @@ _zip_mkstempm(char *path, int mode) {
 	    value /= 36;
 	}
 
-	if ((fd = open(path, O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, mode == -1 ? 0666 : (mode_t)mode)) >= 0) {
-	    if (mode != -1) {
-		/* open() honors umask(), which we don't want in this case */
-		(void)chmod(path, (mode_t)mode);
-	    }
-	    return fd;
-	}
-	if (errno != EEXIST) {
+	//if ((fd = open(path, O_CREAT | O_EXCL | O_RDWR | O_CLOEXEC, mode == -1 ? 0666 : (mode_t)mode)) >= 0) {
+	//    if (mode != -1) {
+	//	/* open() honors umask(), which we don't want in this case */
+	//	(void)chmod(path, (mode_t)mode);
+	//   }
+	//    return fd;
+	//}
+	//if (errno != EEXIST) {
 	    return -1;
-	}
+	//}
     }
 }

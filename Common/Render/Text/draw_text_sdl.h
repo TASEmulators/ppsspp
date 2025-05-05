@@ -7,8 +7,8 @@
 
 #if defined(USE_SDL2_TTF)
 
-#include "SDL2/SDL.h"
-#include "SDL2/SDL_ttf.h"
+#include "SDL.h"
+#include "SDL_ttf.h"
 
 #if defined(USE_SDL2_TTF_FONTCONFIG)
 #include <fontconfig/fontconfig.h>

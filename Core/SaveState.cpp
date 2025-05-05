@@ -114,9 +114,9 @@ double g_lastSaveTime = -1.0;
 		}
 
 		~StateRingbuffer() {
-			if (compressThread_.joinable()) {
-				compressThread_.join();
-			}
+			// if (compressThread_.joinable()) {
+			// 	compressThread_.join();
+			// }
 		}
 
 		CChunkFileReader::Error Save()
@@ -125,8 +125,8 @@ double g_lastSaveTime = -1.0;
 
 			// Make sure we're not processing a previous save. That'll cause a hitch though, but at least won't
 			// crash due to contention over buffer_.
-			if (compressThread_.joinable())
-				compressThread_.join();
+			// if (compressThread_.joinable())
+			// 	compressThread_.join();
 
 			std::lock_guard<std::mutex> guard(lock_);
 
@@ -178,6 +178,9 @@ double g_lastSaveTime = -1.0;
 
 		void ScheduleCompress(std::vector<u8> *result, const std::vector<u8> *state, const std::vector<u8> *base)
 		{
+			Compress(*result, *state, *base);
+			return;
+
 			if (compressThread_.joinable())
 				compressThread_.join();
 			compressThread_ = std::thread([=]{
@@ -245,8 +248,8 @@ double g_lastSaveTime = -1.0;
 
 		void Clear()
 		{
-			if (compressThread_.joinable())
-				compressThread_.join();
+			// if (compressThread_.joinable())
+			// 	compressThread_.join();
 
 			// This lock is mainly for shutdown.
 			std::lock_guard<std::mutex> guard(lock_);

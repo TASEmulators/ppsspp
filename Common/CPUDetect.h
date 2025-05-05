@@ -149,17 +149,17 @@ struct CPUInfo {
 	} sQuirks;
 
 	// Call Detect()
-	explicit CPUInfo();
+	explicit CPUInfo(){};
 
 	// Turn the cpu info into a string we can show
-	std::vector<std::string> Features();
-	std::string Summarize();
+	std::vector<std::string> Features() { return {}; };
+	std::string Summarize() { return ""; } ;
 
 private:
 	// Detects the various cpu features
 	void Detect();
 };
 
-extern CPUInfo cpu_info;
+static CPUInfo cpu_info;
 
-const char *GetCompilerABI();
+inline const char *GetCompilerABI() { return ""; }

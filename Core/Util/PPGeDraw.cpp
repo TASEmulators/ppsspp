@@ -242,6 +242,7 @@ void __PPGeSetupListArgs()
 	}
 }
 
+extern std::string _ppgeAtlasFontMetadataFileData;
 void __PPGeInit() {
 	// PPGe isn't really important for headless, and LoadZIM takes a long time.
 	bool skipZIM = System_GetPropertyBool(SYSPROP_SKIP_UI);
@@ -252,19 +253,18 @@ void __PPGeInit() {
 	int flags = 0;
 
 	// TODO: Load the atlas on a thread!
-
 	bool loadedZIM = !skipZIM && LoadZIM("ppge_atlas.zim", width, height, &flags, imageData);
 	if (!skipZIM && !loadedZIM) {
 		ERROR_LOG(Log::sceGe, "Failed to load ppge_atlas.zim.\n\nPlace it in the directory \"assets\" under your PPSSPP directory.\n\nPPGe stuff will not be drawn.");
 	}
 
 	if (loadedZIM) {
-		size_t atlas_data_size;
 		if (!g_ppge_atlas.IsMetadataLoaded()) {
-			uint8_t *atlas_data = g_VFS.ReadFile("ppge_atlas.meta", &atlas_data_size);
+			uint8_t *atlas_data = (uint8_t*)_ppgeAtlasFontMetadataFileData.data();
+			size_t atlas_data_size = _ppgeAtlasFontMetadataFileData.size();
 			if (atlas_data)
 				g_ppge_atlas.Load(atlas_data, atlas_data_size);
-			delete[] atlas_data;
+			//delete[] atlas_data;
 		}
 	}
 
