@@ -111,6 +111,7 @@ public:
 	}
 
 	void SetAllLogLevels(LogLevel level) {
+		return;
 		for (int i = 0; i < (int)Log::NUMBER_OF_LOGS; ++i) {
 			g_log[i].level = level;
 		}

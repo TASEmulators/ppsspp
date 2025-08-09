@@ -117,6 +117,7 @@ const char *LogManager::GetLogTypeName(Log type) {
 void PrintfLog(const LogMessage &message);
 
 void LogManager::Init(bool *enabledSetting, bool headless) {
+	return;
 	g_bLogEnabledSetting = enabledSetting;
 	if (initialized_) {
 		// Just update the pointer, already done above.
@@ -134,6 +135,7 @@ void LogManager::Init(bool *enabledSetting, bool headless) {
 }
 
 void LogManager::Shutdown() {
+	return;
 	if (!initialized_) {
 		// already done
 		return;
@@ -160,6 +162,7 @@ void LogManager::Shutdown() {
 }
 
 LogManager::LogManager() {
+	return;
 #if PPSSPP_PLATFORM(IOS) || PPSSPP_PLATFORM(UWP) || PPSSPP_PLATFORM(SWITCH)
 	stdioUseColor_ = false;
 #elif defined(_MSC_VER)
@@ -185,6 +188,7 @@ LogManager::LogManager() {
 }
 
 LogManager::~LogManager() {
+	return;
 	Shutdown();
 
 #if PPSSPP_PLATFORM(WINDOWS) && !PPSSPP_PLATFORM(UWP)
@@ -194,6 +198,7 @@ LogManager::~LogManager() {
 }
 
 void LogManager::ChangeFileLog(const Path &filename) {
+	return;
 	if (fp_ && filename == logFilename_) {
 		// All good
 		return;
@@ -214,6 +219,7 @@ void LogManager::ChangeFileLog(const Path &filename) {
 }
 
 void LogManager::SaveConfig(Section *section) {
+	return;
 	for (int i = 0; i < (int)Log::NUMBER_OF_LOGS; i++) {
 		section->Set((std::string(g_logTypeNames[i]) + "Enabled"), g_log[i].enabled);
 		section->Set((std::string(g_logTypeNames[i]) + "Level"), (int)g_log[i].level);
@@ -221,6 +227,7 @@ void LogManager::SaveConfig(Section *section) {
 }
 
 void LogManager::LoadConfig(const Section *section, bool debugDefaults) {
+	return;
 	for (int i = 0; i < (int)Log::NUMBER_OF_LOGS; i++) {
 		bool enabled = false;
 		int level = 0;
@@ -232,6 +239,7 @@ void LogManager::LoadConfig(const Section *section, bool debugDefaults) {
 }
 
 void LogManager::SetOutputsEnabled(LogOutput outputs) {
+	return;
 	outputs_ = outputs; 
 	if (outputs & LogOutput::File) {
 		ChangeFileLog(logFilename_);
@@ -239,6 +247,7 @@ void LogManager::SetOutputsEnabled(LogOutput outputs) {
 }
 
 void LogManager::LogLine(LogLevel level, Log type, const char *file, int line, const char *format, va_list args) {
+	return;
 	char msgBuf[1024];
 
 	const LogChannel &log = g_log[(size_t)type];
