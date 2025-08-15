@@ -706,7 +706,7 @@ static const ConfigSetting graphicsSettings[] = {
 	ConfigSetting("DisplayIntegerScale", &g_Config.bDisplayIntegerScale, false, CfgFlag::PER_GAME),
 	ConfigSetting("DisplayAspectRatio", &g_Config.fDisplayAspectRatio, 1.0f, CfgFlag::PER_GAME),
 	ConfigSetting("DisplayStretch", &g_Config.bDisplayStretch, false, CfgFlag::PER_GAME),
-	ConfigSetting("DisplayCropTo16x9", &g_Config.bDisplayCropTo16x9, true, CfgFlag::PER_GAME),
+	ConfigSetting("DisplayCropTo16x9", &g_Config.bDisplayCropTo16x9, false, CfgFlag::PER_GAME),
 
 	ConfigSetting("ImmersiveMode", &g_Config.bImmersiveMode, true, CfgFlag::PER_GAME),
 	ConfigSetting("SustainedPerformanceMode", &g_Config.bSustainedPerformanceMode, false, CfgFlag::PER_GAME),
