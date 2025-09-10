@@ -15,6 +15,7 @@
 
 #include "Core/Debugger/DisassemblyManager.h"
 #include "Core/Debugger/DebugInterface.h"
+#include "Core/Debugger/Watch.h"
 
 #include "UI/ImDebugger/ImDisasmView.h"
 #include "UI/ImDebugger/ImMemView.h"
@@ -57,7 +58,7 @@ struct ImConfig {
 	bool symbolsOpen;
 	bool modulesOpen;
 	bool hleModulesOpen;
-	bool audioDecodersOpen;
+	bool mediaDecodersOpen;
 	bool structViewerOpen;
 	bool framebuffersOpen;
 	bool texturesOpen;
@@ -71,6 +72,7 @@ struct ImConfig {
 	bool geStateOpen;
 	bool geVertsOpen;
 	bool schedulerOpen;
+	bool timeOpen;
 	bool watchOpen;
 	bool pixelViewerOpen;
 	bool npOpen;
@@ -81,10 +83,13 @@ struct ImConfig {
 	bool internalsOpen;
 	bool sasAudioOpen;
 	bool logConfigOpen;
+	bool logOpen;
 	bool utilityModulesOpen;
 	bool atracToolOpen;
 	bool memViewOpen[4];
 	bool luaConsoleOpen;
+	bool audioOutOpen;
+	bool paramSFOOpen;
 
 	// HLE explorer settings
 	// bool filterByUsed = true;
@@ -99,7 +104,10 @@ struct ImConfig {
 	int selectedBreakpoint = -1;
 	int selectedMemCheck = -1;
 	int selectedAtracCtx = 0;
+	int selectedMp3Ctx = 0;
+	int selectedAacCtx = 0;
 	int selectedMemoryBlock = 0;
+	u32 selectedMpegCtx = 0;
 
 	uint64_t selectedTexAddr = 0;
 
@@ -129,6 +137,28 @@ public:
 	std::unique_ptr<Track> track_;
 	std::string error_;
 	std::string data_;
+};
+
+class ImWatchWindow {
+public:
+	ImWatchWindow();
+	void Draw(ImConfig &cfg, ImControl &control, MIPSDebugInterface *mipsDebug);
+private:
+	std::vector<WatchInfo> watches_;
+
+	char editBuffer_[256];
+	int editingWatchIndex_ = -1;
+	int editingColumn_ = 0;
+	bool setEditFocus_ = false;
+};
+
+class ImLogWindow {
+public:
+	ImLogWindow() {}
+	void Draw(ImConfig &cfg);
+
+private:
+	bool                AutoScroll = true;  // Keep scrolling if already at the bottom.
 };
 
 enum class ImCmd {
@@ -182,8 +212,10 @@ private:
 	ImStructViewer structViewer_;
 	ImGePixelViewerWindow pixelViewer_;
 	ImMemDumpWindow memDumpWindow_;
+	ImWatchWindow watchWindow_;
 	ImAtracToolWindow atracToolWindow_;
 	ImConsole luaConsole_;
+	ImLogWindow logWindow_;
 
 	ImSnapshotState newSnapshot_;
 	ImSnapshotState snapshot_;

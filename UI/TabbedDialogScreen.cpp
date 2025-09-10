@@ -42,7 +42,7 @@ void TabbedUIDialogScreenWithGameBackground::CreateViews() {
 		tabHolder_ = new TabHolder(ORIENT_HORIZONTAL, 200, filterNotice_, new LinearLayoutParams(1.0f));
 		verticalLayout->Add(tabHolder_);
 		CreateExtraButtons(verticalLayout, 0);
-		verticalLayout->Add(new Choice(di->T("Back"), "", false, new LinearLayoutParams(FILL_PARENT, WRAP_CONTENT, 0.0f, Margins(0))))->OnClick.Handle<UIScreen>(this, &UIScreen::OnBack);
+		verticalLayout->Add(new Choice(di->T("Back"), "", false, new LinearLayoutParams(FILL_PARENT, WRAP_CONTENT, 0.0f, Margins(10, 0))))->OnClick.Handle<UIScreen>(this, &UIScreen::OnBack);
 		root_->Add(verticalLayout);
 	} else {
 		tabHolder_ = new TabHolder(ORIENT_VERTICAL, 200, filterNotice_, new AnchorLayoutParams(10, 0, 10, 0, false));
@@ -91,6 +91,7 @@ void TabbedUIDialogScreenWithGameBackground::CreateViews() {
 					System_PostUIMessage(UIMessage::GAMESETTINGS_SEARCH, "");
 					return UI::EVENT_DONE;
 				});
+				clearSearchChoice_->SetVisibility(searchFilter_.empty() ? UI::V_GONE : UI::V_VISIBLE);
 
 				noSearchResults_ = searchSettings->Add(new TextView("", new LinearLayoutParams(Margins(20, 5))));
 			}, true);
@@ -115,14 +116,17 @@ void TabbedUIDialogScreenWithGameBackground::RecreateViews() {
 }
 
 void TabbedUIDialogScreenWithGameBackground::EnsureTabs() {
-	tabHolder_->EnsureAllCreated();
+	_dbg_assert_(tabHolder_);
+	if (tabHolder_) {
+		tabHolder_->EnsureAllCreated();
+	}
 }
 
 void TabbedUIDialogScreenWithGameBackground::ApplySearchFilter() {
 	using namespace UI;
 	auto se = GetI18NCategory(I18NCat::SEARCH);
 
-	tabHolder_->EnsureAllCreated();
+	EnsureTabs();
 
 	// Show an indicator that a filter is applied.
 	filterNotice_->SetVisibility(searchFilter_.empty() ? UI::V_GONE : UI::V_VISIBLE);
@@ -142,6 +146,8 @@ void TabbedUIDialogScreenWithGameBackground::ApplySearchFilter() {
 			View *v = tabContents->GetViewByIndex(0);
 			if (v->IsViewGroup()) {
 				tabContents = (ViewGroup *)v;
+			} else {
+				break;
 			}
 		}
 

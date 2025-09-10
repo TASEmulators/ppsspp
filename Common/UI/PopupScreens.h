@@ -88,6 +88,10 @@ public:
 		negativeLabel_ = str;
 		disabled_ = *value_ < 0;
 	}
+	void RestrictChoices(const int *fixedChoices, size_t numFixedChoices) {
+		fixedChoices_ = fixedChoices;
+		numFixedChoices_ = numFixedChoices;
+	}
 
 	const char *tag() const override { return "SliderPopup"; }
 
@@ -113,6 +117,8 @@ private:
 	bool liveUpdate_;
 	bool changing_ = false;
 	bool disabled_ = false;
+	const int *fixedChoices_ = nullptr;
+	size_t numFixedChoices_ = 0;
 };
 
 class SliderFloatPopupScreen : public PopupScreen {
@@ -226,6 +232,13 @@ public:
 	void SetChoiceIcon(int c, ImageID id) {
 		icons_[c] = id;
 	}
+	bool IsChoiceHidden(int c) const {
+		return hidden_.find(c) != hidden_.end();
+	}
+
+	void SetPreOpenCallback(std::function<void(PopupMultiChoice *)> callback) {
+		preOpenCallback_ = callback;
+	}
 
 	UI::Event OnChoice;
 
@@ -250,24 +263,38 @@ private:
 	bool restoreFocus_ = false;
 	std::set<int> hidden_;
 	std::map<int, ImageID> icons_;
+
+	std::function<void(PopupMultiChoice *)> preOpenCallback_;
+	bool callbackExecuted_ = false;
 };
 
 // Allows passing in a dynamic vector of strings. Saves the string.
 class PopupMultiChoiceDynamic : public PopupMultiChoice {
 public:
-	PopupMultiChoiceDynamic(std::string *value, std::string_view text, std::vector<std::string> choices,
-		I18NCat category, ScreenManager *screenManager, UI::LayoutParams *layoutParams = nullptr)
+	// TODO: This all is absolutely terrible, just done this way to be conformant with the internals of PopupMultiChoice.
+	PopupMultiChoiceDynamic(std::string *value, std::string_view text, const std::vector<std::string> &choices,
+		I18NCat category, ScreenManager *screenManager, std::vector<std::string> *values = nullptr, UI::LayoutParams *layoutParams = nullptr)
 		: UI::PopupMultiChoice(&valueInt_, text, nullptr, 0, (int)choices.size(), category, screenManager, layoutParams),
 		valueStr_(value) {
+		if (values) {
+			_dbg_assert_(choices.size() == values->size());
+		}
 		choices_ = new const char *[numChoices_];
 		valueInt_ = 0;
 		for (int i = 0; i < numChoices_; i++) {
 			choices_[i] = new char[choices[i].size() + 1];
 			memcpy((char *)choices_[i], choices[i].c_str(), choices[i].size() + 1);
+			if (values) {
+				if (*value == (*values)[i])
+					valueInt_ = i;
+			}
 			if (*value == choices_[i])
 				valueInt_ = i;
 		}
 		value_ = &valueInt_;
+		if (values) {
+			choiceValues_ = *values;
+		}
 		UpdateText();
 	}
 	~PopupMultiChoiceDynamic() {
@@ -282,8 +309,13 @@ protected:
 		if (!valueStr_) {
 			return true;
 		}
-		if (*valueStr_ != choices_[num]) {
-			*valueStr_ = choices_[num];
+		const char *value = choices_[num];
+		if (choiceValues_.size() == numChoices_) {
+			value = choiceValues_[num].c_str();
+		}
+
+		if (*valueStr_ != value) {
+			*valueStr_ = value;
 			return true;
 		} else {
 			return false;
@@ -293,6 +325,7 @@ protected:
 private:
 	int valueInt_;
 	std::string *valueStr_;
+	std::vector<std::string> choiceValues_;
 };
 
 class PopupSliderChoice : public AbstractChoiceWithValueDisplay {
@@ -309,6 +342,10 @@ public:
 	}
 	void SetNegativeDisable(std::string_view str) {
 		negativeLabel_ = str;
+	}
+	void RestrictChoices(const int *fixedChoices, size_t numFixedChoices) {
+		fixedChoices_ = fixedChoices;
+		numFixedChoices_ = numFixedChoices;
 	}
 
 	Event OnChange;
@@ -332,6 +369,8 @@ private:
 	ScreenManager *screenManager_;
 	bool restoreFocus_ = false;
 	bool liveUpdate_ = false;
+	const int *fixedChoices_ = nullptr;
+	size_t numFixedChoices_ = 0;
 };
 
 class PopupSliderChoiceFloat : public AbstractChoiceWithValueDisplay {

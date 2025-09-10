@@ -499,7 +499,7 @@ bool SavedataBrowser::ByFilename(const UI::View *v1, const UI::View *v2) {
 	const SavedataButton *b1 = static_cast<const SavedataButton *>(v1);
 	const SavedataButton *b2 = static_cast<const SavedataButton *>(v2);
 
-	return strcmp(b1->GamePath().c_str(), b2->GamePath().c_str()) < 0;
+	return b1->GamePath() < b2->GamePath();
 }
 
 void SavedataBrowser::PrepSize(UI::View *v) {
@@ -517,7 +517,7 @@ bool SavedataBrowser::BySize(const UI::View *v1, const UI::View *v2) {
 		return true;
 	else if (size1 < size2)
 		return false;
-	return strcmp(b1->GamePath().c_str(), b2->GamePath().c_str()) < 0;
+	return b1->GamePath() < b2->GamePath();
 }
 
 void SavedataBrowser::PrepDate(UI::View *v) {
@@ -535,7 +535,7 @@ bool SavedataBrowser::ByDate(const UI::View *v1, const UI::View *v2) {
 		return true;
 	if (time1 < time2)
 		return false;
-	return strcmp(b1->GamePath().c_str(), b2->GamePath().c_str()) < 0;
+	return b1->GamePath() < b2->GamePath();
 }
 
 void SavedataBrowser::Refresh() {
@@ -748,7 +748,7 @@ void GameIconView::Draw(UIContext &dc) {
 
 	// Fade icon with the backgrounds.
 	double loadTime = info->icon.timeLoaded;
-	auto pic = info->GetBGPic();
+	auto pic = info->GetPIC1();
 	if (pic) {
 		loadTime = std::max(loadTime, pic->timeLoaded);
 	}
@@ -757,10 +757,11 @@ void GameIconView::Draw(UIContext &dc) {
 	// Adjust size so we don't stretch the image vertically or horizontally.
 	// Make sure it's not wider than 144 (like Doom Legacy homebrew), ugly in the grid mode.
 	float nw = std::min(bounds_.h * textureWidth_ / textureHeight_, (float)bounds_.w);
+	int x = bounds_.x + (bounds_.w - nw) / 2.0f;
 
 	dc.Flush();
 	dc.GetDrawContext()->BindTexture(0, texture);
-	dc.Draw()->Rect(bounds_.x, bounds_.y, nw, bounds_.h, color);
+	dc.Draw()->Rect(x, bounds_.y, nw, bounds_.h, color);
 	dc.Flush();
 	dc.RebindTexture();
 }

@@ -509,8 +509,8 @@ void IRNativeJit::Init(IRNativeBackend &backend) {
 	}
 }
 
-bool IRNativeJit::CompileNativeBlock(IRBlockCache *irblockCache, int block_num, bool preload) {
-	return backend_->CompileBlock(irblockCache, block_num, preload);
+bool IRNativeJit::CompileNativeBlock(IRBlockCache *irblockCache, int block_num) {
+	return backend_->CompileBlock(irblockCache, block_num);
 }
 
 void IRNativeJit::FinalizeNativeBlock(IRBlockCache *irblockCache, int block_num) {
@@ -764,6 +764,8 @@ JitBlockDebugInfo IRNativeBlockCacheDebugInterface::GetBlockDebugInfo(int blockN
 	debugInfo.targetDisasm = DisassembleX86(blockStart, codeSize);
 #elif PPSSPP_ARCH(RISCV64)
 	debugInfo.targetDisasm = DisassembleRV64(blockStart, codeSize);
+#elif PPSSPP_ARCH(LOONGARCH64)
+	debugInfo.targetDisasm = DisassembleLA64(blockStart, codeSize);
 #endif
 	return debugInfo;
 }

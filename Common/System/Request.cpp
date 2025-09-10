@@ -23,10 +23,34 @@ RequestManager g_requestManager;
 
 const char *RequestTypeAsString(SystemRequestType type) {
 	switch (type) {
-	case SystemRequestType::INPUT_TEXT_MODAL: return "INPUT_TEXT_MODAL";
 	case SystemRequestType::BROWSE_FOR_IMAGE: return "BROWSE_FOR_IMAGE";
 	case SystemRequestType::BROWSE_FOR_FILE: return "BROWSE_FOR_FILE";
 	case SystemRequestType::BROWSE_FOR_FOLDER: return "BROWSE_FOR_FOLDER";
+	case SystemRequestType::BROWSE_FOR_FILE_SAVE: return "BROWSE_FOR_FILE_SAVE";
+	case SystemRequestType::INPUT_TEXT_MODAL: return "INPUT_TEXT_MODAL";
+	case SystemRequestType::ASK_USERNAME_PASSWORD: return "ASK_USERNAME_PASSWORD";
+	case SystemRequestType::EXIT_APP: return "EXIT_APP";
+	case SystemRequestType::RESTART_APP: return "RESTART_APP";
+	case SystemRequestType::RECREATE_ACTIVITY: return "RECREATE_ACTIVITY";
+	case SystemRequestType::COPY_TO_CLIPBOARD: return "COPY_TO_CLIPBOARD";
+	case SystemRequestType::SHARE_TEXT: return "SHARE_TEXT";
+	case SystemRequestType::SET_WINDOW_TITLE: return "SET_WINDOW_TITLE";
+	case SystemRequestType::TOGGLE_FULLSCREEN_STATE: return "TOGGLE_FULLSCREEN_STATE";
+	case SystemRequestType::GRAPHICS_BACKEND_FAILED_ALERT: return "GRAPHICS_BACKEND_FAILED_ALERT";
+	case SystemRequestType::CREATE_GAME_SHORTCUT: return "CREATE_GAME_SHORTCUT";
+	case SystemRequestType::SHOW_FILE_IN_FOLDER: return "SHOW_FILE_IN_FOLDER";
+	case SystemRequestType::SEND_DEBUG_OUTPUT: return "SEND_DEBUG_OUTPUT";
+	case SystemRequestType::SEND_DEBUG_SCREENSHOT: return "SEND_DEBUG_SCREENSHOT";
+	case SystemRequestType::NOTIFY_UI_EVENT: return "NOTIFY_UI_EVENT";
+	case SystemRequestType::SET_KEEP_SCREEN_BRIGHT: return "SET_KEEP_SCREEN_BRIGHT";
+	case SystemRequestType::CAMERA_COMMAND: return "CAMERA_COMMAND";
+	case SystemRequestType::GPS_COMMAND: return "GPS_COMMAND";
+	case SystemRequestType::INFRARED_COMMAND: return "INFRARED_COMMAND";
+	case SystemRequestType::MICROPHONE_COMMAND: return "MICROPHONE_COMMAND";
+	case SystemRequestType::RUN_CALLBACK_IN_WNDPROC: return "RUN_CALLBACK_IN_WNDPROC";
+	case SystemRequestType::MOVE_TO_TRASH: return "MOVE_TO_TRASH";
+	case SystemRequestType::IAP_RESTORE_PURCHASES: return "IAP_RESTORE_PURCHASES";
+	case SystemRequestType::IAP_MAKE_PURCHASE: return "IAP_MAKE_PURCHASE";
 	default: return "N/A";
 	}
 }
@@ -150,3 +174,8 @@ void System_RunCallbackInWndProc(void (*callback)(void *, void *), void *userdat
 	int64_t castUserData = (int64_t)userdata;
 	g_requestManager.MakeSystemRequest(SystemRequestType::RUN_CALLBACK_IN_WNDPROC, NO_REQUESTER_TOKEN, nullptr, nullptr, "", "", castPtr, castUserData);
 }
+
+void System_MoveToTrash(const Path &path) {
+	g_requestManager.MakeSystemRequest(SystemRequestType::MOVE_TO_TRASH, NO_REQUESTER_TOKEN, nullptr, nullptr, path.ToString(), "", 0);
+}
+

@@ -319,7 +319,7 @@ void RetroAchievementsSettingsScreen::CreateAccountTab(UI::ViewGroup *viewGroup)
 		} else if (System_GetPropertyBool(SYSPROP_HAS_LOGIN_DIALOG)) {
 			viewGroup->Add(new Choice(di->T("Log in")))->OnClick.Add([=](UI::EventParams &) -> UI::EventReturn {
 				std::string title = StringFromFormat("RetroAchievements: %s", di->T_cstr("Log in"));
-				System_AskUsernamePassword(GetRequesterToken(), title, [](const std::string &value, int) {
+				System_AskUsernamePassword(GetRequesterToken(), title, g_Config.sAchievementsUserName, [](const std::string &value, int) {
 					std::vector<std::string> parts;
 					SplitString(value, '\n', parts);
 					if (parts.size() == 2 && !parts[0].empty() && !parts[1].empty()) {
@@ -330,19 +330,19 @@ void RetroAchievementsSettingsScreen::CreateAccountTab(UI::ViewGroup *viewGroup)
 			});
 		} else {
 			// Hack up a temporary quick login-form-ish-thing
-			viewGroup->Add(new PopupTextInputChoice(GetRequesterToken(), &username_, di->T("Username"), "", 128, screenManager()));
+			viewGroup->Add(new PopupTextInputChoice(GetRequesterToken(), &g_Config.sAchievementsUserName, di->T("Username"), "", 128, screenManager()));
 			viewGroup->Add(new PopupTextInputChoice(GetRequesterToken(), &password_, di->T("Password"), "", 128, screenManager()))->SetPasswordDisplay();
 			Choice *loginButton = viewGroup->Add(new Choice(di->T("Log in")));
 			loginButton->OnClick.Add([=](UI::EventParams &) -> UI::EventReturn {
-				if (!username_.empty() && !password_.empty()) {
-					Achievements::LoginAsync(username_.c_str(), password_.c_str());
+				if (!g_Config.sAchievementsUserName.empty() && !password_.empty()) {
+					Achievements::LoginAsync(g_Config.sAchievementsUserName.c_str(), password_.c_str());
 					memset(&password_[0], 0, password_.size());
 					password_.clear();
 				}
 				return UI::EVENT_DONE;
 			});
 			loginButton->SetEnabledFunc([&]() {
-				return !username_.empty() && !password_.empty();
+				return !g_Config.sAchievementsUserName.empty() && !password_.empty();
 			});
 		}
 		viewGroup->Add(new Choice(ac->T("Register on www.retroachievements.org")))->OnClick.Add([&](UI::EventParams &) -> UI::EventReturn {
@@ -462,6 +462,8 @@ void RenderAchievement(UIContext &dc, const rc_client_achievement_t *achievement
 		background = dc.theme->itemFocusedStyle.background;
 	}
 
+	_assert_(achievement);
+
 	// Set some alpha, if displayed in list.
 	if (style == AchievementRenderStyle::LISTED) {
 		background.color = colorAlpha(background.color, 0.6f);
@@ -564,7 +566,7 @@ void RenderAchievement(UIContext &dc, const rc_client_achievement_t *achievement
 	char cacheKey[256];
 	snprintf(cacheKey, sizeof(cacheKey), "ai:%s:%s", achievement->badge_name, iconState == RC_CLIENT_ACHIEVEMENT_STATE_UNLOCKED ? "unlocked" : "locked");
 	if (RC_OK == rc_client_achievement_get_image_url(achievement, iconState, temp, sizeof(temp))) {
-		Achievements::DownloadImageIfMissing(cacheKey, std::string(temp));
+		Achievements::DownloadImageIfMissing(cacheKey, temp);
 		if (g_iconCache.BindIconTexture(&dc, cacheKey)) {
 			dc.Draw()->DrawTexRect(Bounds(bounds.x + padding, bounds.y + padding, iconSpace, iconSpace), 0.0f, 0.0f, 1.0f, 1.0f, whiteAlpha(alpha));
 		}
@@ -576,7 +578,7 @@ void RenderAchievement(UIContext &dc, const rc_client_achievement_t *achievement
 	dc.PopScissor();
 }
 
-static void RenderGameAchievementSummary(UIContext &dc, const Bounds &bounds, float alpha) {
+static void RenderGameAchievementSummary(UIContext &dc, const Bounds &bounds, float alpha, const rc_client_game_t *gameInfo) {
 	using namespace UI;
 	UI::Drawable background = dc.theme->itemStyle.background;
 
@@ -590,8 +592,6 @@ static void RenderGameAchievementSummary(UIContext &dc, const Bounds &bounds, fl
 	dc.FillRect(background, bounds);
 
 	dc.SetFontStyle(dc.theme->uiFont);
-
-	const rc_client_game_t *gameInfo = rc_client_get_game_info(Achievements::GetClient());
 
 	dc.SetFontScale(1.0f, 1.0f);
 	dc.DrawTextRect(gameInfo->title, bounds.Inset(iconSpace + 5.0f, 2.0f, 5.0f, 5.0f), fgColor, ALIGN_TOPLEFT);
@@ -608,7 +608,7 @@ static void RenderGameAchievementSummary(UIContext &dc, const Bounds &bounds, fl
 	char cacheKey[256];
 	snprintf(cacheKey, sizeof(cacheKey), "gi:%s", gameInfo->badge_name);
 	if (RC_OK == rc_client_game_get_image_url(gameInfo, url, sizeof(url))) {
-		Achievements::DownloadImageIfMissing(cacheKey, std::string(url));
+		Achievements::DownloadImageIfMissing(cacheKey, url);
 		if (g_iconCache.BindIconTexture(&dc, cacheKey)) {
 			dc.Draw()->DrawTexRect(Bounds(bounds.x, bounds.y, iconSpace, iconSpace), 0.0f, 0.0f, 1.0f, 1.0f, whiteAlpha(alpha));
 		}
@@ -708,7 +708,7 @@ static void RenderLeaderboardEntry(UIContext &dc, const rc_client_leaderboard_en
 	snprintf(cacheKey, sizeof(cacheKey), "lbe:%s", entry->user);
 	char temp[512];
 	if (RC_OK == rc_client_leaderboard_entry_get_user_image_url(entry, temp, sizeof(temp))) {
-		Achievements::DownloadImageIfMissing(cacheKey, std::string(temp));
+		Achievements::DownloadImageIfMissing(cacheKey, temp);
 		if (g_iconCache.BindIconTexture(&dc, cacheKey)) {
 			dc.Draw()->DrawTexRect(Bounds(bounds.x + iconLeft, bounds.y + 4.0f, 64.0f, 64.0f), 0.0f, 0.0f, 1.0f, 1.0f, whiteAlpha(alpha));
 		}
@@ -719,14 +719,23 @@ static void RenderLeaderboardEntry(UIContext &dc, const rc_client_leaderboard_en
 }
 
 void AchievementView::Draw(UIContext &dc) {
+	if (!achievement_) {
+		return;
+	}
 	RenderAchievement(dc, achievement_, AchievementRenderStyle::LISTED, bounds_, 1.0f, 0.0f, 0.0f, HasFocus());
 }
 
 void AchievementView::GetContentDimensions(const UIContext &dc, float &w, float &h) const {
+	if (!achievement_) {
+		return;
+	}
 	MeasureAchievement(dc, achievement_, AchievementRenderStyle::LISTED, &w, &h);
 }
 
 void AchievementView::Click() {
+	if (!achievement_) {
+		return;
+	}
 	// In debug builds, clicking achievements will show them being unlocked (which may be a lie).
 #ifdef _DEBUG
 	static int type = 0;
@@ -743,7 +752,10 @@ void AchievementView::Click() {
 }
 
 void GameAchievementSummaryView::Draw(UIContext &dc) {
-	RenderGameAchievementSummary(dc, bounds_, 1.0f);
+	const rc_client_game_t *client_game = rc_client_get_game_info(Achievements::GetClient());
+	if (client_game) {
+		RenderGameAchievementSummary(dc, bounds_, 1.0f, client_game);
+	}
 }
 
 void GameAchievementSummaryView::GetContentDimensions(const UIContext &dc, float &w, float &h) const {

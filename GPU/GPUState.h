@@ -420,7 +420,6 @@ struct GPUgstate {
 	int getTransferHeight() const { return ((transfersize >> 10) & 0x3FF) + 1; }
 	int getTransferBpp() const { return (transferstart & 1) ? 4 : 2; }
 
-
 	void FastLoadBoneMatrix(u32 addr);
 
 	// Real data in the context ends here
@@ -480,6 +479,7 @@ enum {
 	GPU_ROUND_DEPTH_TO_16BIT = FLAG_BIT(23),  // Can be disabled either per game or if we use a real 16-bit depth buffer
 	GPU_USE_CLIP_DISTANCE = FLAG_BIT(24),
 	GPU_USE_CULL_DISTANCE = FLAG_BIT(25),
+	GPU_USE_SHADER_BLENDING = FLAG_BIT(26),  // This is set to false when skip buffer effects is enabled and GPU_USE_FRAMEBUFFER_FETCH is not.
 
 	// VR flags (reserved or in-use)
 	GPU_USE_VIRTUAL_REALITY = FLAG_BIT(29),
@@ -578,13 +578,7 @@ struct GPUStateCache {
 			Dirty(DIRTY_UVSCALEOFFSET);
 		}
 	}
-	void SetUseFlags(u32 newFlags) {
-		if (newFlags != useFlags_) {
-			if (useFlags_ != 0)
-				useFlagsChanged = true;
-			useFlags_ = newFlags;
-		}
-	}
+	bool SetUseFlags(u32 newFlags);
 
 	// When checking for a single flag, use Use()/UseAll().
 	u32 GetUseFlags() const {

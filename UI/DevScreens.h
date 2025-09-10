@@ -107,6 +107,7 @@ public:
 
 	void CreateTabs() override;
 	void update() override;
+	void resized() override { RecreateViews(); }
 
 protected:
 	UI::EventReturn CopySummaryToClipboard(UI::EventParams &e);
@@ -121,6 +122,8 @@ private:
 	void CreateInternalsTab(UI::ViewGroup *internals);
 	void CreateOpenGLExtsTab(UI::LinearLayout *gpuExtensions);
 	void CreateVulkanExtsTab(UI::LinearLayout *gpuExtensions);
+
+	int testSliderValue_ = 0;
 };
 
 class GPIGPOScreen : public PopupScreen {

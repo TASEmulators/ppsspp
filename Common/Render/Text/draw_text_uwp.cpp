@@ -184,7 +184,7 @@ uint32_t TextDrawerUWP::SetFont(const char *fontName, int size, int flags) {
 		fname = L"Tahoma";
 
 	TextDrawerFontContext *font = new TextDrawerFontContext();
-	font->weight = DWRITE_FONT_WEIGHT_LIGHT;
+	font->weight = DWRITE_FONT_WEIGHT_NORMAL;
 	font->height = size;
 	font->fname = fname;
 	font->dpiScale = dpiScale_;
@@ -212,7 +212,7 @@ void TextDrawerUWP::MeasureStringInternal(std::string_view str, float *w, float 
 	}
 	if (!format) return;
 
-	std::wstring wstr = ConvertUTF8ToWString(ReplaceAll(std::string(str), "\n", "\r\n"));
+	std::wstring wstr = ConvertUTF8ToWString(ReplaceAll(str, "\n", "\r\n"));
 
 	format->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
 		

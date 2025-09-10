@@ -138,14 +138,14 @@ public:
 	};
 };
 
-std::map<u32, AuCtx *> mp3Map;
+std::map<u32, AuCtx *> g_mp3Map;
 static const int mp3DecodeDelay = 2400;
 static bool resourceInited = false;
 
 static AuCtx *getMp3Ctx(u32 mp3) {
-	if (mp3Map.find(mp3) == mp3Map.end())
+	if (g_mp3Map.find(mp3) == g_mp3Map.end())
 		return NULL;
-	return mp3Map[mp3];
+	return g_mp3Map[mp3];
 }
 
 void __Mp3Init() {
@@ -153,10 +153,10 @@ void __Mp3Init() {
 }
 
 void __Mp3Shutdown() {
-	for (auto it = mp3Map.begin(), end = mp3Map.end(); it != end; ++it) {
+	for (auto it = g_mp3Map.begin(), end = g_mp3Map.end(); it != end; ++it) {
 		delete it->second;
 	}
-	mp3Map.clear();
+	g_mp3Map.clear();
 }
 
 void __Mp3DoState(PointerWrap &p) {
@@ -165,7 +165,7 @@ void __Mp3DoState(PointerWrap &p) {
 		return;
 
 	if (s >= 2) {
-		Do(p, mp3Map);
+		Do(p, g_mp3Map);
 	} else {
 		std::map<u32, Mp3ContextOld *> mp3Map_old;
 		Do(p, mp3Map_old); // read old map
@@ -190,7 +190,7 @@ void __Mp3DoState(PointerWrap &p) {
 			mp3->SetReadPos(mp3_old->readPosition);
 
 			mp3->decoder = CreateAudioDecoder(PSP_CODEC_MP3);
-			mp3Map[id] = mp3;
+			g_mp3Map[id] = mp3;
 		}
 	}
 
@@ -253,7 +253,7 @@ static u32 sceMp3ReserveMp3Handle(u32 mp3Addr) {
 	if (!resourceInited) {
 		return hleLogError(Log::ME, SCE_MP3_ERROR_NO_RESOURCE_AVAIL, "sceMp3InitResource must be called first");
 	}
-	if (mp3Map.size() >= MP3_MAX_HANDLES) {
+	if (g_mp3Map.size() >= MP3_MAX_HANDLES) {
 		return hleLogError(Log::ME, SCE_MP3_ERROR_NO_RESOURCE_AVAIL, "no free handles");
 	}
 	if (mp3Addr != 0 && !Memory::IsValidRange(mp3Addr, 32)) {
@@ -297,8 +297,8 @@ static u32 sceMp3ReserveMp3Handle(u32 mp3Addr) {
 	Au->SetReadPos(Au->startPos);
 	Au->decoder = CreateAudioDecoder(PSP_CODEC_MP3);
 
-	int handle = (int)mp3Map.size();
-	mp3Map[handle] = Au;
+	int handle = (int)g_mp3Map.size();
+	g_mp3Map[handle] = Au;
 
 	return hleLogDebug(Log::ME, handle);
 }
@@ -318,10 +318,10 @@ static int sceMp3TermResource() {
 	}
 
 	// Free any handles that are still open.
-	for (auto au : mp3Map) {
+	for (auto au : g_mp3Map) {
 		delete au.second;
 	}
-	mp3Map.clear();
+	g_mp3Map.clear();
 
 	resourceInited = false;
 	return hleDelayResult(hleLogDebug(Log::ME, 0), "mp3 resource term", 100);
@@ -625,7 +625,7 @@ static int sceMp3ReleaseMp3Handle(u32 mp3) {
 	AuCtx *ctx = getMp3Ctx(mp3);
 	if (ctx) {
 		delete ctx;
-		mp3Map.erase(mp3);
+		g_mp3Map.erase(mp3);
 		return hleLogDebug(Log::ME, 0);
 	} else if (mp3 >= MP3_MAX_HANDLES) {
 		return hleLogError(Log::ME, SCE_MP3_ERROR_INVALID_HANDLE, "invalid handle");
@@ -699,11 +699,11 @@ static u32 sceMp3LowLevelInit(u32 mp3, u32 unk) {
 	ctx->decoder = CreateAudioDecoder(PSP_CODEC_MP3);
 
 	// close the audio if mp3 already exists.
-	if (mp3Map.find(mp3) != mp3Map.end()) {
-		delete mp3Map[mp3];
-		mp3Map.erase(mp3);
+	if (g_mp3Map.find(mp3) != g_mp3Map.end()) {
+		delete g_mp3Map[mp3];
+		g_mp3Map.erase(mp3);
 	}
-	mp3Map[mp3] = ctx;
+	g_mp3Map[mp3] = ctx;
 
 	// Indicate that we've run low level init by setting version to 1.
 	ctx->Version = 1;
@@ -711,23 +711,20 @@ static u32 sceMp3LowLevelInit(u32 mp3, u32 unk) {
 	return hleDelayResult(hleLogInfo(Log::ME, 0), "mp3 low level", 600);
 }
 
+// Used by SD Gundam Overworld for custom BGM, and Heroes VS.
 static u32 sceMp3LowLevelDecode(u32 mp3, u32 sourceAddr, u32 sourceBytesConsumedAddr, u32 samplesAddr, u32 sampleBytesAddr) {
 	// sourceAddr: input mp3 stream buffer
 	// sourceBytesConsumedAddr: consumed bytes decoded in source
 	// samplesAddr: output pcm buffer
 	// sampleBytesAddr: output pcm size
-	DEBUG_LOG(Log::ME, "sceMp3LowLevelDecode(%08x, %08x, %08x, %08x, %08x)", mp3, sourceAddr, sourceBytesConsumedAddr, samplesAddr, sampleBytesAddr);
-
 	AuCtx *ctx = getMp3Ctx(mp3);
 	if (!ctx) {
-		ERROR_LOG(Log::ME, "%s: bad mp3 handle %08x", __FUNCTION__, mp3);
-		return -1;
+		return hleLogError(Log::ME, SCE_MP3_ERROR_INVALID_HANDLE, "invalid handle");
 	}
 
 	if (!Memory::IsValidAddress(sourceAddr) || !Memory::IsValidAddress(sourceBytesConsumedAddr) ||
 		!Memory::IsValidAddress(samplesAddr) || !Memory::IsValidAddress(sampleBytesAddr)) {
-		ERROR_LOG(Log::ME, "sceMp3LowLevelDecode(%08x, %08x, %08x, %08x, %08x) : invalid address in args", mp3, sourceAddr, sourceBytesConsumedAddr, samplesAddr, sampleBytesAddr);
-		return -1;
+		return hleLogError(Log::ME, -1, "invalid address in args");
 	}
 
 	const u8 *inbuff = Memory::GetPointerWriteUnchecked(sourceAddr);
@@ -735,13 +732,15 @@ static u32 sceMp3LowLevelDecode(u32 mp3, u32 sourceAddr, u32 sourceBytesConsumed
 	
 	int outSamples = 0;
 	int inbytesConsumed = 0;
-	ctx->decoder->Decode(inbuff, 4096, &inbytesConsumed, 2, outbuf, &outSamples);
+	if (!ctx->decoder->Decode(inbuff, 4096, &inbytesConsumed, 2, outbuf, &outSamples)) {
+		WARN_LOG(Log::ME, "sceMp3LowLevelDecode: Decode failed");
+	}
 	int outBytes = outSamples * sizeof(int16_t) * 2;
 	NotifyMemInfo(MemBlockFlags::WRITE, samplesAddr, outBytes, "Mp3LowLevelDecode");
 	
 	Memory::Write_U32(inbytesConsumed, sourceBytesConsumedAddr);
 	Memory::Write_U32(outBytes, sampleBytesAddr);
-	return 0;
+	return hleLogDebug(Log::ME, 0);
 }
 
 const HLEFunction sceMp3[] = {

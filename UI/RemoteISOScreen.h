@@ -49,6 +49,8 @@ protected:
 	UI::TextView *firewallWarning_ = nullptr;
 	bool serverRunning_ = false;
 	bool serverStopping_ = false;
+
+	int frameCount_ = 0;
 };
 
 enum class ScanStatus {
@@ -81,7 +83,7 @@ protected:
 	ScanStatus status_ = ScanStatus::SCANNING;
 	std::string statusMessage_;
 	double nextRetry_ = 0.0;
-	std::thread *scanThread_;
+	std::thread scanThread_;
 	std::mutex statusLock_;
 	std::string host_;
 	int port_ = -1;

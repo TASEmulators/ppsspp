@@ -56,6 +56,7 @@ struct JNIEnv {};
 #include "Common/LogReporting.h"
 
 #include "Common/Net/Resolve.h"
+#include "Common/Net/URL.h"
 #include "android/jni/AndroidAudio.h"
 #include "Common/GPU/OpenGL/GLCommon.h"
 #include "Common/GPU/OpenGL/GLFeatures.h"
@@ -151,7 +152,8 @@ static int deviceType;
 static int display_xres;
 static int display_yres;
 static int display_dpi;
-static float display_scale;  // Scale factor due to backbuffer scaling
+static float display_scale_x;  // Scale factor due to backbuffer scaling
+static float display_scale_y;
 
 static int backbuffer_format;	// Android PixelFormat enum
 
@@ -177,7 +179,6 @@ static jobject nativeActivity;
 static std::atomic<bool> exitRenderLoop;
 static std::atomic<bool> renderLoopRunning;
 static bool renderer_inited = false;
-static std::mutex renderLock;
 
 static bool sustainedPerfSupported = false;
 
@@ -258,7 +259,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *pjvm, void *reserved) {
 
 // Only used in OpenGL mode.
 static void EmuThreadFunc() {
-	SetCurrentThreadName("EmuThread");
+	SetCurrentThreadName("Entering EmuThread");
 
 	// Name the thread in the JVM, because why not (might result in better debug output in Play Console).
 	// TODO: Do something clever with getEnv() and stored names from SetCurrentThreadName?
@@ -297,10 +298,7 @@ static void EmuThreadFunc() {
 	// We just call the update/render loop here.
 	emuThreadState = (int)EmuThreadState::RUNNING;
 	while (emuThreadState != (int)EmuThreadState::QUIT_REQUESTED) {
-		{
-			std::lock_guard<std::mutex> renderGuard(renderLock);
-			NativeFrame(graphicsContext);
-		}
+		NativeFrame(graphicsContext);
 
 		std::lock_guard<std::mutex> guard(frameCommandLock);
 		if (!nativeActivity) {
@@ -313,16 +311,13 @@ static void EmuThreadFunc() {
 		ProcessFrameCommands(env);
 	}
 
-	INFO_LOG(Log::System, "QUIT_REQUESTED found, left EmuThreadFunc loop. Setting state to STOPPED.");
+	INFO_LOG(Log::System, "emuThreadState was set to QUIT_REQUESTED, left EmuThreadFunc loop. Setting state to STOPPED.");
 	emuThreadState = (int)EmuThreadState::STOPPED;
 
 	NativeShutdownGraphics();
 
-	// Also ask the main thread to stop, so it doesn't hang waiting for a new frame.
-	graphicsContext->StopThread();
-
 	gJvm->DetachCurrentThread();
-	INFO_LOG(Log::System, "Leaving emu thread");
+	INFO_LOG(Log::System, "Leaving EmuThread");
 }
 
 static void EmuThreadStart() {
@@ -345,9 +340,9 @@ static void EmuThreadJoin() {
 	INFO_LOG(Log::System, "EmuThreadJoin - joined");
 }
 
-static void PushCommand(std::string cmd, std::string param) {
+static void PushCommand(std::string_view cmd, std::string_view param) {
 	std::lock_guard<std::mutex> guard(frameCommandLock);
-	frameCommands.push(FrameCommand(std::move(cmd), std::move(param)));
+	frameCommands.emplace(std::string(cmd), std::string(param));
 }
 
 // Android implementation of callbacks to the Java part of the app
@@ -431,13 +426,13 @@ float System_GetPropertyFloat(SystemProperty prop) {
 	case SYSPROP_DISPLAY_REFRESH_RATE:
 		return g_display.display_hz;
 	case SYSPROP_DISPLAY_SAFE_INSET_LEFT:
-		return g_safeInsetLeft * display_scale * g_display.dpi_scale;
+		return g_safeInsetLeft * display_scale_x * g_display.dpi_scale_x;
 	case SYSPROP_DISPLAY_SAFE_INSET_RIGHT:
-		return g_safeInsetRight * display_scale * g_display.dpi_scale;
+		return g_safeInsetRight * display_scale_x * g_display.dpi_scale_x;
 	case SYSPROP_DISPLAY_SAFE_INSET_TOP:
-		return g_safeInsetTop * display_scale * g_display.dpi_scale;
+		return g_safeInsetTop * display_scale_y * g_display.dpi_scale_y;
 	case SYSPROP_DISPLAY_SAFE_INSET_BOTTOM:
-		return g_safeInsetBottom * display_scale * g_display.dpi_scale;
+		return g_safeInsetBottom * display_scale_y * g_display.dpi_scale_y;
 	default:
 		return -1;
 	}
@@ -682,6 +677,8 @@ static void parse_args(std::vector<std::string> &args, const std::string value) 
 // Need to use raw Android logging before NativeInit.
 #define EARLY_LOG(...)  __android_log_print(ANDROID_LOG_INFO, "PPSSPP", __VA_ARGS__)
 
+static bool bFirstResume = false;
+
 extern "C" void Java_org_ppsspp_ppsspp_NativeApp_init
 (JNIEnv * env, jclass, jstring jmodel, jint jdeviceType, jstring jlangRegion, jstring japkpath,
 	jstring jdataDir, jstring jexternalStorageDir, jstring jexternalFilesDir, jstring jNativeLibDir, jstring jadditionalStorageDirs, jstring jcacheDir, jstring jshortcutParam,
@@ -694,7 +691,6 @@ extern "C" void Java_org_ppsspp_ppsspp_NativeApp_init
 	EARLY_LOG("NativeApp.init() -- begin");
 	PROFILE_INIT();
 
-	std::lock_guard<std::mutex> guard(renderLock);
 	renderer_inited = false;
 	exitRenderLoop = false;
 	androidVersion = jAndroidVersion;
@@ -762,7 +758,10 @@ extern "C" void Java_org_ppsspp_ppsspp_NativeApp_init
 		}
 	}
 
+	// TODO: We should be able to do the Vulkan init in parallel with NativeInit.
 	NativeInit((int)args.size(), &args[0], user_data_path.c_str(), externalStorageDir.c_str(), cacheDir.c_str());
+
+	bFirstResume = true;
 
 	// In debug mode, don't allow creating software Vulkan devices (reject by VulkanMaybeAvailable).
 	// Needed for #16931.
@@ -812,6 +811,11 @@ retry:
 		InitVROnAndroid(gJvm, nativeActivity, systemName.c_str(), gitVer.ToInteger(), "PPSSPP");
 		SetVRCallbacks(NativeAxis, NativeKey, NativeTouch);
 	}
+}
+
+AudioBackend *System_CreateAudioBackend() {
+	// Use legacy mechanisms.
+	return nullptr;
 }
 
 extern "C" void Java_org_ppsspp_ppsspp_NativeApp_audioInit(JNIEnv *, jclass) {
@@ -870,15 +874,19 @@ bool System_AudioRecordingState() {
 }
 
 extern "C" void Java_org_ppsspp_ppsspp_NativeApp_resume(JNIEnv *, jclass) {
-	INFO_LOG(Log::System, "NativeApp.resume() - resuming audio");
+	INFO_LOG(Log::System, "NativeApp.resume() - begin");
 	AndroidAudio_Resume(g_audioState);
 
-	System_PostUIMessage(UIMessage::APP_RESUMED);
+	System_PostUIMessage(UIMessage::APP_RESUMED, bFirstResume ? "first" : "");
+
+	bFirstResume = false;
+	INFO_LOG(Log::System, "NativeApp.resume() - end");
 }
 
 extern "C" void Java_org_ppsspp_ppsspp_NativeApp_pause(JNIEnv *, jclass) {
-	INFO_LOG(Log::System, "NativeApp.pause() - pausing audio");
+	INFO_LOG(Log::System, "NativeApp.pause() - begin");
 	AndroidAudio_Pause(g_audioState);
+	INFO_LOG(Log::System, "NativeApp.pause() - end");
 }
 
 extern "C" void Java_org_ppsspp_ppsspp_NativeApp_shutdown(JNIEnv *, jclass) {
@@ -887,29 +895,31 @@ extern "C" void Java_org_ppsspp_ppsspp_NativeApp_shutdown(JNIEnv *, jclass) {
 	if (renderer_inited && useCPUThread && graphicsContext) {
 		// Only used in Java EGL path.
 
-		// We can't lock renderLock here because the emu thread will be in NativeFrame
-		// which locks renderLock already, and only gets out once we call ThreadFrame()
-		// in a loop before, to empty the queue.
 		EmuThreadStop("shutdown");
+		// NOTE: We know that the GLSurfaceView render thread is stopped here, since we now
+		// correctly call GLSurfaceView.onPause/onResume. However, there may still be queued frames.
+		// We can't join until we've cleared the queue by calling ThreadFrame.
+
+		// Now we know that more frames won't be coming in.
+
 		INFO_LOG(Log::System, "BeginAndroidShutdown");
-		graphicsContext->BeginAndroidShutdown();
+		graphicsContext->BeginAndroidShutdown();  // Makes sure we don't actually perform draws.
+
 		// Now, it could be that we had some frames queued up. Get through them.
 		// We're on the render thread, so this is synchronous.
-		do {
-			INFO_LOG(Log::System, "Executing graphicsContext->ThreadFrame to clear buffers");
-		} while (graphicsContext->ThreadFrame());
+		graphicsContext->ThreadFrameUntilCondition([]() -> bool {
+			return emuThreadState == (int)EmuThreadState::STOPPED;
+		});
 		graphicsContext->ThreadEnd();
+
+		EmuThreadJoin();
+
 		INFO_LOG(Log::System, "ThreadEnd called.");
 		graphicsContext->ShutdownFromRenderThread();
 		INFO_LOG(Log::System, "Graphics context now shut down from NativeApp_shutdown");
-
-		INFO_LOG(Log::System, "Joining emuthread");
-		EmuThreadJoin();
 	}
 
 	{
-		std::lock_guard<std::mutex> guard(renderLock);
-
 		if (graphicsContext) {
 			INFO_LOG(Log::G3D, "Shutting down renderer");
 			graphicsContext->Shutdown();
@@ -926,7 +936,7 @@ extern "C" void Java_org_ppsspp_ppsspp_NativeApp_shutdown(JNIEnv *, jclass) {
 
 	{
 		std::lock_guard<std::mutex> guard(frameCommandLock);
-		while (frameCommands.size())
+		while (!frameCommands.empty())
 			frameCommands.pop();
 	}
 	INFO_LOG(Log::System, "NativeApp.shutdown() -- end");
@@ -952,8 +962,9 @@ extern "C" jboolean Java_org_ppsspp_ppsspp_NativeRenderer_displayInit(JNIEnv * e
 		graphicsContext->BeginAndroidShutdown();
 		INFO_LOG(Log::G3D, "BeginAndroidShutdown. Looping until emu thread done...");
 		// Skipping GL calls here because the old context is lost.
-		while (graphicsContext->ThreadFrame()) {
-		}
+		graphicsContext->ThreadFrameUntilCondition([]() -> bool {
+			return emuThreadState == (int)EmuThreadState::STOPPED;
+		});
 		INFO_LOG(Log::G3D, "Joining emu thread");
 		EmuThreadJoin();
 
@@ -1013,14 +1024,17 @@ extern "C" void JNICALL Java_org_ppsspp_ppsspp_NativeApp_backbufferResize(JNIEnv
 	}
 
 	// Compute display scale factor. Always < 1.0f (well, as long as we use buffers sized smaller than the screen...)
-	display_scale = (float)pixel_xres / (float)display_xres;
+	display_scale_x = (float)pixel_xres / (float)display_xres;
+	display_scale_y = (float)pixel_yres / (float)display_yres;
 
-	float dpi = (1.0f / display_scale) * (240.0f / (float)display_dpi);
+	float dpi_x = (1.0f / display_scale_x) * (240.0f / (float)display_dpi);
+	float dpi_y = (1.0f / display_scale_y) * (240.0f / (float)display_dpi);
 
-	bool new_size = g_display.Recalculate(pixel_xres, pixel_yres, dpi, UIScaleFactorToMultiplier(g_Config.iUIScaleFactor));
+	bool new_size = g_display.Recalculate(pixel_xres, pixel_yres, dpi_x, dpi_y, UIScaleFactorToMultiplier(g_Config.iUIScaleFactor));
 
 	INFO_LOG(Log::G3D, "RecalcDPI: display_xres=%d display_yres=%d pixel_xres=%d pixel_yres=%d", display_xres, display_yres, g_display.pixel_xres, g_display.pixel_yres);
-	INFO_LOG(Log::G3D, "RecalcDPI: g_dpi=%d scaled_dpi=%f display_scale=%f g_dpi_scale=%f dp_xres=%d dp_yres=%d", display_dpi, dpi, display_scale, g_display.dpi_scale, g_display.dp_xres, g_display.dp_yres);
+	INFO_LOG(Log::G3D, "RecalcDPI: g_dpi=%d scaled_dpi_x=%f scaled_dpi_y=%f display_scale_x=%f display_scale_y=%f g_dpi_scale_x=%f g_dpi_scale_y=%f dp_xres=%d dp_yres=%d",
+		display_dpi, dpi_x, dpi_y, display_scale_x, display_scale_y, g_display.dpi_scale_x, g_display.dpi_scale_y, g_display.dp_xres, g_display.dp_yres);
 
 	if (new_size) {
 		INFO_LOG(Log::G3D, "Size change detected (previously %d,%d) - calling NativeResized()", old_w, old_h);
@@ -1146,12 +1160,12 @@ extern "C" void Java_org_ppsspp_ppsspp_NativeRenderer_displayRender(JNIEnv *env,
 		return;
 
 	// This is the "GPU thread". Call ThreadFrame.
-	if (!graphicsContext || !graphicsContext->ThreadFrame()) {
+	if (!graphicsContext || !graphicsContext->ThreadFrame(true)) {
 		return;
 	}
 
 	if (IsVREnabled()) {
-		UpdateVRInput(g_Config.bHapticFeedback, g_display.dpi_scale);
+		UpdateVRInput(g_Config.bHapticFeedback, g_display.dpi_scale_x, g_display.dpi_scale_y);
 		FinishVRRender();
 	}
 }
@@ -1178,8 +1192,8 @@ extern "C" void JNICALL Java_org_ppsspp_ppsspp_NativeApp_touch
 		return;
 	TouchInput touch{};
 	touch.id = pointerId;
-	touch.x = x * display_scale * g_display.dpi_scale;
-	touch.y = y * display_scale * g_display.dpi_scale;
+	touch.x = x * display_scale_x * g_display.dpi_scale_x;
+	touch.y = y * display_scale_y * g_display.dpi_scale_y;
 	touch.flags = code;
 	NativeTouch(touch);
 }
@@ -1262,8 +1276,8 @@ extern "C" jboolean Java_org_ppsspp_ppsspp_NativeApp_mouse(
 		last_y = y;
 	}
 
-	x *= g_display.dpi_scale;
-	y *= g_display.dpi_scale;
+	x *= g_display.dpi_scale_x;
+	y *= g_display.dpi_scale_y;
 
 	if (button == 0) {
 		// It's a pure mouse move.
@@ -1394,6 +1408,14 @@ extern "C" void JNICALL Java_org_ppsspp_ppsspp_NativeApp_sendMessageFromJava(JNI
 			return;
 		}
 		INFO_LOG(Log::System, "shortcutParam received: %s", prm.c_str());
+		
+		prm = StripQuotes(prm);
+		// NOTE: The parameter can be a file:// URL, which we need to take care of here. Similar to in NativeApp.cpp, search for file://
+		if (startsWith(prm, "file:///")) {
+			std::string param = prm;
+			prm = UriDecode(prm.substr(7));
+			INFO_LOG(Log::IO, "Decoding '%s' to '%s'", param.c_str(), prm.c_str());
+		}
 		System_PostUIMessage(UIMessage::REQUEST_GAME_BOOT, StripQuotes(prm));
 	} else {
 		ERROR_LOG(Log::System, "Got unexpected message from Java, ignoring: %s / %s", msg.c_str(), prm.c_str());
@@ -1550,7 +1572,7 @@ static void ProcessFrameCommands(JNIEnv *env) {
 		frameCmd = frameCommands.front();
 		frameCommands.pop();
 
-		INFO_LOG(Log::System, "frameCommand '%s' '%s'", frameCmd.command.c_str(), frameCmd.params.c_str());
+		DEBUG_LOG(Log::System, "frameCommand '%s' '%s'", frameCmd.command.c_str(), frameCmd.params.c_str());
 
 		jstring cmd = env->NewStringUTF(frameCmd.command.c_str());
 		jstring param = env->NewStringUTF(frameCmd.params.c_str());
@@ -1600,7 +1622,6 @@ extern "C" void JNICALL Java_org_ppsspp_ppsspp_NativeActivity_requestExitVulkanR
 	_assert_(g_renderLoopThread.joinable());
 	exitRenderLoop = true;
 	g_renderLoopThread.join();
-	_assert_(!g_renderLoopThread.joinable());
 	g_renderLoopThread = std::thread();
 }
 
@@ -1654,7 +1675,6 @@ static void VulkanEmuThread(ANativeWindow *wnd) {
 
 		while (!exitRenderLoop) {
 			{
-				std::lock_guard<std::mutex> renderGuard(renderLock);
 				NativeFrame(graphicsContext);
 			}
 			{

@@ -57,7 +57,9 @@ using KeyMap::MultiInputMapping;
 class SingleControlMapper : public UI::LinearLayout {
 public:
 	SingleControlMapper(int pspKey, std::string keyName, ScreenManager *scrm, UI::LinearLayoutParams *layoutParams = nullptr);
-
+	~SingleControlMapper() {
+		g_IsMappingMouseInput = false;
+	}
 	int GetPspKey() const { return pspKey_; }
 
 private:
@@ -196,7 +198,7 @@ void SingleControlMapper::MappedCallback(const MultiInputMapping &kdf) {
 		break;
 	}
 	KeyMap::UpdateNativeMenuKeys();
-	g_Config.bMapMouse = false;
+	g_IsMappingMouseInput = false;
 }
 
 UI::EventReturn SingleControlMapper::OnReplace(UI::EventParams &params) {
@@ -219,7 +221,7 @@ UI::EventReturn SingleControlMapper::OnAdd(UI::EventParams &params) {
 }
 UI::EventReturn SingleControlMapper::OnAddMouse(UI::EventParams &params) {
 	action_ = ADD;
-	g_Config.bMapMouse = true;
+	g_IsMappingMouseInput = true;
 	scrm_->push(new KeyMappingNewMouseKeyDialog(pspKey_, true, std::bind(&SingleControlMapper::MappedCallback, this, std::placeholders::_1), I18NCat::KEYMAPPING));
 	return UI::EVENT_DONE;
 }
@@ -358,7 +360,7 @@ void KeyMappingNewKeyDialog::CreatePopupContents(UI::ViewGroup *parent) {
 	std::string pspButtonName = KeyMap::GetPspButtonName(this->pspBtn_);
 
 	parent->Add(new TextView(std::string(km->T("Map a new key for")) + " " + std::string(mc->T(pspButtonName)), new LinearLayoutParams(Margins(10, 0))));
-	parent->Add(new TextView(std::string(mapping_.ToVisualString()), new LinearLayoutParams(Margins(10, 0))));
+	parent->Add(new TextView(mapping_.ToVisualString(), new LinearLayoutParams(Margins(10, 0))));
 
 	comboMappingsNotEnabled_ = parent->Add(new NoticeView(NoticeLevel::WARN, km->T("Combo mappings are not enabled"), "", new LinearLayoutParams(Margins(10, 0))));
 	comboMappingsNotEnabled_->SetVisibility(UI::V_GONE);
@@ -430,14 +432,14 @@ bool KeyMappingNewMouseKeyDialog::key(const KeyInput &key) {
 	if (key.flags & KEY_DOWN) {
 		if (key.keyCode == NKCODE_ESCAPE) {
 			TriggerFinish(DR_OK);
-			g_Config.bMapMouse = false;
+			g_IsMappingMouseInput = false;
 			return false;
 		}
 
 		mapped_ = true;
 
 		TriggerFinish(DR_YES);
-		g_Config.bMapMouse = false;
+		g_IsMappingMouseInput = false;
 		if (callback_) {
 			MultiInputMapping kdf(InputMapping(key.deviceId, key.keyCode));
 			callback_(kdf);
@@ -568,11 +570,11 @@ void AnalogSetupScreen::CreateViews() {
 
 	root_ = new LinearLayout(ORIENT_HORIZONTAL);
 
-	LinearLayout *leftColumn = root_->Add(new LinearLayout(ORIENT_VERTICAL, new LinearLayoutParams(300.0f, FILL_PARENT)));
+	LinearLayout *leftColumn = root_->Add(new LinearLayout(ORIENT_VERTICAL, new LinearLayoutParams(300.0f, FILL_PARENT, Margins(10, 0, 0, 10))));
 	LinearLayout *rightColumn = root_->Add(new LinearLayout(ORIENT_VERTICAL, new LinearLayoutParams(1.0f)));
 
 	auto co = GetI18NCategory(I18NCat::CONTROLS);
-	ScrollView *scroll = leftColumn->Add(new ScrollView(ORIENT_VERTICAL, new LinearLayoutParams(1.0)));
+	ScrollView *scroll = leftColumn->Add(new ScrollView(ORIENT_VERTICAL, new LinearLayoutParams(1.0f)));
 
 	LinearLayout *scrollContents = scroll->Add(new LinearLayout(ORIENT_VERTICAL, new LinearLayoutParams(300.0f, WRAP_CONTENT)));
 
@@ -594,7 +596,7 @@ void AnalogSetupScreen::CreateViews() {
 
 	rightColumn->Add(theTwo);
 
-	leftColumn->Add(new Button(di->T("Back"), new LayoutParams(FILL_PARENT, WRAP_CONTENT)))->OnClick.Handle<UIScreen>(this, &UIScreen::OnBack);
+	AddStandardBack(leftColumn);
 }
 
 UI::EventReturn AnalogSetupScreen::OnResetToDefaults(UI::EventParams &e) {

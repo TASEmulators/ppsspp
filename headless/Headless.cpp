@@ -93,7 +93,7 @@ bool System_GetPropertyBool(SystemProperty prop) {
 	}
 }
 void System_Notify(SystemNotification notification) {}
-void System_PostUIMessage(UIMessage message, const std::string &param) {}
+void System_PostUIMessage(UIMessage message, std::string_view param) {}
 void System_RunOnMainThread(std::function<void()>) {}
 bool System_MakeRequest(SystemRequestType type, int requestId, const std::string &param1, const std::string &param2, int64_t param3, int64_t param4) {
 	switch (type) {
@@ -215,10 +215,13 @@ bool RunAutoTest(HeadlessHost *headlessHost, CoreParameter &coreParameter, const
 
 	PSP_UpdateDebugStats((DebugOverlay)g_Config.iDebugOverlay == DebugOverlay::DEBUG_STATS || g_Config.bLogFrameDrops);
 
-	PSP_BeginHostFrame();
+	if (gpu) {
+		gpu->BeginHostFrame();
+	}
 	Draw::DrawContext *draw = coreParameter.graphicsContext ? coreParameter.graphicsContext->GetDrawContext() : nullptr;
-	if (draw)
+	if (draw) {
 		draw->BeginFrame(Draw::DebugFlags::NONE);
+	}
 
 	bool passed = true;
 	double deadline = time_now_d() + opt.timeout;
@@ -255,7 +258,9 @@ bool RunAutoTest(HeadlessHost *headlessHost, CoreParameter &coreParameter, const
 			Core_Stop();
 		}
 	}
-	PSP_EndHostFrame();
+	if (gpu) {
+		gpu->EndHostFrame();
+	}
 
 	if (draw) {
 		draw->BindFramebufferAsRenderTarget(nullptr, { Draw::RPAction::CLEAR, Draw::RPAction::DONT_CARE, Draw::RPAction::DONT_CARE }, "Headless");
@@ -284,6 +289,8 @@ std::vector<std::string> ReadFromListFile(const std::string &listFilename) {
 	char temp[2048]{};
 
 	if (listFilename == "-") {
+		// If you get stuck here in the debugger, you accidentally passed '@-' on the command line, meaning we expect
+		// a list of files on stdin.
 		while (scanf("%2047s", temp) == 1)
 			testFilenames.push_back(temp);
 	} else {
@@ -406,8 +413,6 @@ int main(int argc, const char* argv[])
 			// There used to be a separate "null" rendering core - just use software.
 			else if (!strcasecmp(gpuName, "software") || !strcasecmp(gpuName, "null"))
 				gpuCore = GPUCORE_SOFTWARE;
-			else if (!strcasecmp(gpuName, "directx9"))
-				gpuCore = GPUCORE_DIRECTX9;
 			else if (!strcasecmp(gpuName, "directx11"))
 				gpuCore = GPUCORE_DIRECTX11;
 			else if (!strcasecmp(gpuName, "vulkan"))
@@ -489,8 +494,8 @@ int main(int argc, const char* argv[])
 	coreParameter.gpuCore = glWorking ? gpuCore : GPUCORE_SOFTWARE;
 	coreParameter.graphicsContext = graphicsContext;
 	coreParameter.enableSound = false;
-	coreParameter.mountIso = mountIso ? Path(std::string(mountIso)) : Path();
-	coreParameter.mountRoot = mountRoot ? Path(std::string(mountRoot)) : Path();
+	coreParameter.mountIso = mountIso ? Path(mountIso) : Path();
+	coreParameter.mountRoot = mountRoot ? Path(mountRoot) : Path();
 	coreParameter.startBreak = false;
 	coreParameter.headLess = true;
 	coreParameter.renderScaleFactor = 1;
@@ -500,9 +505,10 @@ int main(int argc, const char* argv[])
 	coreParameter.pixelHeight = 272;
 	coreParameter.fastForward = true;
 
+	g_Config.iDumpFileTypes = 0;
 	g_Config.bEnableSound = false;
 	g_Config.bFirstRun = false;
-	g_Config.bIgnoreBadMemAccess = true;
+	g_Config.bIgnoreBadMemAccess = true;  // NOTE: A few tests rely on this, which is BAD: threads/mbx/refer/refer , threads/mbx/send/send, threads/vtimers/interrupt
 	// Never report from tests.
 	g_Config.sReportHost.clear();
 	g_Config.bAutoSaveSymbolMap = false;
@@ -539,6 +545,7 @@ int main(int argc, const char* argv[])
 	g_Config.internalDataDirectory.clear();
 	g_Config.bUseOldAtrac = oldAtrac;
 	g_Config.iForceEnableHLE = 0xFFFFFFFF;  // Run all modules as HLE. We don't have anything to load in this context.
+	// g_Config.bUseOldAtrac = true;
 
 	Path exePath = File::GetExeDirectory();
 	g_Config.flash0Directory = exePath / "assets/flash0";

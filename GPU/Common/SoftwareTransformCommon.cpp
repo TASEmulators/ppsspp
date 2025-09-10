@@ -38,7 +38,7 @@
 
 // There's code here that simply expands transformed RECTANGLES into plain triangles.
 
-// We're gonna have to keep software transforming RECTANGLES, unless we use a geom shader which we can't on OpenGL ES 2.0 or DX9.
+// We're gonna have to keep software transforming RECTANGLES, unless we use a geom shader which we can't on OpenGL ES 2.0.
 // Usually, though, these primitives don't use lighting etc so it's no biggie performance wise, but it would be nice to get rid of
 // this code.
 
@@ -932,7 +932,7 @@ bool SoftwareTransform::ExpandPoints(int vertexCount, int &maxIndex, int vertsSi
 // The rest of the transform pipeline like lighting will go as normal, either hardware or software.
 // The implementation is initially a bit inefficient but shouldn't be a big deal.
 // An intermediate buffer of not-easy-to-predict size is stored at bufPtr.
-u32 NormalizeVertices(SimpleVertex *sverts, u8 *bufPtr, const u8 *inPtr, int lowerBound, int upperBound, VertexDecoder *dec, u32 vertType) {
+u32 NormalizeVertices(SimpleVertex *sverts, u8 *bufPtr, const u8 *inPtr, int lowerBound, int upperBound, const VertexDecoder *dec, u32 vertType) {
 	// First, decode the vertices into a GPU compatible format. This step can be eliminated but will need a separate
 	// implementation of the vertex decoder.
 	dec->DecodeVerts(bufPtr, inPtr, &gstate_c.uv, lowerBound, upperBound);
@@ -1087,12 +1087,8 @@ bool GetCurrentDrawAsDebugVertices(DrawEngineCommon *drawEngine, int count, std:
 				}
 				break;
 			case GE_VTYPE_IDX_32BIT:
-				WARN_LOG_REPORT_ONCE(simpleIndexes32, Log::G3D, "SimpleVertices: Decoding 32-bit indexes");
 				for (int i = 0; i < count; ++i) {
-					// These aren't documented and should be rare.  Let's bounds check each one.
-					if (inds32[i] != (u16)inds32[i]) {
-						ERROR_LOG_REPORT_ONCE(simpleIndexes32Bounds, Log::G3D, "SimpleVertices: Index outside 16-bit range");
-					}
+					// These are rare. Only the bottom 16 bits are used.
 					indices[i] = (u16)inds32[i];
 				}
 				break;

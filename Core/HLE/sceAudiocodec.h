@@ -44,8 +44,8 @@ struct SceAudiocodecCodec {
 	// Probably, from here on out is a union with different fields for different codecs.
 	union {  // offset 40 / 0x28
 		struct {
-			s8 unk40;  // 28  format or looping related
-			s8 unk41;  // 29  format or looping related
+			s8 unk40;  // 28  format or looping related  . Aka tailrelated
+			s8 unk41;  // 29  format or looping related  . Aka tailflag
 			s8 unk42;
 			s8 unk43;
 		};
@@ -90,3 +90,5 @@ void __sceAudiocodecDoState(PointerWrap &p);
 
 class AudioDecoder;
 extern std::map<u32, AudioDecoder *> g_audioDecoderContexts;
+
+bool IsAtrac3StreamJointStereo(int codecType, int bytesPerFrame, int channels);

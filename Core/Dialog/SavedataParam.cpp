@@ -58,8 +58,7 @@ namespace
 
 	void SetStringFromSFO(ParamSFOData &sfoFile, const char *name, char *str, int strLength)
 	{
-		std::string value = sfoFile.GetValueString(name);
-		truncate_cpy(str, strLength, value.c_str());
+		truncate_cpy(str, strLength, sfoFile.GetValueString(name));
 	}
 
 	bool ReadPSPFile(const std::string &filename, u8 **data, s64 dataSize, s64 *readSize)
@@ -79,7 +78,7 @@ namespace
 
 		size_t result = pspFileSystem.ReadFile(handle, *data, dataSize);
 		pspFileSystem.CloseFile(handle);
-		if(readSize)
+		if (readSize)
 			*readSize = result;
 
 		return result != 0;
@@ -941,28 +940,28 @@ int SavedataParam::EncryptData(unsigned int mode,
 	memset(data, 0, 0x10);
 
 	/* Build the 0x10-byte IV and setup encryption */
-	if (sceSdCreateList_(ctx2, mode, 1, data, cryptkey) < 0)
+	if (sceSdCipherInit(ctx2, mode, 1, data, cryptkey) < 0)
 		return -1;
-	if (sceSdSetIndex_(ctx1, mode) < 0)
+	if (sceSdMacInit(ctx1, mode) < 0)
 		return -2;
-	if (sceSdRemoveValue_(ctx1, data, 0x10) < 0)
+	if (sceSdMacUpdate(ctx1, data, 0x10) < 0)
 		return -3;
-	if (sceSdSetMember_(ctx2, data + 0x10, *alignedLen) < 0)
+	if (sceSdCipherUpdate(ctx2, data + 0x10, *alignedLen) < 0)
 		return -4;
 
 	/* Clear any extra bytes left from the previous steps */
 	memset(data + 0x10 + *dataLen, 0, *alignedLen - *dataLen);
 
 	/* Encrypt the data */
-	if (sceSdRemoveValue_(ctx1, data + 0x10, *alignedLen) < 0)
+	if (sceSdMacUpdate(ctx1, data + 0x10, *alignedLen) < 0)
 		return -5;
 
 	/* Verify encryption */
-	if (sceSdCleanList_(ctx2) < 0)
+	if (sceSdCipherFinal(ctx2) < 0)
 		return -6;
 
 	/* Build the file hash from this PSP */
-	if (sceSdGetLastIndex_(ctx1, hash, cryptkey) < 0)
+	if (sceSdMacFinal(ctx1, hash, cryptkey) < 0)
 		return -7;
 
 	/* Adjust sizes to account for IV */
@@ -985,24 +984,24 @@ int SavedataParam::DecryptData(unsigned int mode, unsigned char *data, int *data
 	*alignedLen -= 0x10;
 
 	/* Perform the magic */
-	if (sceSdSetIndex_(ctx1, mode) < 0)
+	if (sceSdMacInit(ctx1, mode) < 0)
 		return -2;
-	if (sceSdCreateList_(ctx2, mode, 2, data, cryptkey) < 0)
+	if (sceSdCipherInit(ctx2, mode, 2, data, cryptkey) < 0)
 		return -3;
-	if (sceSdRemoveValue_(ctx1, data, 0x10) < 0)
+	if (sceSdMacUpdate(ctx1, data, 0x10) < 0)
 		return -4;
-	if (sceSdRemoveValue_(ctx1, data + 0x10, *alignedLen) < 0)
+	if (sceSdMacUpdate(ctx1, data + 0x10, *alignedLen) < 0)
 		return -5;
-	if (sceSdSetMember_(ctx2, data + 0x10, *alignedLen) < 0)
+	if (sceSdCipherUpdate(ctx2, data + 0x10, *alignedLen) < 0)
 		return -6;
 
 	/* Verify that it decrypted correctly */
-	if (sceSdCleanList_(ctx2) < 0)
+	if (sceSdCipherFinal(ctx2) < 0)
 		return -7;
 
 	if (expectedHash) {
 		u8 hash[16];
-		if (sceSdGetLastIndex_(ctx1, hash, cryptkey) < 0)
+		if (sceSdMacFinal(ctx1, hash, cryptkey) < 0)
 			return -7;
 		if (memcmp(hash, expectedHash, sizeof(hash)) != 0)
 			return -8;
@@ -1077,11 +1076,11 @@ int SavedataParam::BuildHash(uint8_t *output,
 	memset(output, 0, 0x10);
 
 	/* Perform the magic */
-	if (sceSdSetIndex_(ctx1, mode & 0xFF) < 0)
+	if (sceSdMacInit(ctx1, mode & 0xFF) < 0)
 		return -1;
-	if (sceSdRemoveValue_(ctx1, data, alignedLen) < 0)
+	if (sceSdMacUpdate(ctx1, data, alignedLen) < 0)
 		return -2;
-	if (sceSdGetLastIndex_(ctx1, output, cryptkey) < 0)
+	if (sceSdMacFinal(ctx1, output, cryptkey) < 0)
 	{
 		// Got here since Kirk CMD5 missing, return random value;
 		memset(output,0x1,0x10);
@@ -1443,7 +1442,7 @@ bool SavedataParam::GetSize(SceUtilitySavedataParam *param) {
 		// TODO: Is this after the specified files?  Probably before?
 		param->sizeInfo->freeKB = (int)(freeBytes / 1024);
 		std::string spaceTxt = SavedataParam::GetSpaceText(freeBytes, false);
-		truncate_cpy(param->sizeInfo->freeString, spaceTxt.c_str());
+		truncate_cpy(param->sizeInfo->freeString, spaceTxt);
 
 		if (writeBytes - overwriteBytes < (s64)freeBytes) {
 			param->sizeInfo->neededKB = 0;

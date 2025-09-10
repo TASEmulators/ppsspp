@@ -106,7 +106,7 @@ std::string RemoteSubdir() {
 }
 
 bool RemoteISOConnectScreen::FindServer(std::string &resultHost, int &resultPort) {
-	http::Client http;
+	http::Client http(nullptr);
 	Buffer result;
 	int code = 500;
 	bool hadTimeouts = false;
@@ -291,13 +291,16 @@ void RemoteISOScreen::CreateTabs() {
 void RemoteISOScreen::update() {
 	TabbedUIDialogScreenWithGameBackground::update();
 
-	if (!WebServerStopped(WebServerFlags::DISCS)) {
+	frameCount_++;
+
+	if (!WebServerStopped(WebServerFlags::DISCS) && frameCount_ > 60) {
 		auto result = IsServerAllowed(g_Config.iRemoteISOPort);
 		if (result == ServerAllowStatus::NO) {
 			firewallWarning_->SetVisibility(V_VISIBLE);
 		} else if (result == ServerAllowStatus::YES) {
 			firewallWarning_->SetVisibility(V_GONE);
 		}
+		frameCount_ = 0;
 	}
 
 	bool nowRunning = !WebServerStopped(WebServerFlags::DISCS);
@@ -373,7 +376,7 @@ void RemoteISOScreen::CreateSettingsTab(UI::ViewGroup *remoteisoSettings) {
 	remoteisoSettings->Add(new CheckBox(&g_Config.bRemoteTab, ri->T("Show Remote tab on main screen")));
 
 	if (System_GetPropertyBool(SYSPROP_HAS_FOLDER_BROWSER)) {
-		static const char *shareTypes[] = { "Recent files", "Choose directory" };
+		static const char *shareTypes[] = { "Recent games", "Choose directory" };
 		remoteisoSettings->Add(new PopupMultiChoice(&g_Config.iRemoteISOShareType, ri->T("Files to share"), shareTypes, 0, ARRAY_SIZE(shareTypes), I18NCat::REMOTEISO, screenManager()));
 		FolderChooserChoice *folderChooser = remoteisoSettings->Add(new FolderChooserChoice(GetRequesterToken(), &g_Config.sRemoteISOSharedDir, ri->T("Files to share")));
 		folderChooser->SetEnabledFunc([=]() {
@@ -422,6 +425,7 @@ UI::EventReturn RemoteISOScreen::OnChangeRemoteISOSubdir(UI::EventParams &e) {
 }
 
 UI::EventReturn RemoteISOScreen::HandleStartServer(UI::EventParams &e) {
+	frameCount_ = 0;
 	if (!StartWebServer(WebServerFlags::DISCS)) {
 		return EVENT_SKIPPED;
 	}
@@ -449,7 +453,7 @@ RemoteISOConnectScreen::RemoteISOConnectScreen() {
 	scanCancelled = false;
 	scanAborted = false;
 
-	scanThread_ = new std::thread([](RemoteISOConnectScreen *thiz) {
+	scanThread_ = std::thread([](RemoteISOConnectScreen *thiz) {
 		SetCurrentThreadName("RemoteISOScan");
 		thiz->ExecuteScan();
 	}, this);
@@ -466,9 +470,8 @@ RemoteISOConnectScreen::~RemoteISOConnectScreen() {
 			break;
 		}
 	}
-	if (scanThread_->joinable())
-		scanThread_->join();
-	delete scanThread_;
+	if (scanThread_.joinable())
+		scanThread_.join();
 }
 
 void RemoteISOConnectScreen::CreateViews() {
@@ -511,11 +514,10 @@ void RemoteISOConnectScreen::update() {
 		status_ = ScanStatus::LOADING;
 
 		// Let's reuse scanThread_.
-		if (scanThread_->joinable())
-			scanThread_->join();
-		delete scanThread_;
+		if (scanThread_.joinable())
+			scanThread_.join();
 		statusMessage_.clear();
-		scanThread_ = new std::thread([](RemoteISOConnectScreen *thiz) {
+		scanThread_ = std::thread([](RemoteISOConnectScreen *thiz) {
 			thiz->ExecuteLoad();
 		}, this);
 		break;
@@ -530,11 +532,10 @@ void RemoteISOConnectScreen::update() {
 			status_ = ScanStatus::SCANNING;
 			nextRetry_ = 0.0;
 
-			if (scanThread_->joinable())
-				scanThread_->join();
-			delete scanThread_;
+			if (scanThread_.joinable())
+				scanThread_.join();
 			statusMessage_.clear();
-			scanThread_ = new std::thread([](RemoteISOConnectScreen *thiz) {
+			scanThread_ = std::thread([](RemoteISOConnectScreen *thiz) {
 				thiz->ExecuteScan();
 			}, this);
 		}
@@ -639,6 +640,4 @@ void RemoteISOBrowseScreen::CreateViews() {
 	}
 
 	root_->SetDefaultFocusView(tabHolder_);
-
-	upgradeBar_ = 0;
 }

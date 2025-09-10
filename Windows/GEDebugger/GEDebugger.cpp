@@ -33,7 +33,7 @@
 
 #include "Core/Config.h"
 #include "Core/Screenshot.h"
-
+#include "Core/RetroAchievements.h"
 #include "Windows/GEDebugger/GEDebugger.h"
 #include "Windows/GEDebugger/SimpleGLWindow.h"
 #include "Windows/GEDebugger/CtrlDisplayListView.h"
@@ -950,6 +950,12 @@ BOOL CGEDebugger::DlgProc(UINT message, WPARAM wParam, LPARAM lParam) {
 		} else if (!PSP_IsInited() && primaryBuffer_) {
 			SendMessage(m_hDlg, WM_COMMAND, IDC_GEDBG_RESUME, 0);
 		}
+		if (Achievements::HardcoreModeActive()) {
+			if (g_activeWindow == WINDOW_GEDEBUGGER) {
+				g_activeWindow = WINDOW_OTHER;
+			}
+			SendMessage(m_hDlg, WM_CLOSE, 0, 0);
+		}
 		break;
 
 	case WM_NOTIFY:
@@ -1078,18 +1084,22 @@ BOOL CGEDebugger::DlgProc(UINT message, WPARAM wParam, LPARAM lParam) {
 			SetDlgItemText(m_hDlg, IDC_GEDBG_TEXADDR, L"");
 			SetDlgItemText(m_hDlg, IDC_GEDBG_PRIMCOUNTER, L"");
 
-			gpuDebug->SetBreakNext(GPUDebug::BreakNext::NONE);
+			if (gpuDebug) {
+				gpuDebug->SetBreakNext(GPUDebug::BreakNext::NONE);
+			}
 			break;
 
 		case IDC_GEDBG_RECORD:
-			gpuDebug->GetRecorder()->RecordNextFrame([](const Path &path) {
-				// Opens a Windows Explorer window with the file, when done.
-				System_ShowFileInFolder(path);
-			});
+			if (gpuDebug) {
+				gpuDebug->GetRecorder()->RecordNextFrame([](const Path &path) {
+					// Opens a Windows Explorer window with the file, when done.
+					System_ShowFileInFolder(path);
+				});
+			}
 			break;
 
 		case IDC_GEDBG_FLUSH:
-			if (gpuDebug != nullptr) {
+			if (gpuDebug) {
 				if (!autoFlush_)
 					GPU_FlushDrawing();
 				UpdatePreviews();
@@ -1101,14 +1111,14 @@ BOOL CGEDebugger::DlgProc(UINT message, WPARAM wParam, LPARAM lParam) {
 			break;
 
 		case IDC_GEDBG_FORCEOPAQUE:
-			if (gpuDebug != nullptr) {
+			if (gpuDebug) {
 				forceOpaque_ = SendMessage(GetDlgItem(m_hDlg, IDC_GEDBG_FORCEOPAQUE), BM_GETCHECK, 0, 0) != 0;
 				UpdatePreviews();
 			}
 			break;
 
 		case IDC_GEDBG_SHOWCLUT:
-			if (gpuDebug != nullptr) {
+			if (gpuDebug) {
 				showClut_ = SendMessage(GetDlgItem(m_hDlg, IDC_GEDBG_SHOWCLUT), BM_GETCHECK, 0, 0) != 0;
 				UpdatePreviews();
 			}

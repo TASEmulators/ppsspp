@@ -184,7 +184,7 @@ VkShaderStageFlagBits StageToVulkan(ShaderStage stage) {
 // invoke Compile again to recreate the shader then link them together.
 class VKShaderModule : public ShaderModule {
 public:
-	VKShaderModule(ShaderStage stage, const std::string &tag) : stage_(stage), tag_(tag) {
+	VKShaderModule(ShaderStage stage, std::string_view tag) : stage_(stage), tag_(tag) {
 		vkstage_ = StageToVulkan(stage);
 	}
 	bool Compile(VulkanContext *vulkan, const uint8_t *data, size_t size);
@@ -430,9 +430,10 @@ public:
 	PresentMode GetPresentMode() const {
 		switch (vulkan_->GetPresentMode()) {
 		case VK_PRESENT_MODE_FIFO_KHR: return PresentMode::FIFO;
-		case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return PresentMode::FIFO;  // We treat is as FIFO for now (and won't ever enable it anyway...)
+		case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return PresentMode::FIFO_RELAXED;  // We treat is as FIFO for now (and won't ever enable it anyway...)
 		case VK_PRESENT_MODE_IMMEDIATE_KHR: return PresentMode::IMMEDIATE;
 		case VK_PRESENT_MODE_MAILBOX_KHR: return PresentMode::MAILBOX;
+		case VK_PRESENT_MODE_FIFO_LATEST_READY_KHR: return PresentMode::FIFO_LATEST_READY;
 		default: return PresentMode::FIFO;
 		}
 	}
@@ -893,8 +894,6 @@ VKContext::VKContext(VulkanContext *vulkan, bool useRenderThread)
 	: vulkan_(vulkan), renderManager_(vulkan, useRenderThread, frameTimeHistory_) {
 	shaderLanguageDesc_.Init(GLSL_VULKAN);
 
-	INFO_LOG(Log::G3D, "Determining Vulkan device caps");
-
 	caps_.coordConvention = CoordConvention::Vulkan;
 	caps_.setMaxFrameLatencySupported = true;
 	caps_.anisoSupported = vulkan->GetDeviceFeatures().enabled.standard.samplerAnisotropy != 0;
@@ -939,6 +938,8 @@ VKContext::VKContext(VulkanContext *vulkan, bool useRenderThread)
 		case VK_PRESENT_MODE_FIFO_KHR: caps_.presentModesSupported |= PresentMode::FIFO; break;
 		case VK_PRESENT_MODE_IMMEDIATE_KHR: caps_.presentModesSupported |= PresentMode::IMMEDIATE; break;
 		case VK_PRESENT_MODE_MAILBOX_KHR: caps_.presentModesSupported |= PresentMode::MAILBOX; break;
+		case VK_PRESENT_MODE_FIFO_LATEST_READY_KHR: caps_.presentModesSupported |= PresentMode::FIFO_LATEST_READY; break;
+		case VK_PRESENT_MODE_FIFO_RELAXED_KHR: caps_.presentModesSupported |= PresentMode::FIFO_RELAXED; break;
 		default: break;  // Ignore any other modes.
 		}
 	}
@@ -977,14 +978,6 @@ VKContext::VKContext(VulkanContext *vulkan, bool useRenderThread)
 		// Enable some things that cut down pipeline counts but may have other costs.
 		caps_.verySlowShaderCompiler = true;
 	}
-
-	// Hide D3D9 when we know it likely won't work well.
-#if PPSSPP_PLATFORM(WINDOWS)
-	caps_.supportsD3D9 = true;
-	if (!strcmp(deviceProps.deviceName, "Intel(R) Iris(R) Xe Graphics")) {
-		caps_.supportsD3D9 = false;
-	}
-#endif
 
 	// VkSampleCountFlagBits is arranged correctly for our purposes.
 	// Only support MSAA levels that have support for all three of color, depth, stencil.

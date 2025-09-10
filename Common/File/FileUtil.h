@@ -66,11 +66,11 @@ std::string ResolvePath(std::string_view path);
 bool Exists(const Path &path);
 
 // Returns true if file filename exists in directory path.
-bool ExistsInDir(const Path &path, const std::string &filename);
+bool ExistsInDir(const Path &path, std::string_view filename);
 
 // Returns true if filename exists, and is a directory
 // Supports Android content URIs.
-bool IsDirectory(const Path &filename);
+bool IsDirectory(const Path &path);
 
 // Returns struct with modification date of file
 bool GetModifTime(const Path &filename, tm &return_time);
@@ -214,7 +214,7 @@ private:
 // TODO: Refactor, this was moved from the old file_util.cpp.
 
 // Whole-file reading/writing
-bool WriteStringToFile(bool textFile, const std::string &str, const Path &filename);
+bool WriteStringToFile(bool textFile, std::string_view str, const Path &filename);
 bool WriteDataToFile(bool textFile, const void* data, size_t size, const Path &filename);
 
 bool ReadFileToStringOptions(bool textFile, bool allowShort, const Path &path, std::string *str);
@@ -232,13 +232,5 @@ inline bool ReadTextFileToString(const Path &path, std::string *str) {
 
 // Return value must be delete[]-d.
 uint8_t *ReadLocalFile(const Path &path, size_t *size);
-
-// Moves to trash/recycle bin.
-// This is only functional if SYSPROP_HAS_TRASH_BIN is true, otherwise will return false.
-bool MoveFileToTrash(const Path &path);
-
-// These move to trash if possible, otherwise permanently delete.
-bool MoveFileToTrashOrDelete(const Path &path);
-bool MoveDirectoryTreeToTrashOrDelete(const Path &path);
 
 }  // namespace

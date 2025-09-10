@@ -20,7 +20,11 @@
 #include <string>
 #include <memory>
 
+#ifdef SHARED_LIBZIP
+#include <zip.h>
+#else
 #include "ext/libzip/zip.h"
+#endif
 #include "Common/CommonTypes.h"
 #include "Common/File/Path.h"
 
@@ -56,6 +60,8 @@ enum class IdentifiedFileType {
 
 	UNKNOWN,
 };
+
+const char *IdentifiedFileTypeToString(IdentifiedFileType type);
 
 // NB: It is a REQUIREMENT that implementations of this class are entirely thread safe!
 // TOOD: actually, is it really?
@@ -155,9 +161,6 @@ Path ResolvePBPFile(const Path &filename);
 
 IdentifiedFileType Identify_File(FileLoader *fileLoader, std::string *errorString);
 
-// Can modify the string filename, as it calls IdentifyFile above.
-bool LoadFile(FileLoader **fileLoaderPtr, IdentifiedFileType type, std::string *error_string);
-
 bool UmdReplace(const Path &filepath, FileLoader **fileLoader, std::string &error);
 
 
@@ -186,6 +189,9 @@ struct ZipFileInfo {
 
 	std::string contentName;
 };
+
+struct zip *ZipOpenPath(const Path &fileName);
+void ZipClose(zip *z);
 
 bool DetectZipFileContents(const Path &fileName, ZipFileInfo *info);
 void DetectZipFileContents(struct zip *z, ZipFileInfo *info);

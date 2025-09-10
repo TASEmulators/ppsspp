@@ -4,6 +4,7 @@
 #include "Common/StringUtils.h"
 #include "Common/Log.h"
 #include "Common/TimeUtil.h"
+#include "Common/System/System.h"
 
 #include "android/jni/app-android.h"
 #include "Common/Thread/ThreadUtil.h"
@@ -158,18 +159,18 @@ StorageError Android_RenameFileTo(const std::string &fileUri, const std::string 
 }
 
 // NOTE: Does not set fullName - you're supposed to already know it.
-static bool ParseFileInfo(const std::string &line, File::FileInfo *fileInfo) {
+static bool ParseFileInfo(std::string_view line, File::FileInfo *fileInfo) {
 	std::vector<std::string> parts;
 	SplitString(line, '|', parts);
 	if (parts.size() != 4) {
-		ERROR_LOG(Log::FileSystem, "Bad format (1): %s", line.c_str());
+		ERROR_LOG(Log::FileSystem, "Bad format (1): %.*s", (int)line.size(), line.data());
 		return false;
 	}
-	fileInfo->name = std::string(parts[2]);
+	fileInfo->name = parts[2];
 	fileInfo->isDirectory = parts[0][0] == 'D';
 	fileInfo->exists = true;
 	if (1 != sscanf(parts[1].c_str(), "%" PRIu64, &fileInfo->size)) {
-		ERROR_LOG(Log::FileSystem, "Bad format (2): %s", line.c_str());
+		ERROR_LOG(Log::FileSystem, "Bad format (2): %.*s", (int)line.size(), line.data());
 		return false;
 	}
 	fileInfo->isWritable = true;  // TODO: Should be passed as part of the string.
@@ -179,7 +180,7 @@ static bool ParseFileInfo(const std::string &line, File::FileInfo *fileInfo) {
 
 	uint64_t lastModifiedMs = 0;
 	if (1 != sscanf(parts[3].c_str(), "%" PRIu64, &lastModifiedMs)) {
-		ERROR_LOG(Log::FileSystem, "Bad format (3): %s", line.c_str());
+		ERROR_LOG(Log::FileSystem, "Bad format (3): %.*s", (int)line.size(), line.data());
 		return false;
 	}
 
@@ -205,7 +206,7 @@ bool Android_GetFileInfo(const std::string &fileUri, File::FileInfo *fileInfo) {
 		return false;
 	}
 	const char *charArray = env->GetStringUTFChars(str, 0);
-	bool retval = ParseFileInfo(std::string(charArray), fileInfo);
+	bool retval = ParseFileInfo(charArray, fileInfo);
 	fileInfo->fullName = Path(fileUri);
 
 	env->DeleteLocalRef(str);
@@ -277,11 +278,17 @@ int64_t Android_GetFreeSpaceByContentUri(const std::string &uri) {
 	return env->CallLongMethod(g_nativeActivity, contentUriGetFreeStorageSpace, param);
 }
 
+// Hm, this is never used? We use statvfs instead.
 int64_t Android_GetFreeSpaceByFilePath(const std::string &filePath) {
 	if (!g_nativeActivity) {
 		return false;
 	}
 	auto env = getEnv();
+
+	if (System_GetPropertyInt(SYSPROP_SYSTEMVERSION) < 26) {
+		// This is available from Android O.
+		return -1;
+	}
 
 	jstring param = env->NewStringUTF(filePath.c_str());
 	return env->CallLongMethod(g_nativeActivity, filePathGetFreeStorageSpace, param);
